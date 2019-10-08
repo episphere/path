@@ -1,11 +1,16 @@
 body {
-    font-family:sans-serif
+  font-family: sans-serif
 }
 
 h2 {
-    color:maroon
+  color: maroon;
+  display: inline-flex;
 }
 
 p {
-    color:navy
+  color: navy
+}
+
+#imgInputBtn {
+  margin: 1em 0;
 }
