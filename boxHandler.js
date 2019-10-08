@@ -3,7 +3,7 @@ const box = async () => {
   const state = "sALTfOrSEcUrITy"
   const redirect_uri = window.location.host.includes("localhost") ? "http://localhost:8000" : "https://episphere.github.io/path"
   const boxAuthEndpoint = encodeURI(`https://account.box.com/api/oauth2/authorize?response_type=code&client_id=${client_id}&state=${state}&redirect_uri=${redirect_uri}`)
-  const client_secret = window.location.host.includes("localhost") ? "2rHTqzJumz8s9bAjmKMV83WHX1ooN4kT" : "2rHTqzJumz8s9bAjmKMV83WHX1ooN4kT"
+  const client_secret = window.location.host.includes("localhost") ? "2rHTqzJumz8s9bAjmKMV83WHX1ooN4kT" : "2ZYzmHXGyzBcjZ9d1Ttsc1d258LiGGVd"
   const boxAccessTokenEndpoint = "https://api.box.com/oauth2/token"
   const boxUserEndpoint = "https://api.box.com/2.0/users/me"
 
