@@ -19,7 +19,7 @@
 </head>
 
 <body onload="path()">
-  <div class="container" id="tmaPath">
+  <div class="container-fluid" id="tmaPath">
     <br/>
     <span>
       <span>
@@ -38,12 +38,12 @@
       <p>Loading OpenCV.js...</p>
     </div>
     <div id="filePickers">
-      <div id="box-select" data-link-type="direct" data-multiselect="false" data-client-id="52zad6jrv5v52mn1hfy1vsjtr9jn5o1w"></div>
-      <h5 id="filePickers_or" style="display: none;"><p>----- OR -----</p></h5>
       <button class="btn btn-outline-info" onclick="document.getElementById('imgInput').click()" id="imgInputBtn">Choose Local File</button>
+      <h5 id="filePickers_or" style="display: none;"><p>----- OR -----</p></h5>
+      <div id="box-select" data-link-type="direct" data-multiselect="false" data-client-id="52zad6jrv5v52mn1hfy1vsjtr9jn5o1w"></div>
+      <input type="file" id="imgInput" style="display: none"/>
     </div>
     <div id="imageDiv">
-      <input type="file" id="imgInput" style="display: none"/>
       <h4 id="imgHeader">Test Image</h4>
       <br/>
       <canvas id="tmaCanvas"></canvas>

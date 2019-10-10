@@ -51,7 +51,7 @@ path.setupEventListeners = () => {
 }
 
 path.loadCanvas = () => {
-  path.tmaCanvas.setAttribute("width", path.root.getBoundingClientRect().width)
+  path.tmaCanvas.setAttribute("width", path.imageDiv.getBoundingClientRect().width)
   path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
   const context = path.tmaCanvas.getContext('2d')
   context.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
