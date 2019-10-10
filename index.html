@@ -20,34 +20,40 @@
 
 <body onload="path()">
   <div class="container-fluid" id="tmaPath">
-    <br/>
+    <br />
     <span>
-      <span>
-        <h2>epiPath </h2>
-          <a href="https://github.com/episphere/path" target="_blank" style="font-size:small">[code]</a>
-      </span>
-      <span>
-        <div id="boxLogin" style="float:right">
-          <button id="boxLoginBtn" class='btn btn-primary' style="display: none;">Login To Box</button>
-          <h5 id="username"></h5>
-        </div>
-      </span>
+      <h2>epiPath </h2>
+      <a href="https://github.com/episphere/path" target="_blank" style="font-size:small">[code]</a>
     </span>
-    <p> Digital Pathology EpiSphere</p>
+    <span id="loginSpan">
+      <p id="digiPathTitle"> Digital Pathology EpiSphere</p>
+      <div id="boxLogin">
+        <button id="boxLoginBtn" class='btn btn-primary' style="display: none;">Login To Box</button>
+        <p id="username"></p>
+      </div>
+    </span>
+    <hr style="margin-top: 0"/>
     <div id="loadingText">
       <p>Loading OpenCV.js...</p>
     </div>
     <div id="filePickers">
-      <button class="btn btn-outline-info" onclick="document.getElementById('imgInput').click()" id="imgInputBtn">Choose Local File</button>
-      <h5 id="filePickers_or" style="display: none;"><p>----- OR -----</p></h5>
-      <div id="box-select" data-link-type="direct" data-multiselect="false" data-client-id="52zad6jrv5v52mn1hfy1vsjtr9jn5o1w"></div>
-      <input type="file" id="imgInput" style="display: none"/>
+      <button class="btn btn-outline-info" onclick="document.getElementById('imgInput').click()" id="imgInputBtn">Choose
+        Local File</button>
+      <h5 id="filePickers_or" style="display: none;">
+        <p>----- OR -----</p>
+      </h5>
+      <div id="box-select" data-link-type="direct" data-multiselect="false"
+        data-client-id="52zad6jrv5v52mn1hfy1vsjtr9jn5o1w"></div>
+      <input type="file" id="imgInput" style="display: none" />
     </div>
-    <div id="imageDiv">
-      <h4 id="imgHeader">Test Image</h4>
-      <br/>
-      <canvas id="tmaCanvas"></canvas>
-
+    <br />
+    <h4 id="imgHeader">Test Image</h4>
+    <div id="imageWithTools">
+      <div id="imageDiv">
+        <canvas id="tmaCanvas"></canvas>
+      </div>
+      <div id="toolsDiv">
+      </div>
     </div>
   </div>
 </body>
