@@ -13,39 +13,46 @@ const utils = {
 }
 
 const path = async () => {
-  box()
   path.root = document.getElementById("tmaPath")
   path.imageDiv = document.getElementById("imageDiv")
-  path.loadCanvas()
+  path.tmaCanvas = document.getElementById("tmaCanvas")
+  path.tmaImage = new Image()
+  path.tmaImage.src = defaultImg
+  path.setupEventListeners()
+  
+  await box()
+  
+}
+
+path.setupEventListeners = () => {
+  
+  document.addEventListener("boxLoggedIn", () => {
+    const boxPopup = new BoxSelect()
+    boxPopup.success((response) => {
+      document.getElementById("imgHeader").innerText = response[0].name
+      path.tmaImage.setAttribute("src", response[0].url)
+    });
+    boxPopup.cancel(() => {
+      console.log("The user clicked cancel or closed the popup");
+    });
+    document.getElementById("boxLoginBtn").style = "display: none"
+    document.getElementById("username").appendChild(document.createTextNode(`Welcome ${window.localStorage.username.split(" ")[0]}!`))
+    document.getElementById("filePickers_or").style.display = "block"
+  })
+  
+  const fileInput = document.getElementById("imgInput")
+  fileInput.onchange = ({ target: { files }}) => {
+    document.getElementById("imgHeader").innerText = files[0].name
+    path.tmaImage.setAttribute("src", URL.createObjectURL(files[0]))
+  }
+  
+  path.tmaImage.onload = path.loadCanvas
+
 }
 
 path.loadCanvas = () => {
-  const fileInput = document.getElementById("imgInput")
-  const imgElement = document.createElement("img")
-  imgElement.setAttribute("id", "tmaImg")
-  imgElement.setAttribute("src", defaultImg)
-  imgElement.setAttribute("width", "500")
-  imgElement.setAttribute("height", "500")
-  path.imageDiv.appendChild(imgElement)
-
-  fileInput.onchange = ({
-    target: {
-      files
-    }
-  }) => {
-    document.getElementById("imgHeader").innerText = files[0].name
-    imgElement.setAttribute("src", URL.createObjectURL(files[0]))
-  }
-
-  const canvas = document.createElement("canvas")
-  canvas.setAttribute("id", "tmaCanvas")
-  imgElement.onload = () => {
-    canvas.setAttribute("width", imgElement.width)
-    canvas.setAttribute("height", imgElement.height)
-    const context = canvas.getContext('2d')
-    context.drawImage(imgElement, 0, 0)
-    path.imageDiv.appendChild(document.createElement("br"))
-    path.imageDiv.appendChild(canvas)
-
-  }
+  path.tmaCanvas.setAttribute("width", path.root.getBoundingClientRect().width)
+  path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
+  const context = path.tmaCanvas.getContext('2d')
+  context.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
 }

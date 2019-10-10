@@ -28,7 +28,7 @@
       </span>
       <span>
         <div id="boxLogin" style="float:right">
-          <button id="boxLoginBtn" class='btn btn-primary'>Login To Box</button>
+          <button id="boxLoginBtn" class='btn btn-primary' style="display: none;">Login To Box</button>
           <h5 id="username"></h5>
         </div>
       </span>
@@ -37,13 +37,17 @@
     <div id="loadingText">
       <p>Loading OpenCV.js...</p>
     </div>
-    <div id="boxLogin">
+    <div id="filePickers">
       <div id="box-select" data-link-type="direct" data-multiselect="false" data-client-id="52zad6jrv5v52mn1hfy1vsjtr9jn5o1w"></div>
+      <h5 id="filePickers_or" style="display: none;"><p>----- OR -----</p></h5>
+      <button class="btn btn-outline-info" onclick="document.getElementById('imgInput').click()" id="imgInputBtn">Choose Local File</button>
     </div>
     <div id="imageDiv">
-      <button class="btn btn-outline-info" onclick="document.getElementById('imgInput').click()" id="imgInputBtn">Choose Local File</button>
       <input type="file" id="imgInput" style="display: none"/>
       <h4 id="imgHeader">Test Image</h4>
+      <br/>
+      <canvas id="tmaCanvas"></canvas>
+
     </div>
   </div>
 </body>

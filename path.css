@@ -12,5 +12,17 @@ p {
 }
 
 #imgInputBtn {
-  margin: 1em 0;
+  margin-bottom: 1rem;
+}
+
+#box-select {
+  margin-bottom: 1rem;
+}
+
+#filePickers {
+  display: inline-flex
+}
+
+#filePickers_or {
+  padding: 0.5rem 2rem 0 2rem;
 }

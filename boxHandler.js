@@ -11,29 +11,29 @@ const box = async () => {
 
   const isLoggedIn = async () => {
     if (window.localStorage.box) {
-      let boxCreds = JSON.parse(window.localStorage.box)
+      const boxCreds = JSON.parse(window.localStorage.box)
       if (boxCreds["box_access_token"] && boxCreds["box_token_expiry"]) {
         if (boxCreds["box_token_expiry"] < Date.now()) {
-          boxCreds = await getNewAccessToken(boxCreds)
+          await getAccessToken('refresh_token', boxCreds["box_refresh_token"])
         }
-        await getUserProfile(boxCreds)
         return true
       }
     }
     return false
   }
-
-  const getNewAccessToken = async (boxCreds) => {
+  
+  const getAccessToken = async (type, token) => {
+    const requestType = type === "refresh_token" ? type : "code"
     try {
-      const resp = await utils.request(boxAccessTokenEndpoint, {
+      var resp = await utils.request(boxAccessTokenEndpoint, {
         'method': "POST",
-        'body': `grant_type=refresh_token&refresh_token=${boxCreds["box_refresh_token"]}&client_id=${client_id}&client_secret=${client_secret}`
+        'body': `grant_type=${type}&${requestType}=${token}&client_id=${client_id}&client_secret=${client_secret}`
       })
-      return storeCredsToLS(resp)
     } catch (err) {
       console.log("ERROR REFRESHING BOX TOKEN!", err)
-      return {}
     }
+    const newCreds = storeCredsToLS(resp)
+    await getUserProfile(newCreds)
   }
 
   const storeCredsToLS = (boxCreds) => {
@@ -48,11 +48,7 @@ const box = async () => {
   }
 
   const getUserProfile = async (boxCreds) => {
-    const {
-      id,
-      name,
-      login
-    } = await utils.request(boxUserEndpoint, {
+    const { id, name, login } = await utils.request(boxUserEndpoint, {
       'headers': {
         'authorization': `Bearer ${boxCreds["box_access_token"]}`
       }
@@ -63,42 +59,19 @@ const box = async () => {
   }
 
   if (await isLoggedIn()) {
-    document.getElementById("boxLoginBtn").style = "display: none"
-    document.getElementById("username").appendChild(document.createTextNode(`Welcome ${window.localStorage.username.split(" ")[0]}!`))
-    const boxPopup = new BoxSelect();
-    boxPopup.success(function (response) {
-      // document.getElementById("imageDiv").src = response[0].url
-      // const img = document.getElementById("selectedImage")
-      // img.onload = () => {
-      //   const canvas = document.createElement('canvas')
-      //   canvas.width = img.width
-      //   canvas.height = img.height
-      //   canvas.context = canvas.getContext('2d')
-      //   canvas.context.drawImage(img, 0, 0, img.width, img.height)
-      //   canvas.style = {
-      //     position: "absolute",
-      //     left: img.getBoundingClientRect().left
-      //   }
-      //   document.getElementById('canvasDiv').appendChild(canvas)
-      // }
-      console.log(response)
-    });
-    // Register a cancel callback handler
-    boxPopup.cancel(function () {
-      console.log("The user clicked cancel or closed the popup");
-    });
-    return
+    const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
+    document.dispatchEvent(boxLoginEvent)
   }
-  if (urlParams["code"]) {
+  else if (urlParams["code"]) {
     try {
-      const resp = await utils.request(boxAccessTokenEndpoint, {
-        method: "POST",
-        body: `grant_type=authorization_code&code=${urlParams["code"]}&client_id=${client_id}&client_secret=${client_secret}`
-      })
-      storeCredsToLS(resp)
-      window.location.search = ""
+      await getAccessToken("authorization_code", urlParams["code"])
     } catch (err) {
       console.log("ERROR LOGGING IN TO BOX!", err)
     }
+    window.history.replaceState({}, "", "/")
+    const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
+    document.dispatchEvent(boxLoginEvent)
+  } else {
+    document.getElementById("boxLoginBtn").style = "display: block"
   }
 }
