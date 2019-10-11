@@ -42,17 +42,25 @@ p {
   padding: 0.5rem 2rem 0 2rem;
 }
 
-#imageWithTools {
+#imageDiv {
   display: flex;
   flex-direction: row;
 }
 
-#imageDiv {  
+#imageDiv :not(:first-child) {
+  margin-left: 2rem;
+}
+
+.canvasDiv {  
   width: 40%;
 }
 
 #toolsDiv {
-  margin-left: 10%;
-  width: 25%;
-  background: aliceblue;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-evenly;
+  width: 100%;
+  height: auto;
+  margin-top: 1rem;
+  padding: 1.5rem;
 }

@@ -16,11 +16,15 @@ const path = async () => {
   path.root = document.getElementById("tmaPath")
   path.imageDiv = document.getElementById("imageDiv")
   path.tmaCanvas = document.getElementById("tmaCanvas")
+  path.outputCanvas = document.getElementById("outputCanvas")
+  path.toolsDiv = document.getElementById("toolsDiv")
   path.tmaImage = new Image()
   path.tmaImage.src = defaultImg
   path.setupEventListeners()
   
   await box()
+
+  path.loadOptions()
   
 }
 
@@ -51,8 +55,18 @@ path.setupEventListeners = () => {
 }
 
 path.loadCanvas = () => {
-  path.tmaCanvas.setAttribute("width", path.imageDiv.getBoundingClientRect().width)
+  path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
   path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
+  path.outputCanvas.setAttribute("width", path.outputCanvas.parentElement.getBoundingClientRect().width)
+  path.outputCanvas.setAttribute("height", path.outputCanvas.width * path.tmaImage.height / path.tmaImage.width)
   const context = path.tmaCanvas.getContext('2d')
   context.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
+}
+
+path.loadOptions = () => {
+  const segmentBtn = document.createElement("button")
+  segmentBtn.setAttribute("class", "btn btn-primary")
+  segmentBtn.onclick = () => watershedSegment(path.tmaCanvas, path.outputCanvas)
+  segmentBtn.appendChild(document.createTextNode(`Segment Image`))
+  path.toolsDiv.appendChild(segmentBtn)
 }

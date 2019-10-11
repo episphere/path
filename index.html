@@ -10,6 +10,7 @@
     onload="document.getElementById('loadingText').style='display:none'"></script>
   <script src="path.js"></script>
   <script src="boxHandler.js"></script>
+  <script src="tools.js"></script>
   <!--
     <link href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
   -->
@@ -48,12 +49,15 @@
     </div>
     <br />
     <h4 id="imgHeader">Test Image</h4>
-    <div id="imageWithTools">
-      <div id="imageDiv">
+    <div id="imageDiv">
+      <div class="canvasDiv">
         <canvas id="tmaCanvas"></canvas>
       </div>
-      <div id="toolsDiv">
+      <div class="canvasDiv">
+        <canvas id="outputCanvas"></canvas>
       </div>
+    </div>
+    <div id="toolsDiv">
     </div>
   </div>
 </body>
