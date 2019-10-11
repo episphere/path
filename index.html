@@ -6,14 +6,10 @@
   -->
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
   <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://docs.opencv.org/4.1.1/opencv.js" async
-    onload="document.getElementById('loadingText').style='display:none'"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.2/css/all.min.css">
   <script src="path.js"></script>
   <script src="boxHandler.js"></script>
   <script src="tools.js"></script>
-  <!--
-    <link href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
-  -->
   <link rel="stylesheet" href="path.css">
   <script type="text/javascript" src="https://app.box.com/js/static/select.js"></script>
   </script>
@@ -48,18 +44,23 @@
       <input type="file" id="imgInput" style="display: none" />
     </div>
     <br />
-    <h4 id="imgHeader">Test Image</h4>
     <div id="imageDiv">
       <div class="canvasDiv">
+        <h4 id="imgHeader">Test Image</h4>
         <canvas id="tmaCanvas"></canvas>
       </div>
       <div class="canvasDiv">
+        <h4 id="imgHeader">Output</h4>
         <canvas id="outputCanvas"></canvas>
       </div>
     </div>
+    <hr/>
+    <br/>
+    <h5 id="toolsHeader">Tools</h4>
     <div id="toolsDiv">
     </div>
   </div>
 </body>
-
+<script src="opencv.js" async
+    onload="document.getElementById('loadingText').style='display:none'"></script>
 </html>

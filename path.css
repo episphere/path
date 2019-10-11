@@ -12,6 +12,10 @@ p {
   color: navy
 }
 
+label {
+  margin-left: 0.5rem;
+}
+
 #loginSpan {
   display: flex;
   flex-direction: row;
@@ -22,7 +26,7 @@ p {
   margin-top: 0.5rem;
 }
 
-#loginSpan > p {
+#loginSpan>p {
   margin-block-end: 0;
 }
 
@@ -44,16 +48,12 @@ p {
 
 #imageDiv {
   display: flex;
-  flex-direction: row;
+  /* flex-direction: row; */
 }
 
-#imageDiv :not(:first-child) {
-  margin-left: 2rem;
-}
-
-.canvasDiv {  
+/* .canvasDiv {
   width: 40%;
-}
+} */
 
 #toolsDiv {
   display: flex;
@@ -63,4 +63,28 @@ p {
   height: auto;
   margin-top: 1rem;
   padding: 1.5rem;
+}
+
+@media only screen and (min-width: 768px) {
+  #imageDiv {
+    flex-direction: row;
+  }
+  .canvasDiv {
+    width: 40%
+  }
+  .canvasDiv:not(:first-child) {
+    margin-left: 2rem;
+  }
+}
+
+@media only screen and (max-width: 768px) {
+  #imageDiv {
+    flex-direction: column;
+  }
+  .canvasDiv {
+    width: 80%
+  }
+  #imageDiv :not(:first-child) {
+    margin-top: 2rem;
+  }
 }

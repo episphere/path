@@ -68,7 +68,8 @@ const box = async () => {
     } catch (err) {
       console.log("ERROR LOGGING IN TO BOX!", err)
     }
-    window.history.replaceState({}, "", "/")
+    const replaceURLPath = window.location.host.includes("localhost") ? "/" : "/path"
+    window.history.replaceState({}, "", replaceURLPath)
     const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
     document.dispatchEvent(boxLoginEvent)
   } else {
