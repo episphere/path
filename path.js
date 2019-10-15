@@ -14,7 +14,7 @@ const loadHashParams = () => {
     const [key, value] = param.split('=')
     if (key === "extModules" && value.indexOf("[") < value.indexOf("]")){
       try {
-        hashParams[key] = eval(value)
+        hashParams[key] = eval(decodeURIComponent(value))
       } catch {
         console.warn("The extModules query parameter should be a proper array containing URL(s) encapsulated inside quotes!")
         hashParams[key] = value
@@ -61,14 +61,14 @@ path.loadModulesFromHash = async () => {
   
   if (hashParams["extModules"]) {
     if (Array.isArray(hashParams["extModules"])) {
-      hashParams["extModules"].forEach(modulePath => loadModule(modulePath) )
+      hashParams["extModules"].forEach(modulePath => path.loadModule(modulePath) )
     } else if (typeof(hashParams["extModules"]) === "string") {
       path.loadModule(hashParams["extModules"])
     }
   }
   window.onhashchange = () => {
     loadHashParams()
-    path.loadModules()
+    path.loadModulesFromHash()
   }
 }
 
