@@ -1,10 +1,29 @@
 console.log("path.js loaded")
 
 const urlParams = {}
-window.location.search.slice(1).split('&').forEach(param => {
-  const [key, value] = param.split('=')
-  urlParams[key] = value
-})
+const loadURLParams = () => {
+  window.location.search.slice(1).split('&').forEach(param => {
+    const [key, value] = param.split('=')
+    urlParams[key] = value
+  })
+}
+
+const hashParams = {}
+const loadHashParams = () => {
+  window.location.hash.slice(1).split('&').forEach(param => {
+    const [key, value] = param.split('=')
+    if (key === "extModules" && value.indexOf("[") < value.indexOf("]")){
+      try {
+        hashParams[key] = eval(value)
+      } catch {
+        console.warn("The extModules query parameter should be a proper array containing URL(s) encapsulated inside quotes!")
+        hashParams[key] = value
+      }
+    } else {
+      hashParams[key] = value
+    }
+  })
+}
 
 const defaultImg = "images/OFB_023_2_003_1_13_03.jpg"
 
@@ -13,6 +32,9 @@ const utils = {
 }
 
 const path = async () => {
+  loadURLParams()
+  loadHashParams()
+  path.loadModulesFromHash()
   path.root = document.getElementById("tmaPath")
   path.imageDiv = document.getElementById("imageDiv")
   path.tmaCanvas = document.getElementById("tmaCanvas")
@@ -24,6 +46,30 @@ const path = async () => {
   
   await box()
   
+}
+
+path.loadModule = (modulePath) => {
+  console.log(`Loading external module at ${modulePath}`)
+  const scriptElement = document.createElement('script')
+  scriptElement.src = modulePath
+  scriptElement.async = ""
+  scriptElement.type = "text/javascript"
+  document.head.appendChild(scriptElement)
+}
+
+path.loadModulesFromHash = async () => {
+  
+  if (hashParams["extModules"]) {
+    if (Array.isArray(hashParams["extModules"])) {
+      hashParams["extModules"].forEach(modulePath => loadModule(modulePath) )
+    } else if (typeof(hashParams["extModules"]) === "string") {
+      path.loadModule(hashParams["extModules"])
+    }
+  }
+  window.onhashchange = () => {
+    loadHashParams()
+    path.loadModules()
+  }
 }
 
 path.setupEventListeners = () => {
@@ -60,12 +106,17 @@ path.loadCanvas = () => {
   path.outputCanvas.setAttribute("width", path.outputCanvas.parentElement.getBoundingClientRect().width)
   path.outputCanvas.setAttribute("height", path.outputCanvas.width * path.tmaImage.height / path.tmaImage.width)
   path.outputCanvas.style.border = "1px solid red"
-  const context = path.tmaCanvas.getContext('2d')
-  context.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
-  path.loadOptions()
+  const tmaContext = path.tmaCanvas.getContext('2d')
+  const outputContext = path.outputCanvas.getContext('2d')
+  tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
+  outputContext.drawImage(path.tmaImage, 0, 0, path.outputCanvas.width, path.outputCanvas.height)
+  if (!path.options) {
+    path.loadOptions()
+  }
 }
 
 path.loadOptions = () => {
+  path.options = true
   segmentButton()
   zoomInButton()
 }
@@ -75,7 +126,7 @@ const segmentButton = () => {
   const segmentBtn = document.createElement("input")
   segmentBtn.setAttribute("type", "checkbox")
   segmentBtn.setAttribute("class", "checkbox")
-  segmentBtn.onchange = () => segmentBtn.checked && watershedSegment(path.tmaCanvas, path.outputCanvas)
+  segmentBtn.onchange = () => watershedSegment(path.tmaCanvas, path.outputCanvas, segmentBtn.checked)
   const segmentLabel = document.createElement("label")
   segmentLabel.appendChild(document.createTextNode(`Segment Image`))
   segmentDiv.appendChild(segmentBtn)
