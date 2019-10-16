@@ -26,8 +26,9 @@ label {
   margin-top: 0.5rem;
 }
 
-#loginSpan>p {
-  margin-block-end: 0;
+#loginSpan p {
+  margin-top: 0.5rem;
+  margin-bottom: 0.3rem;
 }
 
 #imgInputBtn {
@@ -42,8 +43,16 @@ label {
   display: inline-flex
 }
 
-#filePickers_or {
-  padding: 0.5rem 2rem 0 2rem;
+#filePickers>h5 {
+  padding: 0.5rem 2rem 0rem 0rem;
+}
+
+#filePickers>h6 {
+  padding: 0.8rem 2rem 0rem 2rem;
+}
+
+#filePickers>hr {
+  margin-top: 0rem;
 }
 
 #imageDiv {
@@ -58,11 +67,10 @@ label {
 #toolsDiv {
   display: flex;
   flex-direction: row;
-  justify-content: space-evenly;
-  width: 100%;
-  height: auto;
-  margin-top: 1rem;
-  padding: 1.5rem;
+}
+
+#toolsDiv div:not(:first-child) {
+  margin-left: 3rem;
 }
 
 @media only screen and (min-width: 768px) {

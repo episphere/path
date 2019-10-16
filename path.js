@@ -10,19 +10,23 @@ const loadURLParams = () => {
 
 const hashParams = {}
 const loadHashParams = () => {
-  window.location.hash.slice(1).split('&').forEach(param => {
-    const [key, value] = param.split('=')
-    if (key === "extModules" && value.indexOf("[") < value.indexOf("]")){
-      try {
-        hashParams[key] = eval(decodeURIComponent(value))
-      } catch {
-        console.warn("The extModules query parameter should be a proper array containing URL(s) encapsulated inside quotes!")
+  if (window.location.hash.includes("=")) {
+    window.location.hash.slice(1).split('&').forEach(param => {
+      let [key, value] = param.split('=')
+      value.replace(/['"]+/g, "")
+      value = decodeURIComponent(value)
+      if (key === "extModules" && (value.indexOf("[") < value.indexOf("]")) ){
+        try {
+          hashParams[key] = eval(value)
+        } catch {
+          console.warn("The extModules query parameter should be either be a URL without quotes or a proper array containing URL(s) each inside quotes!")
+          hashParams[key] = value
+        }
+      } else {
         hashParams[key] = value
       }
-    } else {
-      hashParams[key] = value
-    }
-  })
+    })
+  }
 }
 
 const defaultImg = "images/OFB_023_2_003_1_13_03.jpg"
@@ -34,7 +38,7 @@ const utils = {
 const path = async () => {
   loadURLParams()
   loadHashParams()
-  path.loadModulesFromHash()
+  path.loadModules()
   path.root = document.getElementById("tmaPath")
   path.imageDiv = document.getElementById("imageDiv")
   path.tmaCanvas = document.getElementById("tmaCanvas")
@@ -48,27 +52,29 @@ const path = async () => {
   
 }
 
-path.loadModule = (modulePath) => {
-  console.log(`Loading external module at ${modulePath}`)
-  const scriptElement = document.createElement('script')
-  scriptElement.src = modulePath
-  scriptElement.async = ""
-  scriptElement.type = "text/javascript"
-  document.head.appendChild(scriptElement)
-}
-
-path.loadModulesFromHash = async () => {
+path.loadModules = async (modules) => {
+  modules = modules || hashParams["extModules"]
   
-  if (hashParams["extModules"]) {
-    if (Array.isArray(hashParams["extModules"])) {
-      hashParams["extModules"].forEach(modulePath => path.loadModule(modulePath) )
-    } else if (typeof(hashParams["extModules"]) === "string") {
-      path.loadModule(hashParams["extModules"])
+  const loadModule = (modulePath) => {
+    console.log(`Loading external module at ${modulePath}`)
+    const scriptElement = document.createElement('script')
+    scriptElement.src = modulePath
+    scriptElement.async = ""
+    scriptElement.type = "text/javascript"
+    document.head.appendChild(scriptElement)
+  }
+  
+  if (modules) {
+    if (Array.isArray(modules)) {
+      modules.forEach(modulePath => loadModule(modulePath) )
+    } else if (typeof(modules) === "string") {
+      loadModule(modules)
     }
   }
+  
   window.onhashchange = () => {
     loadHashParams()
-    path.loadModulesFromHash()
+    path.loadModules()
   }
 }
 
@@ -125,7 +131,7 @@ const segmentButton = () => {
   const segmentDiv = document.createElement("div")
   const segmentBtn = document.createElement("input")
   segmentBtn.setAttribute("type", "checkbox")
-  segmentBtn.setAttribute("class", "checkbox")
+  // segmentBtn.setAttribute("class", "checkbox")
   segmentBtn.onchange = () => watershedSegment(path.tmaCanvas, path.outputCanvas, segmentBtn.checked)
   const segmentLabel = document.createElement("label")
   segmentLabel.appendChild(document.createTextNode(`Segment Image`))
@@ -138,6 +144,7 @@ const zoomInButton = () => {
   const zoomInDiv = document.createElement("div")
   const zoomInBtn = document.createElement("button")
   zoomInBtn.setAttribute("class", "btn btn-outline-primary")
+  zoomInBtn.setAttribute("title", "Zoom In")
   zoomInBtn.onclick = () => {
     let selected = true
     if (zoomInBtn.classList.contains("active")) {
@@ -156,3 +163,4 @@ const zoomInButton = () => {
   path.toolsDiv.appendChild(zoomInDiv)
 }
 
+window.onload = path

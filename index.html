@@ -15,7 +15,7 @@
   </script>
 </head>
 
-<body onload="path()">
+<body>
   <div class="container-fluid" id="tmaPath">
     <br />
     <span>
@@ -29,21 +29,26 @@
         <p id="username"></p>
       </div>
     </span>
-    <hr style="margin-top: 0"/>
+    <hr style="margin-top: 0rem;"/>
     <div id="loadingText">
       <p>Loading OpenCV.js...</p>
     </div>
     <div id="filePickers">
+      <h5>Upload your image:</h5>
       <button class="btn btn-outline-info" onclick="document.getElementById('imgInput').click()" id="imgInputBtn">Choose
         Local File</button>
-      <h5 id="filePickers_or" style="display: none;">
+      <h6 id="filePickers_or" style="display: none;">
         <p>----- OR -----</p>
-      </h5>
+      </h6>
       <div id="box-select" data-link-type="direct" data-multiselect="false"
         data-client-id="52zad6jrv5v52mn1hfy1vsjtr9jn5o1w"></div>
       <input type="file" id="imgInput" style="display: none" />
     </div>
-    <br />
+    <hr style="margin-top: 0rem;"/>
+    <h5 id="toolsHeader">Tools</h5>
+    <div id="toolsDiv">
+    </div>
+    <hr/>
     <div id="imageDiv">
       <div class="canvasDiv">
         <h4 id="imgHeader">Test Image</h4>
@@ -56,9 +61,6 @@
     </div>
     <hr/>
     <br/>
-    <h5 id="toolsHeader">Tools</h4>
-    <div id="toolsDiv">
-    </div>
   </div>
 </body>
 <script src="opencv.js" async
