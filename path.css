@@ -60,9 +60,9 @@ label {
   /* flex-direction: row; */
 }
 
-/* .canvasDiv {
-  width: 40%;
-} */
+.canvasDiv>div {
+  position: relative;
+}
 
 #toolsDiv {
   display: flex;
@@ -71,6 +71,14 @@ label {
 
 #toolsDiv div:not(:first-child) {
   margin-left: 3rem;
+}
+
+#img-zoom-lens {
+  position: absolute;
+  display: block;
+  border: 2px solid lightcoral;
+  width: 150px;
+  height: 150px;
 }
 
 @media only screen and (min-width: 768px) {

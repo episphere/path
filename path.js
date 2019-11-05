@@ -18,8 +18,8 @@ const loadHashParams = () => {
       if (key === "extModules" && (value.indexOf("[") < value.indexOf("]")) ){
         try {
           hashParams[key] = eval(value)
-        } catch {
-          console.warn("The extModules query parameter should be either be a URL without quotes or a proper array containing URL(s) each inside quotes!")
+        } catch (e) {
+          console.warn("The extModules parameter should be either be a URL without quotes or a proper array containing URL(s) each inside quotes!", e)
           hashParams[key] = value
         }
       } else {
@@ -32,7 +32,9 @@ const loadHashParams = () => {
 const defaultImg = "images/OFB_023_2_003_1_13_03.jpg"
 
 const utils = {
-  request: (url, opts) => fetch(url, opts).then(res => res.json()),
+  request: (url, opts) => fetch(url, opts)
+    .then(res => res.json())
+    .catch(e => console.error(`Error fetching ${url}`, e)),
 }
 
 const path = async () => {
@@ -49,6 +51,7 @@ const path = async () => {
   path.setupEventListeners()
   
   await box()
+  path.getManifest()
   
 }
 
@@ -106,6 +109,10 @@ path.setupEventListeners = () => {
 
 }
 
+path.getManifest = async () => {
+  
+}
+
 path.loadCanvas = () => {
   path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
   path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
@@ -154,7 +161,7 @@ const zoomInButton = () => {
       selected = true
       zoomInBtn.classList.add("active")
     }
-    zoomIn(path.tmaCanvas, path.outputCanvas, selected)
+    zoomInHandler(path.tmaCanvas, path.outputCanvas, selected)
   }
   const zoomInIcon = document.createElement("i")
   zoomInIcon.setAttribute("class", "fas fa-search-plus")

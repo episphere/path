@@ -5,7 +5,14 @@ const box = async () => {
   const boxAuthEndpoint = encodeURI(`https://account.box.com/api/oauth2/authorize?response_type=code&client_id=${client_id}&state=${state}&redirect_uri=${redirect_uri}`)
   const client_secret = window.location.host.includes("localhost") ? "2rHTqzJumz8s9bAjmKMV83WHX1ooN4kT" : "2ZYzmHXGyzBcjZ9d1Ttsc1d258LiGGVd"
   const boxAccessTokenEndpoint = "https://api.box.com/oauth2/token"
-  const boxUserEndpoint = "https://api.box.com/2.0/users/me"
+  const boxAPIbasePath = "https://api.box.com/2.0"
+  const boxEndpoints = {
+    'user': `${boxAPIbasePath}/users/me`,
+    'data': {
+      'folder': `${boxAPIbasePath}/folders`,
+      'file': `${boxAPIbasePath}/files`
+    }
+  }
 
   document.getElementById("boxLoginBtn").onclick = () => window.location.replace(boxAuthEndpoint)
 
@@ -21,7 +28,7 @@ const box = async () => {
     }
     return false
   }
-  
+
   const getAccessToken = async (type, token) => {
     const requestType = type === "refresh_token" ? type : "code"
     try {
@@ -34,6 +41,8 @@ const box = async () => {
     }
     const newCreds = storeCredsToLS(resp)
     await getUserProfile(newCreds)
+    const manifest = await getDataFromBox(newCreds, "83472473960", "folder")
+    console.log(manifest)
   }
 
   const storeCredsToLS = (boxCreds) => {
@@ -48,7 +57,11 @@ const box = async () => {
   }
 
   const getUserProfile = async (boxCreds) => {
-    const { id, name, login } = await utils.request(boxUserEndpoint, {
+    const {
+      id,
+      name,
+      login
+    } = await utils.request(boxEndpoints["user"], {
       'headers': {
         'authorization': `Bearer ${boxCreds["box_access_token"]}`
       }
@@ -57,12 +70,24 @@ const box = async () => {
     window.localStorage.username = name
     window.localStorage.email = login
   }
+  const getDataFromBox = async (boxCreds, id, type) => {
+    const dataEndpoint = type in boxEndpoints['data'] && `${boxEndpoints['data'][type]}`
+    if (await isLoggedIn()) {
+      const resp = await utils.request(`${dataEndpoint}/${id}`, {
+        'headers': {
+          'authorization': `Bearer ${boxCreds["box_access_token"]}`
+        }
+      })
+      return resp
+    } else {
+      return false
+    }
+  }
 
   if (await isLoggedIn()) {
     const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
     document.dispatchEvent(boxLoginEvent)
-  }
-  else if (urlParams["code"]) {
+  } else if (urlParams["code"]) {
     try {
       await getAccessToken("authorization_code", urlParams["code"])
     } catch (err) {
