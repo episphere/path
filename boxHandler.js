@@ -5,23 +5,23 @@ const box = async () => {
   const boxAuthEndpoint = encodeURI(`https://account.box.com/api/oauth2/authorize?response_type=code&client_id=${client_id}&state=${state}&redirect_uri=${redirect_uri}`)
   const client_secret = window.location.host.includes("localhost") ? "2rHTqzJumz8s9bAjmKMV83WHX1ooN4kT" : "2ZYzmHXGyzBcjZ9d1Ttsc1d258LiGGVd"
   const boxAccessTokenEndpoint = "https://api.box.com/oauth2/token"
-  const boxAPIbasePath = "https://api.box.com/2.0"
-  const boxEndpoints = {
-    'user': `${boxAPIbasePath}/users/me`,
+  box.basePath = "https://api.box.com/2.0"
+  box.endpoints = {
+    'user': `${box.basePath}/users/me`,
     'data': {
-      'folder': `${boxAPIbasePath}/folders`,
-      'file': `${boxAPIbasePath}/files`
+      'folder': `${box.basePath}/folders`,
+      'file': `${box.basePath}/files`
     }
   }
 
   document.getElementById("boxLoginBtn").onclick = () => window.location.replace(boxAuthEndpoint)
 
-  const isLoggedIn = async () => {
+  box.isLoggedIn = async () => {
     if (window.localStorage.box) {
       const boxCreds = JSON.parse(window.localStorage.box)
-      if (boxCreds["box_access_token"] && boxCreds["box_token_expiry"]) {
-        if (boxCreds["box_token_expiry"] < Date.now()) {
-          await getAccessToken('refresh_token', boxCreds["box_refresh_token"])
+      if (boxCreds["access_token"] && boxCreds["token_expiry"]) {
+        if (boxCreds["token_expiry"] < Date.now()) {
+          await getAccessToken('refresh_token', boxCreds["refresh_token"])
         }
         return true
       }
@@ -39,52 +39,37 @@ const box = async () => {
     } catch (err) {
       console.log("ERROR REFRESHING BOX TOKEN!", err)
     }
-    const newCreds = storeCredsToLS(resp)
-    await getUserProfile(newCreds)
-    const manifest = await getDataFromBox(newCreds, "83472473960", "folder")
-    console.log(manifest)
+    storeCredsToLS(resp)
+    await getUserProfile()
   }
 
   const storeCredsToLS = (boxCreds) => {
     const expiry = (boxCreds["expires_in"] - 2 * 60) * 1000 + Date.now()
     const newCreds = {
-      'box_access_token': boxCreds["access_token"],
-      'box_token_expiry': expiry,
-      'box_refresh_token': boxCreds["refresh_token"]
+      'access_token': boxCreds["access_token"],
+      'token_expiry': expiry,
+      'refresh_token': boxCreds["refresh_token"]
     }
     window.localStorage.box = JSON.stringify(newCreds)
-    return newCreds
+    box.creds = newCreds
   }
 
-  const getUserProfile = async (boxCreds) => {
+  const getUserProfile = async () => {
     const {
       id,
       name,
       login
-    } = await utils.request(boxEndpoints["user"], {
+    } = await utils.request(box.endpoints["user"], {
       'headers': {
-        'authorization': `Bearer ${boxCreds["box_access_token"]}`
+        'authorization': `Bearer ${box.creds["access_token"]}`
       }
     })
     window.localStorage.userId = id
     window.localStorage.username = name
     window.localStorage.email = login
   }
-  const getDataFromBox = async (boxCreds, id, type) => {
-    const dataEndpoint = type in boxEndpoints['data'] && `${boxEndpoints['data'][type]}`
-    if (await isLoggedIn()) {
-      const resp = await utils.request(`${dataEndpoint}/${id}`, {
-        'headers': {
-          'authorization': `Bearer ${boxCreds["box_access_token"]}`
-        }
-      })
-      return resp
-    } else {
-      return false
-    }
-  }
 
-  if (await isLoggedIn()) {
+  if (await box.isLoggedIn()) {
     const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
     document.dispatchEvent(boxLoginEvent)
   } else if (urlParams["code"]) {
@@ -98,6 +83,20 @@ const box = async () => {
     const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
     document.dispatchEvent(boxLoginEvent)
   } else {
-    document.getElementById("boxLoginBtn").style = "display: block"
+    document.getElementById("boxLoginBtn" ).style = "display: block"
+  }
+}
+
+box.getData = async (id, type) => {
+  const dataEndpoint = type in box.endpoints['data'] && `${box.endpoints['data'][type]}`
+  if (await box.isLoggedIn()) {
+    const resp = await utils.request(`${dataEndpoint}/${id}`, {
+      'headers': {
+        'authorization': `Bearer ${box.creds["access_token"]}`
+      }
+    })
+    return resp
+  } else {
+    return {}
   }
 }

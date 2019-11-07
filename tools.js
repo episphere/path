@@ -98,14 +98,14 @@ const zoomInHandler = (inputCanvas, outputCanvas, selected) => {
 
   const zoomIn = (clickEvent) => {
     console.log(clickEvent.x, clickEvent.y)
-    const div = document.createElement("div")
-    div.style['position'] = "absolute"
-    div.style["top"]= clickEvent.pageX + inputCanvas.getBoundingClientRect().left
-    div.style["left"]= clickEvent.pageY + inputCanvas.getBoundingClientRect().top
-    div.style['width']= "10px"
-    div.style["height"]= "10px"
-    div.style["background-color"]= "red"
-    document.body.appendChild(div)
+    // const div = document.createElement("div")
+    // div.style['position'] = "absolute"
+    // div.style["top"]= clickEvent.pageX + inputCanvas.getBoundingClientRect().left
+    // div.style["left"]= clickEvent.pageY + inputCanvas.getBoundingClientRect().top
+    // div.style['width']= "10px"
+    // div.style["height"]= "10px"
+    // div.style["background-color"]= "red"
+    // document.body.appendChild(div)
   }
   
   zoomLens.onmousemove = (e) => renderLens(e, zoomIn)

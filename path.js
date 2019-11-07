@@ -1,5 +1,4 @@
 console.log("path.js loaded")
-
 const urlParams = {}
 const loadURLParams = () => {
   window.location.search.slice(1).split('&').forEach(param => {
@@ -33,8 +32,8 @@ const defaultImg = "images/OFB_023_2_003_1_13_03.jpg"
 
 const utils = {
   request: (url, opts) => fetch(url, opts)
-    .then(res => res.json())
-    .catch(e => console.error(`Error fetching ${url}`, e)),
+  .then(res => res.json())
+  .catch(e => console.error(`Error fetching ${url}`, e)),
 }
 
 const path = async () => {
@@ -110,7 +109,8 @@ path.setupEventListeners = () => {
 }
 
 path.getManifest = async () => {
-  
+  const manifest = await box.getData("83472473960", "folder")
+  console.log(manifest)
 }
 
 path.loadCanvas = () => {
