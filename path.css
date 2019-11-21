@@ -64,6 +64,16 @@ label {
   position: relative;
 }
 
+#qualitySelect {
+  margin-left: 2rem;
+  display: none;
+}
+
+#qualitySelect button {
+  margin-bottom: 1rem;
+  font-size: 2rem;
+}
+
 #toolsDiv {
   display: flex;
   flex-direction: row;
@@ -91,6 +101,9 @@ label {
   .canvasDiv:not(:first-child) {
     margin-left: 2rem;
   }
+  #qualitySelect {
+    flex-direction: column;
+  }
 }
 
 @media only screen and (max-width: 768px) {
@@ -102,5 +115,8 @@ label {
   }
   #imageDiv :not(:first-child) {
     margin-top: 2rem;
+  }
+  #qualitySelect {
+    flex-direction: row;
   }
 }

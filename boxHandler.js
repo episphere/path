@@ -11,6 +11,10 @@ const box = async () => {
     'data': {
       'folder': `${box.basePath}/folders`,
       'file': `${box.basePath}/files`
+    },
+    'subEndpoints': {
+      'metadata': `metadata/global/properties`,
+      'content': 'content'
     }
   }
 
@@ -31,16 +35,15 @@ const box = async () => {
 
   const getAccessToken = async (type, token) => {
     const requestType = type === "refresh_token" ? type : "code"
-    try {
-      var resp = await utils.request(boxAccessTokenEndpoint, {
-        'method': "POST",
-        'body': `grant_type=${type}&${requestType}=${token}&client_id=${client_id}&client_secret=${client_secret}`
-      })
-    } catch (err) {
-      console.log("ERROR REFRESHING BOX TOKEN!", err)
-    }
+    // try {
+    const resp = await utils.request(boxAccessTokenEndpoint, {
+      'method': "POST",
+      'body': `grant_type=${type}&${requestType}=${token}&client_id=${client_id}&client_secret=${client_secret}`
+    })
     storeCredsToLS(resp)
-    await getUserProfile()
+    // } catch (err) {
+    //   console.log("ERROR Retrieving Box Access Token!", err)
+    // } 
   }
 
   const storeCredsToLS = (boxCreds) => {
@@ -51,52 +54,135 @@ const box = async () => {
       'refresh_token': boxCreds["refresh_token"]
     }
     window.localStorage.box = JSON.stringify(newCreds)
-    box.creds = newCreds
   }
 
-  const getUserProfile = async () => {
-    const {
-      id,
-      name,
-      login
-    } = await utils.request(box.endpoints["user"], {
-      'headers': {
-        'authorization': `Bearer ${box.creds["access_token"]}`
+  const triggerLoginEvent = async () => {
+    utils.boxRequest = async (url, opts = {}) => {
+      await box.isLoggedIn()
+      const boxHeaders = {
+        'Authorization': `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`,
+        'Content-Type': opts.method !== "PUT" ?  "application/json" : "application/json-patch+json"
       }
-    })
-    window.localStorage.userId = id
-    window.localStorage.username = name
-    window.localStorage.email = login
+      opts['headers'] = opts['headers'] ? {
+        ...boxHeaders,
+        ...opts['headers']
+      } : boxHeaders
+      return utils.request(url, opts)
+    }
+    const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
+    document.dispatchEvent(boxLoginEvent)
   }
 
   if (await box.isLoggedIn()) {
-    const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
-    document.dispatchEvent(boxLoginEvent)
+    triggerLoginEvent()
   } else if (urlParams["code"]) {
     try {
       await getAccessToken("authorization_code", urlParams["code"])
     } catch (err) {
       console.log("ERROR LOGGING IN TO BOX!", err)
     }
-    const replaceURLPath = window.location.host.includes("localhost") ? "/" : "/path"
+    let replaceURLPath = window.location.host.includes("localhost") ? "/" : "/path"
+    let urlHash = "#"
+    urlHash += window.localStorage.currentImage ? `image=${window.localStorage.currentImage}` : ""
+    urlHash += window.localStorage.extModules ? (urlHash.length > 1 ? `&extModules=${window.localStorage.extModules}`: `extModules=${window.localStorage.extModules}`) : ""
+    replaceURLPath += urlHash.length > 1 ? urlHash : ""
     window.history.replaceState({}, "", replaceURLPath)
-    const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
-    document.dispatchEvent(boxLoginEvent)
+    triggerLoginEvent()
   } else {
-    document.getElementById("boxLoginBtn" ).style = "display: block"
+    document.getElementById("boxLoginBtn").style = "display: block"
+    return
   }
 }
+
+box.getUserProfile = async () => {
+  const { id, name, login } = await utils.boxRequest(box.endpoints["user"])
+  window.localStorage.userId = id
+  window.localStorage.username = name
+  window.localStorage.email = login
+}
+
+
+box.setupFilePicker = (successCB, cancelCB) => {
+  const boxPopup = new BoxSelect()
+  
+  const defaultSuccessCB = (response) => {
+    
+    if (hashParams['image']) {
+      window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${response[0].id}`)
+    } else {
+      window.location.hash = window.location.hash ? window.location.hash + `&image=${response[0].id}` : `image=${response[0].id}`
+    }
+    window.localStorage.currentImage = response[0].id
+    
+    document.getElementById("imgHeader").innerText = response[0].name
+    path.tmaImage.setAttribute("src", response[0].url)
+    path.tmaImage.setAttribute("crossorigin", "Anonymous")
+    box.getMetadata(response[0].id, "file").then(res => window.localStorage.fileMetadata = JSON.stringify(res))
+  }
+  successCB = successCB || defaultSuccessCB
+  boxPopup.success(successCB);
+  
+  const defaultCancelCB = () => console.log("File Selection Cancelled.")
+  cancelCB = cancelCB || defaultCancelCB
+  boxPopup.cancel(cancelCB);
+  
+}
+
 
 box.getData = async (id, type) => {
   const dataEndpoint = type in box.endpoints['data'] && `${box.endpoints['data'][type]}`
   if (await box.isLoggedIn()) {
-    const resp = await utils.request(`${dataEndpoint}/${id}`, {
-      'headers': {
-        'authorization': `Bearer ${box.creds["access_token"]}`
+    try {
+      if (type === 'file') {
+        box.getMetadata(id, "file").then(res => window.localStorage.fileMetadata = JSON.stringify(res))
       }
-    })
-    return resp
+      return await utils.boxRequest(`${dataEndpoint}/${id}`)
+    } catch (e) {
+      console.log(`Error fetching data for ${type} with ID ${id}`, e)
+      return {}
+    }
   } else {
     return {}
   }
+}
+
+box.getFileContent = async (id) => {
+  const contentEndpoint = `${box.endpoints['data']['file']}/${id}/${box.endpoints['subEndpoints']['content']}`
+  if (await box.isLoggedIn()) {
+    return await fetch(`${contentEndpoint}`, {
+      'headers': {
+        'Authorization': `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`
+      }
+    })
+  } else {
+    return {}
+  }
+}
+
+box.getMetadata = async (id, type) => {
+  const metadataAPI = `${box.endpoints['data'][type]}/${id}/${box.endpoints['subEndpoints']['metadata']}`
+  let metadata = await utils.boxRequest(metadataAPI)
+  if (metadata.status === 404) {
+    metadata = utils.boxRequest(metadataAPI, { 'method': "POST", 'body': JSON.stringify({}) })
+  }
+  return metadata
+}
+
+box.updateMetadata = async (id, type, path, updateData) => {
+  const updatePatch = [{
+    'op': "add",
+    path,
+    'value': updateData
+  }]
+
+  const resp = await utils.boxRequest(`${box.endpoints['data'][type]}/${id}/${box.endpoints['subEndpoints']['metadata']}`, {
+    'method': "PUT",
+    'headers': {
+      'Content-Type': "application/json-patch+json"
+    },
+    body: JSON.stringify(updatePatch)
+  })
+
+  return resp
+
 }

@@ -97,7 +97,7 @@ const zoomInHandler = (inputCanvas, outputCanvas, selected) => {
   }
 
   const zoomIn = (clickEvent) => {
-    console.log(clickEvent.x, clickEvent.y)
+    // console.log(clickEvent.x, clickEvent.y)
     // const div = document.createElement("div")
     // div.style['position'] = "absolute"
     // div.style["top"]= clickEvent.pageX + inputCanvas.getBoundingClientRect().left
