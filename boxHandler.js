@@ -106,41 +106,47 @@ box.setupFilePicker = (successCB, cancelCB) => {
   const boxPopup = new BoxSelect()
   
   const defaultSuccessCB = (response) => {
-    
     if (hashParams['image']) {
       window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${response[0].id}`)
     } else {
       window.location.hash = window.location.hash ? window.location.hash + `&image=${response[0].id}` : `image=${response[0].id}`
     }
-    window.localStorage.currentImage = response[0].id
-    
-    document.getElementById("imgHeader").innerText = response[0].name
-    path.tmaImage.setAttribute("src", response[0].url)
-    path.tmaImage.setAttribute("crossorigin", "Anonymous")
-    box.getMetadata(response[0].id, "file").then(res => window.localStorage.fileMetadata = JSON.stringify(res))
+    if (response[0].name.endsWith(".jpg")) {
+      window.localStorage.currentImage = response[0].id
+      document.getElementById("imgHeader").innerText = response[0].name
+      path.tmaImage.setAttribute("src", "")
+      path.tmaImage.setAttribute("src", response[0].url)
+      path.tmaImage.setAttribute("crossorigin", "Anonymous")
+      box.getData(response[0].id, "file").then(res => {
+        window.localStorage.currentFolder = res.parent.id
+        if(!res.metadata){
+          box.createMetadata(response[0].id, "file").then(res => {
+            window.localStorage.fileMetadata = JSON.stringify(res)
+          })
+        } else {
+          window.localStorage.fileMetadata = JSON.stringify(res.metadata.global.properties)
+        }
+      })
+    } else {
+      alert("The item you selected from Box was not a valid image. Please select a file of type .jpg or .png!")
+    }
   }
   successCB = successCB || defaultSuccessCB
-  boxPopup.success(successCB);
+  boxPopup.success(successCB)
   
   const defaultCancelCB = () => console.log("File Selection Cancelled.")
   cancelCB = cancelCB || defaultCancelCB
-  boxPopup.cancel(cancelCB);
+  boxPopup.cancel(cancelCB)
   
 }
 
 
 box.getData = async (id, type) => {
-  const dataEndpoint = type in box.endpoints['data'] && `${box.endpoints['data'][type]}`
+  const fieldsParam = "fields=id,type,name,metadata.global.properties,parent"
+  let dataEndpoint = type in box.endpoints['data'] && `${box.endpoints['data'][type]}/${id}`
+  dataEndpoint += type === "file" ? `?${fieldsParam}` : ""
   if (await box.isLoggedIn()) {
-    try {
-      if (type === 'file') {
-        box.getMetadata(id, "file").then(res => window.localStorage.fileMetadata = JSON.stringify(res))
-      }
-      return await utils.boxRequest(`${dataEndpoint}/${id}`)
-    } catch (e) {
-      console.log(`Error fetching data for ${type} with ID ${id}`, e)
-      return {}
-    }
+    return await utils.boxRequest(dataEndpoint)
   } else {
     return {}
   }
@@ -163,9 +169,14 @@ box.getMetadata = async (id, type) => {
   const metadataAPI = `${box.endpoints['data'][type]}/${id}/${box.endpoints['subEndpoints']['metadata']}`
   let metadata = await utils.boxRequest(metadataAPI)
   if (metadata.status === 404) {
-    metadata = utils.boxRequest(metadataAPI, { 'method': "POST", 'body': JSON.stringify({}) })
+    metadata = await box.createMetadata(id, type)
   }
   return metadata
+}
+
+box.createMetadata = async (id, type) => {
+  const metadataAPI = `${box.endpoints['data'][type]}/${id}/${box.endpoints['subEndpoints']['metadata']}`
+  return utils.boxRequest(metadataAPI, { 'method': "POST", 'body': JSON.stringify({}) })
 }
 
 box.updateMetadata = async (id, type, path, updateData) => {

@@ -1,5 +1,6 @@
 console.log("path.js loaded")
 const urlParams = {}
+const BCAST_root_folder_id = "83472473960"
 const loadURLParams = () => {
   window.location.search.slice(1).split('&').forEach(param => {
     const [key, value] = param.split('=')
@@ -29,7 +30,6 @@ const loadHashParams = async () => {
   }
   if (hashParams['image'] && hashParams['image'] !== window.localStorage.currentImage) {
     window.localStorage.currentImage = hashParams['image']
-    loadDefaultImage()
   }
 }
 
@@ -58,15 +58,16 @@ const path = async () => {
   // path.outputCanvas = document.getElementById("outputCanvas")
   path.toolsDiv = document.getElementById("toolsDiv")
   path.tmaImage = new Image()
+   
   path.setupEventListeners()
 
   await box()
+  await path.getDatasetSubfolders()
 
   loadHashParams()
   loadDefaultImage()
   path.loadModules()
 
-  path.getDatasetSubfolders()
 
 }
 
@@ -100,7 +101,7 @@ path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
     await box.getUserProfile()
     document.getElementById("boxLoginBtn").style = "display: none"
-    document.getElementById("filePickers_or").style.display = "block"
+    document.getElementById("filePickers_or_box").style.display = "block"
     document.getElementById("username").appendChild(document.createTextNode(`Welcome ${window.localStorage.username.split(" ")[0]}!`))
     // await box.makeSelections()
     box.setupFilePicker()
@@ -113,9 +114,15 @@ path.setupEventListeners = () => {
     }
   }) => {
     document.getElementById("imgHeader").innerText = files[0].name
+    if (hashParams["image"]) {
+      window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, "")
+      window.localStorage.currentImage = ""
+      window.localStorage.currentFolder = ""
+    }
     path.tmaImage.setAttribute("src", URL.createObjectURL(files[0]))
     path.tmaImage.setAttribute("crossorigin", "Anonymous")
     document.getElementById("qualitySelect").style.display = "none"
+    document.getElementById("imagePicker").style.display = "none"
   }
 
   path.tmaImage.onload = path.loadCanvas
@@ -126,44 +133,63 @@ const loadDefaultImage = async () => {
     const {
       id,
       type,
-      name
+      name,
+      parent,
+      metadata
     } = await box.getData(hashParams['image'], "file")
-    if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".jpeg"))) {
+    if(!metadata){
+      box.createMetadata(id, "file").then(res => {
+        window.localStorage.fileMetadata = JSON.stringify(res)
+        showQualitySelectors()
+      })
+    }
+    if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
+      window.localStorage.currentFolder = parent.id
+      window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
       const {
         url
       } = await box.getFileContent(id)
       path.tmaImage.src = url
+      document.getElementById("imgHeader").innerText = name      
+      return
+    } else {
+      alert("The ID in the URL does not point to a valid image file in Box.")
     }
-    // try {
-    // } catch (e) {
-    //   alert("Image could not be loaded from hash!", e)
-    //   path.tmaImage.src = defaultImg
-    // }
-  } else {
-    path.tmaImage.src = defaultImg
   }
+  path.tmaImage.src = defaultImg
+  document.getElementById("imgHeader").innerText = "Test Image"
 }
 
 path.getDatasetSubfolders = async () => {
-  const manifest = await box.getData("83472473960", "folder")
+  const manifest = await box.getData(BCAST_root_folder_id, "folder")
   if (manifest && manifest.item_status === "active") {
     path.isBCASTMember = true
+    // document.getElementById("selectMarkersOuterDiv").style.display = "flex"
+    
     console.log(manifest.item_collection.entries)
-
+    // manifest.item
   }
 }
 
 path.loadCanvas = () => {
-  path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
+  console.log("LOADING CANVAS")
+  // if (path.tmaCanvas.parentElement.getBoundingClientRect().width < path.tmaImage.width * 0.4) {
+  //   document.getElementById("canvasWithPickers").style.width = path.tmaImage.width*0.4
+  // }
+  path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width*0.9)
   path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
   // path.outputCanvas.setAttribute("width", path.outputCanvas.parentElement.getBoundingClientRect().width)
   // path.outputCanvas.setAttribute("height", path.outputCanvas.width * path.tmaImage.height / path.tmaImage.width)
   // path.outputCanvas.style.border = "1px solid red"
   const tmaContext = path.tmaCanvas.getContext('2d')
   // const outputContext = path.outputCanvas.getContext('2d')
+
   tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
   // outputContext.drawImage(path.tmaImage, 0, 0, path.outputCanvas.width, path.outputCanvas.height)
   if (path.tmaImage.src.includes("boxcloud.com")) {
+    document.getElementById("canvasWithPickers").style["border-right"] = "1px solid lightgray"
+    // console.log("CALLED!!!")
+    showThumbnailPicker(0,0)
     showQualitySelectors()
   }
   if (!path.options) {
@@ -173,8 +199,9 @@ path.loadCanvas = () => {
 
 path.loadOptions = () => {
   path.options = true
-  segmentButton()
+  document.getElementById("toolsOuterDiv").style.visibility = "visible"
   zoomInButton()
+  segmentButton()
 }
 
 path.qualityAnnotate = async (qualitySelected) => {
@@ -218,7 +245,7 @@ path.qualityAnnotate = async (qualitySelected) => {
 
     window.localStorage.fileMetadata = JSON.stringify(newMetadata)
     console.log(window.localStorage.fileMetadata)
-    activateQualitySelector(qualitySelected)
+    activateQualitySelector(JSON.parse(newMetadata.qualityAnnotations))
     alert("Image Annotated Successfully!")
 
   }
@@ -232,14 +259,16 @@ const segmentButton = () => {
     'animation': "slideNfade",
     'delay': 150
   })
-  const segmentBtn = document.createElement("input")
-  segmentBtn.setAttribute("type", "checkbox")
+  const segmentBtn = document.createElement("button")
+  segmentBtn.setAttribute("class", "btn btn-outline-primary")
   segmentBtn.setAttribute("disabled", "")
+  const segmentIcon = document.createElement("i")
+  segmentIcon.setAttribute("class", "fas fa-qrcode")
   segmentBtn.onchange = () => watershedSegment(path.tmaCanvas, path.tmaCanvas, segmentBtn.checked)
-  const segmentLabel = document.createElement("label")
-  segmentLabel.appendChild(document.createTextNode(`Segment Image`))
+  // const segmentLabel = document.createElement("label")
+  // segmentLabel.appendChild(document.createTextNode(`Segment Image`))
+  segmentBtn.appendChild(segmentIcon)
   segmentDiv.appendChild(segmentBtn)
-  segmentDiv.appendChild(segmentLabel)
   path.toolsDiv.appendChild(segmentDiv)
 }
 
@@ -269,8 +298,8 @@ const zoomInButton = () => {
 const showQualitySelectors = () => {
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
   const qualityAnnotations = fileMetadata.qualityAnnotations && JSON.parse(fileMetadata.qualityAnnotations)
-
   const qualitySelectDiv = document.getElementById("qualitySelect")
+  qualitySelectDiv.style.display = "flex"
   if (qualitySelectDiv.childElementCount === 1) {
     qualityEnum.forEach((quality) => {
       const {
@@ -286,18 +315,46 @@ const showQualitySelectors = () => {
       qualityButton.appendChild(qualityText)
       qualitySelectDiv.appendChild(qualityButton)
     })
-    qualitySelectDiv.style.display = "flex"
   }
-  qualityAnnotations && qualityAnnotations[window.localStorage.userId] && activateQualitySelector(qualityAnnotations[window.localStorage.userId].value)
+    qualitySelectDiv.style.display = "flex"
+    activateQualitySelector(qualityAnnotations)
 }
 
-const activateQualitySelector = (value) => {
+const showThumbnailPicker = async (limit, offset) => {
+  // const { currentFolder } = window.localStorage
+  // const folder await 
+  const thumbnailPicker = document.getElementById("imagePicker")
+  thumbnailPicker.style.display = "flex"
+  thumbnailPicker.style["flex-direction"] = "column"
+  thumbnailPicker.style.height = path.tmaCanvas.height
+  // const thumbnailsList = thumbnailPicker.querySelector("ul")
+  for (let i = 0; i<10; i++) {
+    // const listElement = document.createElement("li")
+    const thumbnailDiv = document.createElement("div")
+    const thumbnailImg = document.createElement("img")
+    thumbnailImg.setAttribute("class", "imagePickerThumbnail")
+    thumbnailImg.src = defaultImg
+    thumbnailImg.style.width = "5rem"
+    thumbnailImg.style.height = "5rem"
+    thumbnailDiv.appendChild(thumbnailImg)
+    thumbnailDiv.onclick = () => { path.tmaImage.src = thumbnailImg.src }
+    // listElement.appendChild(thumbnailDiv)
+    thumbnailPicker.appendChild(thumbnailDiv)
+  }
+}
+
+const activateQualitySelector = (qualityAnnotations) => {
   const qualitySelectDiv = document.getElementById("qualitySelect")
   const currentlyActiveButton = qualitySelectDiv.querySelector("button.active")
   if (currentlyActiveButton) {
     currentlyActiveButton.classList.remove("active")
   }
-  qualitySelectDiv.querySelector(`button[value='${value}']`).classList.add("active")
+  console.log(qualityAnnotations, window.localStorage.userId)
+  if (qualityAnnotations && qualityAnnotations[window.localStorage.userId]) {
+    const userQualityAnnotation = qualityAnnotations[window.localStorage.userId].value
+    qualitySelectDiv.querySelector(`button[value='${userQualityAnnotation}']`).classList.add("active")
+  }
 }
 
 window.onload = path
+window.onresize = path.loadCanvas

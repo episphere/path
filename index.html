@@ -4,7 +4,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EpiPath TMAs</title>
   <!-- <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"></script> -->
-  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap.native/2.0.27/bootstrap-native-v4.min.js"></script>
+  <script type="text/javascript"
+    src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap.native/2.0.27/bootstrap-native-v4.min.js"></script>
   <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.2/css/all.min.css">
   <script src="path.js"></script>
@@ -29,47 +30,61 @@
         <p id="username"></p>
       </div>
     </span>
-    <hr style="margin-top: 0rem;"/>
-    <div id="loadingText">
+    <hr style="margin-top: 0rem;" />
+    <!-- <div id="loadingText">
       <p>Loading OpenCV.js...</p>
-    </div>
+    </div> -->
     <div id="filePickers">
-      <h5>Upload your image:</h5>
+      <h6>Upload your image:</h6>
       <button class="btn btn-outline-info" onclick="document.getElementById('imgInput').click()" id="imgInputBtn">Choose
         Local File</button>
-      <h6 id="filePickers_or" style="display: none;">
+      <input type="file" id="imgInput" style="display: none" />
+      <h6 id="filePickers_or_box" style="display: none;">
         <p>----- OR -----</p>
       </h6>
       <div id="box-select" data-link-type="direct" data-multiselect="false"
         data-client-id="52zad6jrv5v52mn1hfy1vsjtr9jn5o1w"></div>
-      <input type="file" id="imgInput" style="display: none" />
     </div>
-    <hr style="margin-top: 0rem;"/>
-    <h5 id="toolsHeader">Tools</h5>
-    <div id="toolsDiv">
-    </div>
-    <hr/>
+    <hr style="margin-top: 0rem;" />
     <div id="imageDiv">
-      <div class="canvasDiv">
-        <h5 id="imgHeader">Test Image</h4>
-        <div>
-          <canvas id="tmaCanvas"></canvas>
+      <div id="toolsOuterDiv">
+        <h5 id="toolsHeader">Tools</h5>
+        <div id="toolsDiv"></div>
+      </div>
+      <!-- <div id="selectMarkersOuterDiv">
+        <h5>From B-CAST</h5>
+        <div class="form-group" id="selectMarkersDiv">
+          <h6><label for="select_markers">B-CAST Marker:</label></h6>
+          <select id="select_markers" class="form-control"></select>
+        </div>
+      </div> -->
+      <div id="canvasWithPickers">
+        <div class="canvasDiv">
+          <h5 id="imgHeader"></h5>
+          <div>
+            <canvas id="tmaCanvas"></canvas>
+          </div>
+        </div>
+        <div id="imagePicker" style="display: none">
+          <!-- <ul>
+          </ul> -->
         </div>
       </div>
       <!-- <div class="canvasDiv">
-        <h5 id="imgHeader">Output</h4>
-        <div>
-          <canvas id="outputCanvas"></canvas>
+          <h5 id="imgHeader">Output</h4>
+            <div>
+              <canvas id="outputCanvas"></canvas>
+            </div>
+          </div> -->
+      <div id="allOptionsDiv">
+        <div id="qualitySelect">
+          <h5>Quality</h5>
         </div>
-      </div> -->
-      <div id="qualitySelect">
-        <h5>Choose Quality</h5>
       </div>
     </div>
-    <hr/>
-    <br/>
+    <br />
   </div>
 </body>
-<script src="opencv.js" async
+<!-- <script src="opencv.js" async
     onload="document.getElementById('loadingText').style='display:none'"></script>
-</html>
+</html> -->
