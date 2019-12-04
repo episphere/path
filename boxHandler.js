@@ -13,8 +13,10 @@ const box = async () => {
       'file': `${box.basePath}/files`
     },
     'subEndpoints': {
-      'metadata': `metadata/global/properties`,
-      'content': 'content'
+      'metadata': "metadata/global/properties",
+      'content': "content",
+      'items': "items",
+      'thumbnail': "thumbnail.jpg"
     }
   }
 
@@ -57,7 +59,7 @@ const box = async () => {
   }
 
   const triggerLoginEvent = async () => {
-    utils.boxRequest = async (url, opts = {}) => {
+    utils.boxRequest = async (url, opts = {}, returnJson=true) => {
       await box.isLoggedIn()
       const boxHeaders = {
         'Authorization': `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`,
@@ -67,7 +69,7 @@ const box = async () => {
         ...boxHeaders,
         ...opts['headers']
       } : boxHeaders
-      return utils.request(url, opts)
+      return utils.request(url, opts, returnJson)
     }
     const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
     document.dispatchEvent(boxLoginEvent)
@@ -106,13 +108,13 @@ box.setupFilePicker = (successCB, cancelCB) => {
   const boxPopup = new BoxSelect()
   
   const defaultSuccessCB = (response) => {
-    if (hashParams['image']) {
-      window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${response[0].id}`)
-    } else {
-      window.location.hash = window.location.hash ? window.location.hash + `&image=${response[0].id}` : `image=${response[0].id}`
-    }
-    if (response[0].name.endsWith(".jpg")) {
+    if (response[0].name.endsWith(".jpg") || response[0].name.endsWith(".png")) {
       window.localStorage.currentImage = response[0].id
+      if (hashParams['image']) {
+        window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${response[0].id}`)
+      } else {
+        window.location.hash = window.location.hash ? window.location.hash + `&image=${response[0].id}` : `image=${response[0].id}`
+      }
       document.getElementById("imgHeader").innerText = response[0].name
       path.tmaImage.setAttribute("src", "")
       path.tmaImage.setAttribute("src", response[0].url)
@@ -145,11 +147,14 @@ box.getData = async (id, type) => {
   const fieldsParam = "fields=id,type,name,metadata.global.properties,parent"
   let dataEndpoint = type in box.endpoints['data'] && `${box.endpoints['data'][type]}/${id}`
   dataEndpoint += type === "file" ? `?${fieldsParam}` : ""
-  if (await box.isLoggedIn()) {
-    return await utils.boxRequest(dataEndpoint)
-  } else {
-    return {}
-  }
+  return await utils.boxRequest(dataEndpoint)
+}
+
+box.getFolderContents = async (folderId, limit=15, offset=0) => {
+  const fieldsParam = "fields=id,name"
+  let itemsEndpoint = `${box.endpoints['data']['folder']}/${folderId}/${box.endpoints['subEndpoints']['items']}`
+  itemsEndpoint += `?${fieldsParam}&limit=${limit}&offset=${offset}`
+  return await utils.boxRequest(itemsEndpoint)
 }
 
 box.getFileContent = async (id) => {
@@ -163,6 +168,15 @@ box.getFileContent = async (id) => {
   } else {
     return {}
   }
+}
+
+box.getThumbnail = async (id) => {
+  const sizeParams = "min_width=50&min_height=50&max_width=100&max_height=100"
+  let thumbnailEndpoint = `${box.endpoints['data']['file']}/${id}/${box.endpoints['subEndpoints']['thumbnail']}`
+  thumbnailEndpoint += `?${sizeParams}`
+  const thumbnailResp = await utils.boxRequest(thumbnailEndpoint, {}, false)
+  const thumbnailBlob = await thumbnailResp.blob()
+  return URL.createObjectURL(thumbnailBlob)
 }
 
 box.getMetadata = async (id, type) => {

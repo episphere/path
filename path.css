@@ -84,7 +84,7 @@ label {
   position: relative;
 }
 
-#imagePicker {
+#thumbnailPicker {
   margin-top: 1.5rem;
   padding-right: 1rem;
   overflow-y: scroll;
@@ -95,11 +95,14 @@ label {
   list-style-position: unset;
 } */
 
-#imagePicker>div {
+#thumbnailPicker>div {
   margin: 0.5rem 0 0.5rem 0;
+  cursor: pointer;
 }
 
 .imagePickerThumbnail {
+  width: 4rem;
+  height: 4rem;
   border: 1px solid lightpink;
 }
 
@@ -150,14 +153,14 @@ label {
   }
 
   #canvasWithPickers {
-    width: 50%;
+    width: 45%;
     display: flex;
     flex-direction: row;
   }
 
   .canvasDiv {
     width: 80%;
-    margin-left: 2rem;
+    margin-left: 3rem;
   }
 
   #qualitySelect {

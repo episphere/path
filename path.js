@@ -30,13 +30,17 @@ const loadHashParams = async () => {
   }
   if (hashParams['image'] && hashParams['image'] !== window.localStorage.currentImage) {
     window.localStorage.currentImage = hashParams['image']
+    loadImageFromBox(hashParams['image'])
   }
 }
 
 const defaultImg = "images/OFB_023_2_003_1_13_03.jpg"
 
 const utils = {
-  request: (url, opts, returnJson = true) => fetch(url, opts).then(res => res.ok ? (returnJson ? res.json() : res) : res).catch(e => console.log(`Error fetching ${url}`, e))
+  request: (url, opts, returnJson = true) => 
+    fetch(url, opts)
+    .then(res => res.ok ? (returnJson ? res.json() : res) : res)
+    .catch(e => console.log(`Error fetching ${url}`, e))
 }
 
 const qualityEnum = [{
@@ -67,7 +71,6 @@ const path = async () => {
   loadHashParams()
   loadDefaultImage()
   path.loadModules()
-
 
 }
 
@@ -129,23 +132,33 @@ path.setupEventListeners = () => {
 }
 
 const loadDefaultImage = async () => {
-  if (hashParams['image'] && await box.isLoggedIn()) {
+  if (!hashParams['image']) {
+    path.tmaImage.src = defaultImg
+    document.getElementById("imgHeader").innerText = "Test Image"
+  } else {
+    loadImageFromBox(hashParams['image'])
+  }
+}
+
+const loadImageFromBox = async (id) => {
     const {
-      id,
       type,
       name,
       parent,
       metadata
-    } = await box.getData(hashParams['image'], "file")
-    if(!metadata){
+    } = await box.getData(id, "file")
+    
+    if (!metadata) {
       box.createMetadata(id, "file").then(res => {
         window.localStorage.fileMetadata = JSON.stringify(res)
         showQualitySelectors()
       })
     }
+    
     if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
       window.localStorage.currentFolder = parent.id
       window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
+      path.tmaImage.alt = name
       const {
         url
       } = await box.getFileContent(id)
@@ -155,9 +168,6 @@ const loadDefaultImage = async () => {
     } else {
       alert("The ID in the URL does not point to a valid image file in Box.")
     }
-  }
-  path.tmaImage.src = defaultImg
-  document.getElementById("imgHeader").innerText = "Test Image"
 }
 
 path.getDatasetSubfolders = async () => {
@@ -172,7 +182,7 @@ path.getDatasetSubfolders = async () => {
 }
 
 path.loadCanvas = () => {
-  console.log("LOADING CANVAS")
+  console.log("LOADING CAVAS")
   // if (path.tmaCanvas.parentElement.getBoundingClientRect().width < path.tmaImage.width * 0.4) {
   //   document.getElementById("canvasWithPickers").style.width = path.tmaImage.width*0.4
   // }
@@ -189,7 +199,7 @@ path.loadCanvas = () => {
   if (path.tmaImage.src.includes("boxcloud.com")) {
     document.getElementById("canvasWithPickers").style["border-right"] = "1px solid lightgray"
     // console.log("CALLED!!!")
-    showThumbnailPicker(0,0)
+    showThumbnailPicker(20,0)
     showQualitySelectors()
   }
   if (!path.options) {
@@ -321,25 +331,32 @@ const showQualitySelectors = () => {
 }
 
 const showThumbnailPicker = async (limit, offset) => {
-  // const { currentFolder } = window.localStorage
-  // const folder await 
-  const thumbnailPicker = document.getElementById("imagePicker")
-  thumbnailPicker.style.display = "flex"
-  thumbnailPicker.style["flex-direction"] = "column"
-  thumbnailPicker.style.height = path.tmaCanvas.height
-  // const thumbnailsList = thumbnailPicker.querySelector("ul")
-  for (let i = 0; i<10; i++) {
-    // const listElement = document.createElement("li")
-    const thumbnailDiv = document.createElement("div")
-    const thumbnailImg = document.createElement("img")
-    thumbnailImg.setAttribute("class", "imagePickerThumbnail")
-    thumbnailImg.src = defaultImg
-    thumbnailImg.style.width = "5rem"
-    thumbnailImg.style.height = "5rem"
-    thumbnailDiv.appendChild(thumbnailImg)
-    thumbnailDiv.onclick = () => { path.tmaImage.src = thumbnailImg.src }
-    // listElement.appendChild(thumbnailDiv)
-    thumbnailPicker.appendChild(thumbnailDiv)
+  const thumbnailPicker = document.getElementById("thumbnailPicker")
+  if (thumbnailPicker.childElementCount === 0) {
+    const { currentFolder } = window.localStorage
+    const { entries: thumbnails } = await box.getFolderContents(currentFolder, limit, offset)
+    thumbnailPicker.style.display = "flex"
+    thumbnailPicker.style["flex-direction"] = "column"
+    thumbnailPicker.style.height = path.tmaCanvas.height
+    thumbnails.forEach(async (thumbnail) => {
+      if (thumbnail.type === "file") {
+        const { id: thumbnailId } = thumbnail
+        const thumbnailDiv = document.createElement("div")
+        const thumbnailImg = document.createElement("img")
+        thumbnailImg.setAttribute("class", "imagePickerThumbnail")
+        thumbnailImg.setAttribute("loading", "lazy")
+        thumbnailDiv.appendChild(thumbnailImg)
+        thumbnailPicker.appendChild(thumbnailDiv)
+        thumbnailDiv.onclick = () => {
+          if (hashParams['image']) {
+            window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${thumbnailId}`)
+          } else {
+            window.location.hash = window.location.hash ? window.location.hash + `&image=${thumbnailId}` : `image=${thumbnailId}`
+          }
+        }
+        thumbnailImg.src = await box.getThumbnail(thumbnailId)
+      }
+    })
   }
 }
 
@@ -349,7 +366,6 @@ const activateQualitySelector = (qualityAnnotations) => {
   if (currentlyActiveButton) {
     currentlyActiveButton.classList.remove("active")
   }
-  console.log(qualityAnnotations, window.localStorage.userId)
   if (qualityAnnotations && qualityAnnotations[window.localStorage.userId]) {
     const userQualityAnnotation = qualityAnnotations[window.localStorage.userId].value
     qualitySelectDiv.querySelector(`button[value='${userQualityAnnotation}']`).classList.add("active")
