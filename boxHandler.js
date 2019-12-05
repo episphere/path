@@ -121,7 +121,7 @@ box.setupFilePicker = (successCB, cancelCB) => {
       path.tmaImage.setAttribute("crossorigin", "Anonymous")
       box.getData(response[0].id, "file").then(res => {
         window.localStorage.currentFolder = res.parent.id
-        if(!res.metadata){
+        if (!res.metadata) {
           box.createMetadata(response[0].id, "file").then(res => {
             window.localStorage.fileMetadata = JSON.stringify(res)
           })

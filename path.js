@@ -36,6 +36,8 @@ const loadHashParams = async () => {
 
 const defaultImg = "images/OFB_023_2_003_1_13_03.jpg"
 
+const defaultThumbnailsListLength = 20
+
 const utils = {
   request: (url, opts, returnJson = true) => 
     fetch(url, opts)
@@ -66,7 +68,6 @@ const path = async () => {
   path.setupEventListeners()
 
   await box()
-  await path.getDatasetSubfolders()
 
   loadHashParams()
   loadDefaultImage()
@@ -103,6 +104,7 @@ path.loadModules = async (modules) => {
 path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
     await box.getUserProfile()
+    await path.getDatasetSubfolders()
     document.getElementById("boxLoginBtn").style = "display: none"
     document.getElementById("filePickers_or_box").style.display = "block"
     document.getElementById("username").appendChild(document.createTextNode(`Welcome ${window.localStorage.username.split(" ")[0]}!`))
@@ -122,10 +124,11 @@ path.setupEventListeners = () => {
       window.localStorage.currentImage = ""
       window.localStorage.currentFolder = ""
     }
+    path.tmaImage.setAttribute("src", "") // Unsetting src because Firefox does not update image otherwise.
     path.tmaImage.setAttribute("src", URL.createObjectURL(files[0]))
     path.tmaImage.setAttribute("crossorigin", "Anonymous")
     document.getElementById("qualitySelect").style.display = "none"
-    document.getElementById("imagePicker").style.display = "none"
+    document.getElementById("thumbnailPicker").style.display = "none"
   }
 
   path.tmaImage.onload = path.loadCanvas
@@ -141,33 +144,33 @@ const loadDefaultImage = async () => {
 }
 
 const loadImageFromBox = async (id) => {
+  const {
+    type,
+    name,
+    parent,
+    metadata
+  } = await box.getData(id, "file")
+  
+  if (!metadata) {
+    box.createMetadata(id, "file").then(res => {
+      window.localStorage.fileMetadata = JSON.stringify(res)
+      showQualitySelectors()
+    })
+  }
+  
+  if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
+    window.localStorage.currentFolder = parent.id
+    window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
+    path.tmaImage.alt = name
     const {
-      type,
-      name,
-      parent,
-      metadata
-    } = await box.getData(id, "file")
-    
-    if (!metadata) {
-      box.createMetadata(id, "file").then(res => {
-        window.localStorage.fileMetadata = JSON.stringify(res)
-        showQualitySelectors()
-      })
-    }
-    
-    if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
-      window.localStorage.currentFolder = parent.id
-      window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
-      path.tmaImage.alt = name
-      const {
-        url
-      } = await box.getFileContent(id)
-      path.tmaImage.src = url
-      document.getElementById("imgHeader").innerText = name      
-      return
-    } else {
-      alert("The ID in the URL does not point to a valid image file in Box.")
-    }
+      url
+    } = await box.getFileContent(id)
+    path.tmaImage.src = url
+    document.getElementById("imgHeader").innerText = name      
+    return
+  } else {
+    alert("The ID in the URL does not point to a valid image file in Box.")
+  }
 }
 
 path.getDatasetSubfolders = async () => {
@@ -181,11 +184,16 @@ path.getDatasetSubfolders = async () => {
   }
 }
 
+const showLoader = () => {
+  path.tmaCanvas.style.display = "none"
+  
+}
+
 path.loadCanvas = () => {
-  console.log("LOADING CAVAS")
   // if (path.tmaCanvas.parentElement.getBoundingClientRect().width < path.tmaImage.width * 0.4) {
   //   document.getElementById("canvasWithPickers").style.width = path.tmaImage.width*0.4
   // }
+  // showLoader()
   path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width*0.9)
   path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
   // path.outputCanvas.setAttribute("width", path.outputCanvas.parentElement.getBoundingClientRect().width)
@@ -195,11 +203,12 @@ path.loadCanvas = () => {
   // const outputContext = path.outputCanvas.getContext('2d')
 
   tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
+  // hideLoader()
   // outputContext.drawImage(path.tmaImage, 0, 0, path.outputCanvas.width, path.outputCanvas.height)
   if (path.tmaImage.src.includes("boxcloud.com")) {
     document.getElementById("canvasWithPickers").style["border-right"] = "1px solid lightgray"
     // console.log("CALLED!!!")
-    showThumbnailPicker(20,0)
+    showThumbnailPicker(defaultThumbnailsListLength,0)
     showQualitySelectors()
   }
   if (!path.options) {
@@ -332,32 +341,95 @@ const showQualitySelectors = () => {
 
 const showThumbnailPicker = async (limit, offset) => {
   const thumbnailPicker = document.getElementById("thumbnailPicker")
-  if (thumbnailPicker.childElementCount === 0) {
+  const thumbnailListDiv = document.createElement("div")
+  
+  if (thumbnailPicker.childElementCount === 0 || window.localStorage.thumbnailsOffset !== offset) {
+    while(thumbnailPicker.firstElementChild) {
+      thumbnailPicker.removeChild(thumbnailPicker.firstElementChild)
+    }
+    window.localStorage.thumbnailsOffset = offset
     const { currentFolder } = window.localStorage
-    const { entries: thumbnails } = await box.getFolderContents(currentFolder, limit, offset)
+    const { total_count, entries: thumbnails } = await box.getFolderContents(currentFolder, limit, offset)
     thumbnailPicker.style.display = "flex"
     thumbnailPicker.style["flex-direction"] = "column"
-    thumbnailPicker.style.height = path.tmaCanvas.height
+    thumbnailPicker.style.height = document.getElementById("canvasWithPickers").offsetHeight
     thumbnails.forEach(async (thumbnail) => {
       if (thumbnail.type === "file") {
         const { id: thumbnailId } = thumbnail
         const thumbnailDiv = document.createElement("div")
         const thumbnailImg = document.createElement("img")
+        thumbnailImg.setAttribute("id", thumbnailId)
         thumbnailImg.setAttribute("class", "imagePickerThumbnail")
+        if (thumbnailId === window.localStorage.currentImage) {
+          thumbnailImg.classList.add("selectedThumbnail")
+        }
         thumbnailImg.setAttribute("loading", "lazy")
         thumbnailDiv.appendChild(thumbnailImg)
-        thumbnailPicker.appendChild(thumbnailDiv)
-        thumbnailDiv.onclick = () => {
-          if (hashParams['image']) {
-            window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${thumbnailId}`)
-          } else {
-            window.location.hash = window.location.hash ? window.location.hash + `&image=${thumbnailId}` : `image=${thumbnailId}`
-          }
-        }
+        thumbnailListDiv.appendChild(thumbnailDiv)
+        thumbnailDiv.onclick = () => selectThumbnail(thumbnailId)
         thumbnailImg.src = await box.getThumbnail(thumbnailId)
       }
     })
+
+    const thumbnailPageNumSpan = document.createElement("span")
+    
+    const currentPageNum = Math.floor(offset/limit) + 1
+    const totalPages = Math.floor(total_count/limit) + 1
+    
+    const thumbnailPrevPageBtn = document.createElement("button")
+    thumbnailPrevPageBtn.setAttribute("class", "btn btn-sm btn-light")
+
+    const prevBtnText = document.createTextNode("<")
+    thumbnailPrevPageBtn.style["font-size"] = "9px"
+    thumbnailPrevPageBtn.style["margin-right"] = "0.18rem"
+    thumbnailPrevPageBtn.appendChild(prevBtnText)
+    
+    const thumbnailCurrentPageText = document.createElement("input")
+    thumbnailCurrentPageText.setAttribute("type", "text")
+    // thumbnailCurrentPageText.onchange = (e) => {
+    //   if ()  
+    // }
+    thumbnailCurrentPageText.setAttribute("value", currentPageNum)
+    thumbnailCurrentPageText.style.width = "25px";
+    
+    const ofText = document.createTextNode(" / ")
+    
+    const thumbnailTotalPageText = document.createTextNode(totalPages)
+    
+    const thumbnailNextPageBtn = document.createElement("button")
+    thumbnailNextPageBtn.setAttribute("class", "btn btn-sm btn-light")
+    const nextBtnText = document.createTextNode(">")
+    thumbnailNextPageBtn.style["font-size"] = "9px"
+    thumbnailNextPageBtn.style["margin-left"] = "0.18rem"
+    // thumbnailPrevPageBtn.style["margin-right"] = "-0.4rem"
+    thumbnailNextPageBtn.appendChild(nextBtnText)
+    
+    thumbnailPrevPageBtn.onclick = (e) => { thumbnailCurrentPageText.value = parseInt(thumbnailCurrentPageText.value) - 1 }
+    thumbnailNextPageBtn.onclick = (e) => { thumbnailCurrentPageText.value = parseInt(thumbnailCurrentPageText.value) + 1 }
+
+    
+    thumbnailPageNumSpan.appendChild(thumbnailPrevPageBtn)
+    thumbnailPageNumSpan.appendChild(thumbnailCurrentPageText)
+    thumbnailPageNumSpan.appendChild(ofText)
+    thumbnailPageNumSpan.appendChild(thumbnailTotalPageText)
+    thumbnailPageNumSpan.appendChild(thumbnailNextPageBtn)
+    
+    thumbnailPicker.appendChild(thumbnailListDiv)
+    thumbnailPicker.appendChild(thumbnailPageNumSpan)
   }
+}
+
+const selectThumbnail = (id) => {
+  if (hashParams['image']) {
+    window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${id}`)
+  } else {
+    window.location.hash = window.location.hash ? window.location.hash + `&image=${id}` : `image=${id}`
+  }
+  const prevSelectedThumbnail = document.getElementsByClassName("selectedThumbnail")
+  if (prevSelectedThumbnail) {
+    prevSelectedThumbnail[0].classList.remove("selectedThumbnail")
+  }
+  document.getElementById(id).classList.add("selectedThumbnail")
 }
 
 const activateQualitySelector = (qualityAnnotations) => {
