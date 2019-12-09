@@ -15,7 +15,7 @@ const loadHashParams = async () => {
       let [key, value] = param.split('=')
       value.replace(/['"]+/g, "")
       value = decodeURIComponent(value)
-      if (key === "extModules" && (value.indexOf("[") < value.indexOf("]"))) {
+      if (key === "extModules") {
         try {
           window.localStorage.extModules = value
           hashParams[key] = eval(value)
@@ -141,12 +141,12 @@ const loadDefaultImage = async () => {
 }
 
 const loadImageFromBox = async (id) => {
-  const {
-    type,
-    name,
-    parent,
-    metadata
-  } = await box.getData(id, "file")
+  const imageData = await box.getData(id, "file")
+  if (!imageData) {
+    return
+  }
+
+  const { type, name, parent, metadata } = imageData
 
   if (!metadata) {
     box.createMetadata(id, "file").then(res => {

@@ -150,7 +150,7 @@ box.getData = async (id, type) => {
   const fieldsParam = "fields=id,type,name,metadata.global.properties,parent"
   let dataEndpoint = type in box.endpoints['data'] && `${box.endpoints['data'][type]}/${id}`
   dataEndpoint += type === "file" ? `?${fieldsParam}` : ""
-  return await utils.boxRequest(dataEndpoint)
+  return utils.boxRequest && await utils.boxRequest(dataEndpoint)
 }
 
 box.getFolderContents = async (folderId, limit=15, offset=0) => {
