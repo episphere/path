@@ -34,7 +34,7 @@ const loadHashParams = async () => {
   }
 }
 
-const defaultImg = window.location.hostname.includes("localhost") ? "images/OFB_023_2_003_1_13_03.jpg" : ""
+const defaultImg = "images/OFB_023_2_003_1_13_03.jpg"
 
 const defaultThumbnailsListLength = 20
 
