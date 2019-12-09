@@ -6,6 +6,11 @@ body {
 h2 {
   color: maroon;
   display: inline-flex;
+  margin-bottom: 0rem;
+}
+
+hr {
+  margin-bottom: 0.7rem;
 }
 
 p {
@@ -14,6 +19,10 @@ p {
 
 label {
   margin-left: 0.5rem;
+}
+
+#tmaPath {
+  margin-top: 1rem;
 }
 
 #loginSpan {
@@ -27,11 +36,11 @@ label {
 }
 
 #imgInputBtn {
-  margin-bottom: 1rem;
+  margin-bottom: 0.8rem;
 }
 
 #box-select {
-  margin-bottom: 1rem;
+  margin-bottom: 0.8rem;
 }
 
 #filePickers {
