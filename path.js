@@ -34,7 +34,7 @@ const loadHashParams = async () => {
   }
 }
 
-const defaultImg = "images/OFB_023_2_003_1_13_03.jpg"
+const defaultImg = window.location.hostname.includes("localhost") ? "images/OFB_023_2_003_1_13_03.jpg" : ""
 
 const defaultThumbnailsListLength = 20
 
@@ -103,12 +103,10 @@ path.loadModules = async (modules) => {
 
 path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
-    await box.getUserProfile()
-    await path.getDatasetSubfolders()
-    document.getElementById("boxLoginBtn").style = "display: none"
-    document.getElementById("filePickers_or_box").style.display = "block"
-    document.getElementById("username").appendChild(document.createTextNode(`Welcome ${window.localStorage.username.split(" ")[0]}!`))
+    loadDefaultImage()
+    box.getUserProfile()
     // await box.makeSelections()
+    path.getDatasetSubfolders()
     box.setupFilePicker()
   })
 
@@ -135,11 +133,11 @@ path.setupEventListeners = () => {
 }
 
 const loadDefaultImage = async () => {
-  if (!hashParams['image']) {
+  if (hashParams['image'] && await box.isLoggedIn()) {
+    loadImageFromBox(hashParams['image'])
+  } else {
     path.tmaImage.src = defaultImg
     document.getElementById("imgHeader").innerText = "Test Image"
-  } else {
-    loadImageFromBox(hashParams['image'])
   }
 }
 
@@ -190,7 +188,7 @@ const showLoader = () => {
 }
 
 path.loadCanvas = () => {
-  if (path.tmaImage.src) {
+  if (path.tmaImage.src.length > 0) {
     // if (path.tmaCanvas.parentElement.getBoundingClientRect().width < path.tmaImage.width * 0.4) {
     //   document.getElementById("canvasWithPickers").style.width = path.tmaImage.width*0.4
     // }

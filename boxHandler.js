@@ -101,6 +101,9 @@ box.getUserProfile = async () => {
   window.localStorage.userId = id
   window.localStorage.username = name
   window.localStorage.email = login
+  document.getElementById("boxLoginBtn").style = "display: none"
+  document.getElementById("filePickers_or_box").style.display = "block"
+  document.getElementById("username").appendChild(document.createTextNode(`Welcome ${window.localStorage.username.split(" ")[0]}!`))
 }
 
 
