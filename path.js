@@ -148,25 +148,23 @@ const loadImageFromBox = async (id) => {
 
   const { type, name, parent, metadata } = imageData
 
-  if (!metadata) {
-    box.createMetadata(id, "file").then(res => {
-      window.localStorage.fileMetadata = JSON.stringify(res)
-      showQualitySelectors()
-    })
-  }
-
   if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
     window.localStorage.currentFolder = parent.id
-    window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
     path.tmaImage.alt = name
-    const {
-      url
-    } = await box.getFileContent(id)
+    const { url } = await box.getFileContent(id)
     path.tmaImage.src = url
     document.getElementById("imgHeader").innerText = name
-    return
+    if (metadata) {
+      window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
+      showQualitySelectors()
+    } else {
+      box.createMetadata(id, "file").then(res => {
+        window.localStorage.fileMetadata = JSON.stringify(res)
+        showQualitySelectors()
+      })
+    }
   } else {
-    alert("The ID in the URL does not point to a valid image file in Box.")
+    alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
   }
 }
 
@@ -176,7 +174,7 @@ path.getDatasetSubfolders = async () => {
     path.isBCASTMember = true
     // document.getElementById("selectMarkersOuterDiv").style.display = "flex"
 
-    console.log(manifest.item_collection.entries)
+    // console.log(manifest.item_collection.entries)
     // manifest.item
   }
 }
@@ -194,7 +192,6 @@ path.loadCanvas = () => {
     // showLoader()
     path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width * 0.9)
     path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
-    console.log(path.tmaCanvas.width, path.tmaCanvas.height, path.tmaImage.width, path.tmaImage.height, path.tmaCanvas.parentElement.getBoundingClientRect().width)
     // path.outputCanvas.setAttribute("width", path.outputCanvas.parentElement.getBoundingClientRect().width)
     // path.outputCanvas.setAttribute("height", path.outputCanvas.width * path.tmaImage.height / path.tmaImage.width)
     // path.outputCanvas.style.border = "1px solid red"
@@ -207,8 +204,7 @@ path.loadCanvas = () => {
     if (path.tmaImage.src.includes("boxcloud.com")) {
       document.getElementById("canvasWithPickers").style["border-right"] = "1px solid lightgray"
       // console.log("CALLED!!!")
-      showThumbnailPicker(defaultThumbnailsListLength, 0)
-      showQualitySelectors()
+      showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
     }
     if (!path.options) {
       path.loadOptions()
@@ -339,7 +335,7 @@ const showQualitySelectors = () => {
   activateQualitySelector(qualityAnnotations)
 }
 
-const showThumbnailPicker = async (limit, offset) => {
+const showThumbnailPicker = async (limit, offset=0) => {
   const thumbnailPicker = document.getElementById("thumbnailPicker")
   
   if (thumbnailPicker.childElementCount === 0 || window.localStorage.thumbnailsOffset !== offset) {
@@ -362,9 +358,7 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
   thumbnailPicker.style.height = document.getElementById("canvasWithPickers").offsetHeight
   thumbnails.forEach(async (thumbnail) => {
     if (thumbnail.type === "file") {
-      const {
-        id: thumbnailId
-      } = thumbnail
+      const { id: thumbnailId } = thumbnail
       const thumbnailDiv = document.createElement("div")
       const thumbnailImg = document.createElement("img")
       thumbnailImg.setAttribute("id", thumbnailId)
@@ -390,7 +384,7 @@ const addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offset) =>
 
   const thumbnailPrevPageBtn = document.createElement("button")
   thumbnailPrevPageBtn.setAttribute("class", "btn btn-sm btn-light")
-
+  
   const prevBtnText = document.createTextNode("<")
   thumbnailPrevPageBtn.style["font-size"] = "9px"
   thumbnailPrevPageBtn.style["margin-right"] = "0.18rem"
