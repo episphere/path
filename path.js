@@ -34,7 +34,7 @@ const loadHashParams = async () => {
   }
 }
 
-const defaultImg = "images/OFB_023_2_003_1_13_03.jpg"
+const defaultImg = window.location.origin + window.location.pathname + "images/OFB_023_2_003_1_13_03.jpg"
 
 const defaultThumbnailsListLength = 20
 
@@ -103,7 +103,6 @@ path.loadModules = async (modules) => {
 
 path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
-    loadDefaultImage()
     box.getUserProfile()
     // await box.makeSelections()
     path.getDatasetSubfolders()
