@@ -57,19 +57,17 @@
           <select id="select_markers" class="form-control"></select>
         </div>
       </div> -->
+      <div id="loaderDiv">
+        <img src="./images/loader.gif" id="loaderImg">
+      </div>
       <div id="canvasWithPickers">
         <div class="canvasDiv">
           <h5 id="imgHeader"></h5>
-          <!-- <div id="loaderDiv">
-            <img src="./images/loader.gif" id="loader">
-          </div> -->
           <div>
             <canvas id="tmaCanvas"></canvas>
           </div>
         </div>
         <div id="thumbnailPicker" style="display: none">
-          <!-- <ul>
-          </ul> -->
         </div>
       </div>
       <!-- <div class="canvasDiv">
@@ -78,9 +76,37 @@
               <canvas id="outputCanvas"></canvas>
             </div>
           </div> -->
-      <div id="allOptionsDiv">
-        <div id="qualitySelect">
-          <h5>Quality</h5>
+      <div id="tabsContainer">
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+          <li class="nav-item">
+            <a class="nav-link active" id="box-tab" data-toggle="tab" href="#box" role="tab" aria-controls="box"
+              aria-selected="true">Box Operations</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="annotations-tab" data-toggle="tab" href="#annotations" role="tab"
+              aria-controls="annotations" aria-selected="false">Annotations</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="collaborate-tab" data-toggle="tab" href="#collaborate" role="tab"
+              aria-controls="collaborate" aria-selected="false">Collaborate</a>
+          </li>
+        </ul>
+        <div class="tab-content" id="myTabContent">
+          <div class="tab-pane fade show active" id="box" role="tabpanel" aria-labelledby="box-tab">...</div>
+          <div class="tab-pane fade" id="annotations" role="tabpanel" aria-labelledby="annotations-tab">
+            <br/>
+            <div id="annotationsDiv">
+              <ol class="list-group">
+                <li class="list-group-item">
+                  <div id="qualitySelect">
+                    <h5>Quality</h5>
+                  </div>
+                </li>
+              </ol>
+              <button type="button" class="btn btn-link" id="addAnnotationsBtn">+ Add More Annotations</button>
+            </div>
+          </div>
+          <div class="tab-pane fade" id="collaborate" role="tabpanel" aria-labelledby="collaborate-tab">...</div>
         </div>
       </div>
     </div>

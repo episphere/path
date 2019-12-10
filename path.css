@@ -89,12 +89,29 @@ label {
   margin-top: 1.5rem;
 }
 
+#loaderDiv {
+  display: none;
+  position: absolute;
+  background-color: rgba(220, 220, 220, 0.4);
+  z-index: 2;
+}
+
+#loaderImg {
+  position: absolute;
+  margin: auto;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
 .canvasDiv>div {
   position: relative;
 }
 
 #thumbnailPicker {
   margin: 2rem 0.5rem 0 1rem;
+  text-align: right;
 }
 
 #thumbnailPicker>div {
@@ -132,19 +149,24 @@ label {
   border: 2px solid blue;
 }
 
-#allOptionsDiv {
+#annotationsDiv {
   height: auto;
+  margin-left: 2rem;
   /* border-left: 1px solid lightgray */
 }
 
 #qualitySelect {
-  margin-left: 2rem;
+  width: 5rem;
   display: none;
 }
 
 #qualitySelect button {
   margin-bottom: 1rem;
   font-size: 2rem;
+}
+
+#addAnnotationsBtn {
+  padding-left: 0;
 }
 
 
@@ -189,6 +211,10 @@ label {
     margin-left: 2rem;
   }
 
+  #tabsContainer {
+    width: 50%;
+  }
+
   #qualitySelect {
     flex-direction: column;
   }
@@ -201,6 +227,10 @@ label {
 
   .canvasDiv {
     width: 80%
+  }
+
+  #tabsContainer {
+    width: 80%;
   }
 
   #imageDiv :not(:first-child) {

@@ -118,12 +118,13 @@ box.setupFilePicker = (successCB, cancelCB) => {
       } else {
         window.location.hash = window.location.hash ? window.location.hash + `&image=${response[0].id}` : `image=${response[0].id}`
       }
-      document.getElementById("imgHeader").innerText = response[0].name
       path.tmaImage.setAttribute("src", "")
       path.tmaImage.setAttribute("src", response[0].url)
       path.tmaImage.setAttribute("crossorigin", "Anonymous")
+      path.tmaImage.setAttribute("alt", response[0].name)
       box.getData(response[0].id, "file").then(res => {
         window.localStorage.currentFolder = res.parent.id
+        window.localStorage.currentThumbnailsOffset = 0
         if (!res.metadata) {
           box.createMetadata(response[0].id, "file").then(res => {
             window.localStorage.fileMetadata = JSON.stringify(res)

@@ -64,11 +64,9 @@ const path = async () => {
   // path.outputCanvas = document.getElementById("outputCanvas")
   path.toolsDiv = document.getElementById("toolsDiv")
   path.tmaImage = new Image()
-
   path.setupEventListeners()
 
   await box()
-
   loadHashParams()
   loadDefaultImage()
   path.loadModules()
@@ -132,6 +130,7 @@ path.setupEventListeners = () => {
 }
 
 const loadDefaultImage = async () => {
+  // showLoader()
   if (hashParams['image'] && await box.isLoggedIn()) {
     loadImageFromBox(hashParams['image'])
   } else {
@@ -150,17 +149,14 @@ const loadImageFromBox = async (id) => {
 
   if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
     window.localStorage.currentFolder = parent.id
-    path.tmaImage.alt = name
+    path.tmaImage.setAttribute("alt", name)
     const { url } = await box.getFileContent(id)
     path.tmaImage.src = url
-    document.getElementById("imgHeader").innerText = name
     if (metadata) {
       window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
-      showQualitySelectors()
     } else {
       box.createMetadata(id, "file").then(res => {
         window.localStorage.fileMetadata = JSON.stringify(res)
-        showQualitySelectors()
       })
     }
   } else {
@@ -180,8 +176,17 @@ path.getDatasetSubfolders = async () => {
 }
 
 const showLoader = () => {
-  path.tmaCanvas.style.display = "none"
+  const loaderDiv = document.getElementById("loaderDiv")
+  const { width, height, top, left } = path.tmaCanvas.getBoundingClientRect()
+  loaderDiv.style.width = width
+  loaderDiv.style.height = height
+  loaderDiv.style.top = top
+  loaderDiv.style.left = left
+  loaderDiv.style.display = "inline-block";
+}
 
+const hideLoader = () => {
+  document.getElementById("loaderDiv").style.display = "none";
 }
 
 path.loadCanvas = () => {
@@ -189,9 +194,9 @@ path.loadCanvas = () => {
     // if (path.tmaCanvas.parentElement.getBoundingClientRect().width < path.tmaImage.width * 0.4) {
     //   document.getElementById("canvasWithPickers").style.width = path.tmaImage.width*0.4
     // }
-    // showLoader()
     path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width * 0.9)
     path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
+    showLoader()
     // path.outputCanvas.setAttribute("width", path.outputCanvas.parentElement.getBoundingClientRect().width)
     // path.outputCanvas.setAttribute("height", path.outputCanvas.width * path.tmaImage.height / path.tmaImage.width)
     // path.outputCanvas.style.border = "1px solid red"
@@ -199,12 +204,14 @@ path.loadCanvas = () => {
     // const outputContext = path.outputCanvas.getContext('2d')
   
     tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
-    // hideLoader()
+    hideLoader()
+    document.getElementById("imgHeader").innerText = path.tmaImage.alt
     // outputContext.drawImage(path.tmaImage, 0, 0, path.outputCanvas.width, path.outputCanvas.height)
     if (path.tmaImage.src.includes("boxcloud.com")) {
       document.getElementById("canvasWithPickers").style["border-right"] = "1px solid lightgray"
       // console.log("CALLED!!!")
       showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
+      showQualitySelectors()
     }
     if (!path.options) {
       path.loadOptions()
@@ -217,6 +224,7 @@ path.loadOptions = () => {
   document.getElementById("toolsOuterDiv").style.visibility = "visible"
   zoomInButton()
   segmentButton()
+  addAnnotationsTooltip()
 }
 
 path.qualityAnnotate = async (qualitySelected) => {
@@ -338,24 +346,33 @@ const showQualitySelectors = () => {
 const showThumbnailPicker = async (limit, offset=0) => {
   const thumbnailPicker = document.getElementById("thumbnailPicker")
   
-  if (thumbnailPicker.childElementCount === 0 || window.localStorage.thumbnailsOffset !== offset) {
-    while (thumbnailPicker.firstElementChild) {
-      thumbnailPicker.removeChild(thumbnailPicker.firstElementChild)
-    }
-    window.localStorage.thumbnailsOffset = offset
-    const { currentFolder } = window.localStorage
-    const { total_count, entries: thumbnails } = await box.getFolderContents(currentFolder, limit, offset)
-    addThumbnails(thumbnailPicker, thumbnails)
-    addThumbnailPageSelector(thumbnailPicker, total_count, limit, offset)
+  if (thumbnailPicker.childElementCount === 0 || thumbnailPicker.getAttribute("folder") !== window.localStorage.currentFolder || window.localStorage.currentThumbnailsOffset !== offset) {
+    thumbnailPicker.setAttribute("folder", window.localStorage.currentFolder)
+    thumbnailPicker.style.display = "flex"
+    thumbnailPicker.style["flex-direction"] = "column"
+    thumbnailPicker.style.height = path.tmaCanvas.height
     
+    window.localStorage.currentThumbnailsOffset = offset
+    const { currentFolder } = window.localStorage
+    var { total_count, entries: thumbnails } = await box.getFolderContents(currentFolder, limit, offset)
+    addThumbnails(thumbnailPicker, thumbnails)
   }
+  addThumbnailPageSelector(thumbnailPicker, total_count, limit, offset)
 }
 
 const addThumbnails = (thumbnailPicker, thumbnails) => {
-  const thumbnailListDiv = document.createElement("div")
-  thumbnailPicker.style.display = "flex"
-  thumbnailPicker.style["flex-direction"] = "column"
-  thumbnailPicker.style.height = document.getElementById("canvasWithPickers").offsetHeight
+  let thumbnailsListDiv = document.getElementById("thumbnailsList")
+  let listNewlyCreated = false
+  if (thumbnailsListDiv) {
+    while (thumbnailsListDiv.firstElementChild) {
+      thumbnailsListDiv.removeChild(thumbnailsListDiv.firstElementChild)
+    }
+  } else {
+    thumbnailsListDiv = document.createElement("div")
+    thumbnailsListDiv.setAttribute("id", "thumbnailsList")
+    listNewlyCreated = true
+  }
+  
   thumbnails.forEach(async (thumbnail) => {
     if (thumbnail.type === "file") {
       const { id: thumbnailId } = thumbnail
@@ -368,72 +385,100 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
       }
       thumbnailImg.setAttribute("loading", "lazy")
       thumbnailDiv.appendChild(thumbnailImg)
-      thumbnailListDiv.appendChild(thumbnailDiv)
+      thumbnailsListDiv.appendChild(thumbnailDiv)
       thumbnailDiv.onclick = () => selectThumbnail(thumbnailId)
       thumbnailImg.src = await box.getThumbnail(thumbnailId)
     }
   })
-  thumbnailPicker.appendChild(thumbnailListDiv)
+  if (listNewlyCreated) {
+    thumbnailPicker.appendChild(thumbnailsListDiv)
+  }
 }
 
 const addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offset) => {
-  const thumbnailPageNumSpan = document.createElement("span")
-
-  const currentPageNum = Math.floor(offset / limit) + 1
-  const totalPages = Math.floor(totalCount / limit) + 1
-
-  const thumbnailPrevPageBtn = document.createElement("button")
-  thumbnailPrevPageBtn.setAttribute("class", "btn btn-sm btn-light")
+  if (!document.getElementById("thumbnailPageSelector")) {
+    const thumbnailPageNumSpan = document.createElement("span")
+    thumbnailPageNumSpan.setAttribute("id", "thumbnailPageSelector")
+    const currentPageNum = Math.floor(offset / limit) + 1
+    const totalPages = Math.floor(totalCount / limit) + 1
   
-  const prevBtnText = document.createTextNode("<")
-  thumbnailPrevPageBtn.style["font-size"] = "9px"
-  thumbnailPrevPageBtn.style["margin-right"] = "0.18rem"
-  thumbnailPrevPageBtn.appendChild(prevBtnText)
-
-  const thumbnailCurrentPageText = document.createElement("input")
-  thumbnailCurrentPageText.setAttribute("type", "text")
-  // thumbnailCurrentPageText.onchange = (e) => {
-  //   if ()  
-  // }
-  thumbnailCurrentPageText.setAttribute("value", currentPageNum)
-  thumbnailCurrentPageText.style.width = "25px";
-
-  const ofText = document.createTextNode(" / ")
-
-  const thumbnailTotalPageText = document.createTextNode(totalPages)
-
-  const thumbnailNextPageBtn = document.createElement("button")
-  thumbnailNextPageBtn.setAttribute("class", "btn btn-sm btn-light")
-  const nextBtnText = document.createTextNode(">")
-  thumbnailNextPageBtn.style["font-size"] = "9px"
-  thumbnailNextPageBtn.style["margin-left"] = "0.18rem"
-  // thumbnailPrevPageBtn.style["margin-right"] = "-0.4rem"
-  thumbnailNextPageBtn.appendChild(nextBtnText)
-
-  thumbnailPrevPageBtn.onclick = (e) => {
-    thumbnailCurrentPageText.value = parseInt(thumbnailCurrentPageText.value) - 1
+    const thumbnailPrevPageBtn = document.createElement("button")
+    thumbnailPrevPageBtn.setAttribute("class", "btn btn-sm btn-light")
+    if (currentPageNum === 1) {
+      thumbnailPrevPageBtn.setAttribute("disabled", "")
+    }
+    const prevBtnText = document.createTextNode("<")
+    thumbnailPrevPageBtn.style["font-size"] = "9px"
+    thumbnailPrevPageBtn.style["margin-right"] = "0.18rem"
+    thumbnailPrevPageBtn.style["padding"] = "0.2rem 0.3rem 0.2rem 0.3rem"
+    thumbnailPrevPageBtn.appendChild(prevBtnText)
+  
+    const thumbnailCurrentPageText = document.createElement("input")
+    thumbnailCurrentPageText.setAttribute("type", "number")
+    thumbnailCurrentPageText.setAttribute("min", "1")
+    thumbnailCurrentPageText.setAttribute("max", totalPages)
+    thumbnailCurrentPageText.setAttribute("value", currentPageNum)
+    thumbnailCurrentPageText.style.width = "35px";
+  
+    const ofText = document.createTextNode(" / ")
+  
+    const thumbnailTotalPageText = document.createTextNode(totalPages)
+  
+    const thumbnailNextPageBtn = document.createElement("button")
+    thumbnailNextPageBtn.setAttribute("class", "btn btn-sm btn-light")
+    if (currentPageNum === totalPages) {
+      thumbnailNextPageBtn.setAttribute("disabled", "")
+    }
+  
+    const nextBtnText = document.createTextNode(">")
+    thumbnailNextPageBtn.style["font-size"] = "9px"
+    thumbnailNextPageBtn.style["margin-left"] = "0.18rem"
+    thumbnailNextPageBtn.style["padding"] = "0.2rem 0.3rem 0.2rem 0.3rem"
+    thumbnailNextPageBtn.appendChild(nextBtnText)
+  
+    thumbnailPrevPageBtn.onclick = (e) => {
+      thumbnailCurrentPageText.stepDown()
+      thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+    }
+    thumbnailNextPageBtn.onclick = (e) => {
+      thumbnailCurrentPageText.stepUp()
+      thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+    }
+  
+    thumbnailCurrentPageText.onchange = ({target: {value}}) => {
+      value = parseInt(value)
+      if (1 <= value && value <= totalPages) {
+        if (value === 1) {
+          thumbnailPrevPageBtn.setAttribute("disabled", "")
+        } else if (value === totalPages) {
+          thumbnailNextPageBtn.setAttribute("disabled", "")
+        } else {
+          thumbnailPrevPageBtn.removeAttribute("disabled")
+          thumbnailNextPageBtn.removeAttribute("disabled")
+        }
+        showThumbnailPicker(defaultThumbnailsListLength, (value - 1)*defaultThumbnailsListLength)
+      }
+    }
+  
+    thumbnailPageNumSpan.appendChild(thumbnailPrevPageBtn)
+    thumbnailPageNumSpan.appendChild(thumbnailCurrentPageText)
+    thumbnailPageNumSpan.appendChild(ofText)
+    thumbnailPageNumSpan.appendChild(thumbnailTotalPageText)
+    thumbnailPageNumSpan.appendChild(thumbnailNextPageBtn)
+  
+    thumbnailPicker.appendChild(thumbnailPageNumSpan)
   }
-  thumbnailNextPageBtn.onclick = (e) => {
-    thumbnailCurrentPageText.value = parseInt(thumbnailCurrentPageText.value) + 1
-  }
-
-  thumbnailPageNumSpan.appendChild(thumbnailPrevPageBtn)
-  thumbnailPageNumSpan.appendChild(thumbnailCurrentPageText)
-  thumbnailPageNumSpan.appendChild(ofText)
-  thumbnailPageNumSpan.appendChild(thumbnailTotalPageText)
-  thumbnailPageNumSpan.appendChild(thumbnailNextPageBtn)
-
-  thumbnailPicker.appendChild(thumbnailPageNumSpan)
 }
 
 const selectThumbnail = (id) => {
+  showLoader()
   if (hashParams['image']) {
     window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${id}`)
   } else {
     window.location.hash = window.location.hash ? window.location.hash + `&image=${id}` : `image=${id}`
   }
   const prevSelectedThumbnail = document.getElementsByClassName("selectedThumbnail")
-  if (prevSelectedThumbnail) {
+  if (prevSelectedThumbnail.length > 0) {
     prevSelectedThumbnail[0].classList.remove("selectedThumbnail")
   }
   document.getElementById(id).classList.add("selectedThumbnail")
@@ -449,6 +494,16 @@ const activateQualitySelector = (qualityAnnotations) => {
     const userQualityAnnotation = qualityAnnotations[window.localStorage.userId].value
     qualitySelectDiv.querySelector(`button[value='${userQualityAnnotation}']`).classList.add("active")
   }
+}
+
+const addAnnotationsTooltip = () => {
+  const addAnnotationsBtn = document.getElementById("addAnnotationsBtn")
+  addAnnotationsBtn.setAttribute("title", "Under Development!")
+  new Tooltip(addAnnotationsBtn, {
+    'placement': "bottom",
+    'animation': "slideNfade",
+    'delay': 150
+  })
 }
 
 window.onload = path
