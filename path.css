@@ -160,6 +160,7 @@ label {
 }
 
 #annotationsDiv>ol>li:first-child {
+  border: none;
   padding: 0;
 }
 
