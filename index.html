@@ -5,14 +5,15 @@
   <title>EpiPath TMAs</title>
   <!-- <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"></script> -->
   <script type="text/javascript"
-    src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap.native/2.0.27/bootstrap-native-v4.min.js"></script>
+    src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap.native/2.0.27/bootstrap-native-v4.min.js" async></script>
   <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.2/css/all.min.css">
   <script src="path.js"></script>
   <script src="boxHandler.js"></script>
   <script src="tools.js"></script>
   <link rel="stylesheet" href="path.css">
-  <script type="text/javascript" src="https://app.box.com/js/static/select.js"></script>
+  <script type="text/javascript" src="https://app.box.com/js/static/select.js" async></script>
+  <script src="https://togetherjs.com/togetherjs-min.js" async></script>
   </script>
 </head>
 
@@ -77,13 +78,13 @@
             </div>
           </div> -->
       <div id="tabsContainer">
-        <ul class="nav nav-tabs" id="myTab" role="tablist">
+        <ul class="nav nav-tabs" id="tabs" role="tablist">
           <li class="nav-item">
-            <a class="nav-link active" id="box-tab" data-toggle="tab" href="#box" role="tab" aria-controls="box"
-              aria-selected="true">Box Operations</a>
+            <a class="nav-link" id="box-tab" data-toggle="tab" href="#box" role="tab" aria-controls="box"
+              aria-selected="true">My Box</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" id="annotations-tab" data-toggle="tab" href="#annotations" role="tab"
+            <a class="nav-link active" id="annotations-tab" data-toggle="tab" href="#annotations" role="tab"
               aria-controls="annotations" aria-selected="false">Annotations</a>
           </li>
           <li class="nav-item">
@@ -91,22 +92,34 @@
               aria-controls="collaborate" aria-selected="false">Collaborate</a>
           </li>
         </ul>
-        <div class="tab-content" id="myTabContent">
-          <div class="tab-pane fade show active" id="box" role="tabpanel" aria-labelledby="box-tab">...</div>
-          <div class="tab-pane fade" id="annotations" role="tabpanel" aria-labelledby="annotations-tab">
+        <div class="tab-content" id="tabsContent">
+          <div class="tab-pane fade" id="box" role="tabpanel" aria-labelledby="box-tab">...</div>
+          <div class="tab-pane fade show active" id="annotations" role="tabpanel" aria-labelledby="annotations-tab">
             <br/>
-            <div id="annotationsDiv">
+            <div class="tabContainer" id="annotationsDiv">
               <ol class="list-group">
                 <li class="list-group-item">
-                  <div id="qualitySelect">
-                    <h5>Quality</h5>
+                  <div id="qualityAnnotations">
+                    <h5>Image Quality</h5>
+                    <br/>
+                    <div id="qualitySelect" class="list-group list-group-flush"></div>
                   </div>
                 </li>
               </ol>
               <button type="button" class="btn btn-link" id="addAnnotationsBtn">+ Add More Annotations</button>
             </div>
           </div>
-          <div class="tab-pane fade" id="collaborate" role="tabpanel" aria-labelledby="collaborate-tab">...</div>
+          <div class="tab-pane fade" id="collaborate" role="tabpanel" aria-labelledby="collaborate-tab">
+            <br/>
+            <div class="tabContainer jumbotron">
+              <p>You can collaborate with others in real-time just by clicking the button below and sending them the link you
+                are shown.<br/><br/>Once they enter the link in their browser, you will be able to see each others' interactions on the page 
+                (like Google Docs, but in epiPath!). You can even chat with them by clicking on the Message icon, or talk to them
+                using your microphone.<br/><br/>When you are done, just click on the End Session button to stop collaborating.</p>
+                <br/>
+              <button type="button" class="btn btn-success btn-lg" id="collaborateBtn" onclick="startCollaboration()">Start Session!</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -149,19 +149,29 @@ label {
   border: 2px solid blue;
 }
 
+.tabContainer {
+  margin-left: 2rem;
+}
+
 #annotationsDiv {
   height: auto;
-  margin-left: 2rem;
   /* border-left: 1px solid lightgray */
 }
 
-#qualitySelect {
-  width: 5rem;
+#qualityAnnotations {
+  width: 100%;
   display: none;
+  flex-direction: column;
 }
 
-#qualitySelect button {
-  margin-bottom: 1rem;
+.othersAnnotations_quality {
+  margin-top: auto;
+  margin-bottom: auto;
+  margin-left: 2rem;
+  color: gray;
+}
+
+#qualitySelectors>span>button {
   font-size: 2rem;
 }
 

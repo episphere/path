@@ -233,6 +233,7 @@ path.qualityAnnotate = async (qualitySelected) => {
     fileMetadata.qualityAnnotations = fileMetadata.qualityAnnotations ? JSON.parse(fileMetadata.qualityAnnotations) : {}
 
     const newAnnotation = {
+      'userId': window.localStorage.userId,
       'email': window.localStorage.email,
       'username': window.localStorage.username,
       'value': qualitySelected,
@@ -267,7 +268,6 @@ path.qualityAnnotate = async (qualitySelected) => {
     const newMetadata = await box.updateMetadata(window.localStorage.currentImage, "file", path, JSON.stringify(fileMetadata.qualityAnnotations))
 
     window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-    console.log(window.localStorage.fileMetadata)
     activateQualitySelector(JSON.parse(newMetadata.qualityAnnotations))
     alert("Image Annotated Successfully!")
 
@@ -321,14 +321,24 @@ const zoomInButton = () => {
 const showQualitySelectors = () => {
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
   const qualityAnnotations = fileMetadata.qualityAnnotations && JSON.parse(fileMetadata.qualityAnnotations)
+  const qualityAnnotationsDiv = document.getElementById("qualityAnnotations")
   const qualitySelectDiv = document.getElementById("qualitySelect")
-  qualitySelectDiv.style.display = "flex"
-  if (qualitySelectDiv.childElementCount === 1) {
+  const qualitySelectorsDiv = document.createElement("div")
+  qualitySelectorsDiv.setAttribute("id", "qualitySelectors")
+  qualitySelectorsDiv.style.display = "flex"
+  qualitySelectorsDiv.style.flexDirection = "column"
+  if (qualitySelectDiv.childElementCount === 0) {
     qualityEnum.forEach((quality) => {
       const {
         numValue,
         displayText
       } = quality
+      const qualitySpan = document.createElement("span")
+      qualitySpan.setAttribute("class", "qualitySelectorSpan list-group-item")
+      qualitySpan.style.display = "flex"
+      qualitySpan.style.flexDirection = "row"
+      // qualitySpan.style.width = "100%"
+      qualitySpan.style.flex = "1"
       const qualityButton = document.createElement("button")
       qualityButton.setAttribute("class", "btn btn-outline-info")
       qualityButton.setAttribute("id", `quality_${numValue}`)
@@ -336,11 +346,67 @@ const showQualitySelectors = () => {
       qualityButton.setAttribute("onclick", `path.qualityAnnotate(${numValue})`)
       const qualityText = document.createTextNode(displayText)
       qualityButton.appendChild(qualityText)
-      qualitySelectDiv.appendChild(qualityButton)
+      qualitySpan.appendChild(qualityButton)
+
+      const othersAnnotations = qualityAnnotations && getOthersAnnotations(qualityAnnotations, numValue)
+      if (othersAnnotations) {
+        qualitySpan.appendChild(othersAnnotations)
+      }
+      qualitySelectorsDiv.appendChild(qualitySpan)
     })
   }
-  qualitySelectDiv.style.display = "flex"
+  qualitySelectDiv.appendChild(qualitySelectorsDiv)
+  qualityAnnotationsDiv.style.display = "flex"
   activateQualitySelector(qualityAnnotations)
+}
+
+const getOthersAnnotations = (qualityAnnotations, numValue) => {
+  const othersAnnotations = Object.values(qualityAnnotations).filter(annotation => annotation && annotation.value === numValue && annotation.userId !== window.localStorage.userId)
+  const othersAnnotationsSpan = document.createElement("span")
+  if (othersAnnotations.length > 0) {
+    othersAnnotationsSpan.setAttribute("class", "othersAnnotations_quality")
+    const othersAnnotationsUsernames = othersAnnotations.map(annotation => annotation.username)
+    
+    let othersAnnotationsText = `   -------   Selected by ${othersAnnotationsUsernames[0]}`
+    othersAnnotationsText += othersAnnotations.length > 1 ? " and " : ""
+    if (othersAnnotations.length === 2) {
+      othersAnnotationsText += othersAnnotationsUsernames[1]
+    }
+    const othersAnnotationsTextElement = document.createElement("span")
+    othersAnnotationsTextElement.setAttribute("class", "othersAnnotations_quality_text")
+    othersAnnotationsTextElement.appendChild(document.createTextNode(othersAnnotationsText))
+    othersAnnotationsSpan.appendChild(othersAnnotationsTextElement)
+    if (othersAnnotations.length > 2) {
+      const moreNamesElement = document.createElement("u")
+      moreNamesElement.setAttribute("id", `moreNamesElement_${numValue}`)
+      moreNamesElement.style.color = "blue"
+      const moreNamesText = document.createTextNode(`${othersAnnotations.length - 1} others`)
+      moreNamesElement.appendChild(moreNamesText)
+      moreNamesElement.setAttribute("title", othersAnnotationsUsernames.filter((_,ind) => ind !== 0).join("<br/>"))
+      new Tooltip(moreNamesElement, {
+        'placement': "bottom",
+        'animation': "slidenfade",
+        'delay': "400",
+        'html': true
+      })
+      othersAnnotationsSpan.appendChild(moreNamesElement)
+
+    }
+  }
+  return othersAnnotationsSpan
+}
+
+const activateQualitySelector = (qualityAnnotations) => {
+  const qualitySelectDiv = document.getElementById("qualitySelect")
+  const currentlyActiveButton = qualitySelectDiv.querySelector("button.active")
+  if (currentlyActiveButton) {
+    currentlyActiveButton.classList.remove("active")
+  }
+  if (qualityAnnotations && qualityAnnotations[window.localStorage.userId]) {
+    const userQualityAnnotation = qualityAnnotations[window.localStorage.userId].value
+    qualitySelectDiv.querySelector(`button[value='${userQualityAnnotation}']`).classList.add("active")
+    // qualitySelectDiv.
+  }
 }
 
 const showThumbnailPicker = async (limit, offset=0) => {
@@ -471,29 +537,36 @@ const addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offset) =>
 }
 
 const selectThumbnail = (id) => {
-  showLoader()
-  if (hashParams['image']) {
-    window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${id}`)
-  } else {
-    window.location.hash = window.location.hash ? window.location.hash + `&image=${id}` : `image=${id}`
+  if (id !== hashParams['image']) {
+    showLoader()
+    if (hashParams['image']) {
+      window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${id}`)
+    } else {
+      window.location.hash = window.location.hash ? window.location.hash + `&image=${id}` : `image=${id}`
+    }
+    const prevSelectedThumbnail = document.getElementsByClassName("selectedThumbnail")
+    if (prevSelectedThumbnail.length > 0) {
+      prevSelectedThumbnail[0].classList.remove("selectedThumbnail")
+    }
+    document.getElementById(id).classList.add("selectedThumbnail")
   }
-  const prevSelectedThumbnail = document.getElementsByClassName("selectedThumbnail")
-  if (prevSelectedThumbnail.length > 0) {
-    prevSelectedThumbnail[0].classList.remove("selectedThumbnail")
-  }
-  document.getElementById(id).classList.add("selectedThumbnail")
 } 
 
-const activateQualitySelector = (qualityAnnotations) => {
-  const qualitySelectDiv = document.getElementById("qualitySelect")
-  const currentlyActiveButton = qualitySelectDiv.querySelector("button.active")
-  if (currentlyActiveButton) {
-    currentlyActiveButton.classList.remove("active")
+const startCollaboration = () => {
+  const collaborateBtn = document.getElementById("collaborateBtn")
+  if (collaborateBtn.classList.contains("active")) {
+    collaborateBtn.classList.remove("active")
+    collaborateBtn.classList.remove("btn-danger")
+    collaborateBtn.classList.add("btn-success")
+    collaborateBtn.innerHTML = "Start Session!"
+  } else {
+    collaborateBtn.classList.remove("btn-success")
+    collaborateBtn.classList.add("btn-danger")
+    collaborateBtn.classList.add("active")
+    collaborateBtn.innerHTML = "End Session"
   }
-  if (qualityAnnotations && qualityAnnotations[window.localStorage.userId]) {
-    const userQualityAnnotation = qualityAnnotations[window.localStorage.userId].value
-    qualitySelectDiv.querySelector(`button[value='${userQualityAnnotation}']`).classList.add("active")
-  }
+  TogetherJS(this)
+  return false
 }
 
 const addAnnotationsTooltip = () => {
