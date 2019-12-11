@@ -480,6 +480,8 @@ const showThumbnailPicker = async (limit, offset=0) => {
     var { total_count, entries: thumbnails } = await box.getFolderContents(currentFolder, limit, offset)
     addThumbnails(thumbnailPicker, thumbnails)
     addThumbnailPageSelector(thumbnailPicker, total_count, limit, offset)
+  } else {
+    highlightThumbnail(window.localStorage.currentImage)
   }
 }
 
@@ -502,7 +504,7 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
       const { id: thumbnailId } = thumbnail
       const thumbnailDiv = document.createElement("div")
       const thumbnailImg = document.createElement("img")
-      thumbnailImg.setAttribute("id", thumbnailId)
+      thumbnailImg.setAttribute("id", `thumbnail_${thumbnailId}`)
       thumbnailImg.setAttribute("class", "imagePickerThumbnail")
       if (thumbnailId === window.localStorage.currentImage) {
         thumbnailImg.classList.add("selectedThumbnail")
@@ -621,13 +623,16 @@ const selectThumbnail = (id) => {
     } else {
       window.location.hash = window.location.hash ? window.location.hash + `&image=${id}` : `image=${id}`
     }
-    const prevSelectedThumbnail = document.getElementsByClassName("selectedThumbnail")
-    if (prevSelectedThumbnail.length > 0) {
-      prevSelectedThumbnail[0].classList.remove("selectedThumbnail")
-    }
-    document.getElementById(id).classList.add("selectedThumbnail")
   }
-} 
+}
+
+const highlightThumbnail = (id) => {
+  const prevSelectedThumbnail = document.getElementsByClassName("selectedThumbnail")
+  if (prevSelectedThumbnail.length > 0) {
+    prevSelectedThumbnail[0].classList.remove("selectedThumbnail")
+  }
+  document.getElementById(`thumbnail_${id}`).classList.add("selectedThumbnail")
+}
 
 const startCollaboration = () => {
   const collaborateBtn = document.getElementById("collaborateBtn")

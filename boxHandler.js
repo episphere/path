@@ -125,9 +125,10 @@ box.setupFilePicker = (successCB, cancelCB) => {
       path.tmaImage.setAttribute("alt", response[0].name)
       box.getData(response[0].id, "file").then(res => {
         window.localStorage.currentFolder = res.parent.id
+        addImageHeader(res.path_collection.entries, res.id, res.name)
         window.localStorage.currentThumbnailsOffset = 0
         if (!res.metadata) {
-          box.createMetadata(response[0].id, "file").then(res => {
+          box.createMetadata(res.id, "file").then(res => {
             window.localStorage.fileMetadata = JSON.stringify(res)
           })
         } else {
