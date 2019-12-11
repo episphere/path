@@ -5,6 +5,7 @@ const box = async () => {
   const boxAuthEndpoint = encodeURI(`https://account.box.com/api/oauth2/authorize?response_type=code&client_id=${client_id}&state=${state}&redirect_uri=${redirect_uri}`)
   const client_secret = window.location.host.includes("localhost") ? "2rHTqzJumz8s9bAjmKMV83WHX1ooN4kT" : "2ZYzmHXGyzBcjZ9d1Ttsc1d258LiGGVd"
   const boxAccessTokenEndpoint = "https://api.box.com/oauth2/token"
+  box.appBasePath = "https://nih.app.box.com"
   box.basePath = "https://api.box.com/2.0"
   box.endpoints = {
     'user': `${box.basePath}/users/me`,
@@ -148,7 +149,7 @@ box.setupFilePicker = (successCB, cancelCB) => {
 
 
 box.getData = async (id, type) => {
-  const fieldsParam = "fields=id,type,name,metadata.global.properties,parent"
+  const fieldsParam = "fields=id,type,name,metadata.global.properties,parent,path_collection"
   let dataEndpoint = type in box.endpoints['data'] && `${box.endpoints['data'][type]}/${id}`
   dataEndpoint += type === "file" ? `?${fieldsParam}` : ""
   return utils.boxRequest && await utils.boxRequest(dataEndpoint)
