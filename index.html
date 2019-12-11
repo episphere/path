@@ -95,14 +95,24 @@
         <div class="tab-content" id="tabsContent">
           <div class="tab-pane fade" id="box" role="tabpanel" aria-labelledby="box-tab">...</div>
           <div class="tab-pane fade show active" id="annotations" role="tabpanel" aria-labelledby="annotations-tab">
-            <br/>
+            <br />
             <div class="tabContainer" id="annotationsDiv">
               <ol class="list-group">
                 <li class="list-group-item">
                   <div id="qualityAnnotations">
-                    <h5>Image Quality</h5>
-                    <br/>
-                    <div id="qualitySelect" class="list-group list-group-flush"></div>
+                    <table id="qualitySelect" class="table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Image Quality</th>
+                          <th scope="col">
+                            <div class="text-center">Model Prediction</div>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+
+                      </tbody>
+                    </table>
                   </div>
                 </li>
               </ol>
@@ -110,14 +120,19 @@
             </div>
           </div>
           <div class="tab-pane fade" id="collaborate" role="tabpanel" aria-labelledby="collaborate-tab">
-            <br/>
+            <br />
             <div class="tabContainer jumbotron">
-              <p>You can collaborate with others in real-time just by clicking the button below and sending them the link you
-                are shown.<br/><br/>Once they enter the link in their browser, you will be able to see each others' interactions on the page 
-                (like Google Docs, but in epiPath!). You can even chat with them by clicking on the Message icon, or talk to them
-                using your microphone.<br/><br/>When you are done, just click on the End Session button to stop collaborating.</p>
-                <br/>
-              <button type="button" class="btn btn-success btn-lg" id="collaborateBtn" onclick="startCollaboration()">Start Session!</button>
+              <p>You can collaborate with others in real-time just by clicking the button below and sending them the
+                link you are shown.<br /><br />Once they enter the link in their browser, you will be able to see each
+                others'
+                interactions on the page
+                (like Google Docs, but in epiPath!). You can even chat with them by clicking on the Message icon, or
+                talk to them
+                using your microphone.<br /><br />When you are done, just click on the End Session button to stop
+                collaborating.</p>
+              <br />
+              <button type="button" class="btn btn-success btn-lg" id="collaborateBtn"
+                onclick="startCollaboration()">Start Session!</button>
             </div>
           </div>
         </div>

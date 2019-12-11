@@ -143,6 +143,7 @@ label {
   width: 5rem;
   height: 5rem;
   border: 1px solid lightpink;
+  border-radius: 5px;
 }
 
 .selectedThumbnail {
@@ -158,6 +159,10 @@ label {
   /* border-left: 1px solid lightgray */
 }
 
+#annotationsDiv>ol>li:first-child {
+  padding: 0;
+}
+
 #qualityAnnotations {
   width: 100%;
   display: none;
@@ -167,11 +172,16 @@ label {
 .othersAnnotations_quality {
   margin-top: auto;
   margin-bottom: auto;
-  margin-left: 2rem;
+  margin-left: 1rem;
   color: gray;
+  font-size: 15px;
 }
 
-#qualitySelectors>span>button {
+#qualitySelect {
+  margin-bottom: 0;
+}
+
+.qualitySelectorSpan>button {
   font-size: 2rem;
 }
 
@@ -217,16 +227,12 @@ label {
   }
 
   .canvasDiv {
-    width: 83%;
-    margin-left: 2rem;
+    width: 80%;
+    margin-left: 1.5rem;
   }
 
   #tabsContainer {
     width: 50%;
-  }
-
-  #qualitySelect {
-    flex-direction: column;
   }
 }
 

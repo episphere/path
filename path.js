@@ -194,7 +194,7 @@ path.loadCanvas = () => {
     // if (path.tmaCanvas.parentElement.getBoundingClientRect().width < path.tmaImage.width * 0.4) {
     //   document.getElementById("canvasWithPickers").style.width = path.tmaImage.width*0.4
     // }
-    path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width * 0.9)
+    path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
     path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
     showLoader()
     // path.outputCanvas.setAttribute("width", path.outputCanvas.parentElement.getBoundingClientRect().width)
@@ -322,23 +322,26 @@ const showQualitySelectors = () => {
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
   const qualityAnnotations = fileMetadata.qualityAnnotations && JSON.parse(fileMetadata.qualityAnnotations)
   const qualityAnnotationsDiv = document.getElementById("qualityAnnotations")
-  const qualitySelectDiv = document.getElementById("qualitySelect")
-  const qualitySelectorsDiv = document.createElement("div")
-  qualitySelectorsDiv.setAttribute("id", "qualitySelectors")
-  qualitySelectorsDiv.style.display = "flex"
-  qualitySelectorsDiv.style.flexDirection = "column"
-  if (qualitySelectDiv.childElementCount === 0) {
+  const qualitySelectTable = document.getElementById("qualitySelect")
+  const qualitySelectTableBody = qualitySelectTable.querySelector("tbody")
+  // const qualitySelectorsDiv = document.createElement("div")
+  // qualitySelectorsDiv.setAttribute("id", "qualitySelectors")
+  // qualitySelectorsDiv.style.display = "flex"
+  // qualitySelectorsDiv.style.flexDirection = "column"
+  if (qualitySelectTableBody.childElementCount === 0) {
     qualityEnum.forEach((quality) => {
       const {
         numValue,
         displayText
       } = quality
-      const qualitySpan = document.createElement("span")
-      qualitySpan.setAttribute("class", "qualitySelectorSpan list-group-item")
-      qualitySpan.style.display = "flex"
-      qualitySpan.style.flexDirection = "row"
-      // qualitySpan.style.width = "100%"
-      qualitySpan.style.flex = "1"
+      const qualityTableRow = document.createElement("tr")
+      const qualityTableAnnotationData = document.createElement("td")
+      const qualityAnnotationSpan = document.createElement("span")
+      qualityAnnotationSpan.setAttribute("class", "qualitySelectorSpan")
+      qualityAnnotationSpan.style.display = "flex"
+      qualityAnnotationSpan.style.flexDirection = "row"
+      qualityAnnotationSpan.style.paddingLeft = "0"
+      qualityAnnotationSpan.style.flex = "1"
       const qualityButton = document.createElement("button")
       qualityButton.setAttribute("class", "btn btn-outline-info")
       qualityButton.setAttribute("id", `quality_${numValue}`)
@@ -346,66 +349,83 @@ const showQualitySelectors = () => {
       qualityButton.setAttribute("onclick", `path.qualityAnnotate(${numValue})`)
       const qualityText = document.createTextNode(displayText)
       qualityButton.appendChild(qualityText)
-      qualitySpan.appendChild(qualityButton)
+      qualityAnnotationSpan.appendChild(qualityButton)
 
-      const othersAnnotations = qualityAnnotations && getOthersAnnotations(qualityAnnotations, numValue)
-      if (othersAnnotations) {
-        qualitySpan.appendChild(othersAnnotations)
-      }
-      qualitySelectorsDiv.appendChild(qualitySpan)
+      const othersAnnotationsSpan = document.getElementById(`othersAnnotations_quality_${numValue}`) || document.createElement("span")
+      othersAnnotationsSpan.setAttribute("id", `othersAnnotations_quality_${numValue}`)
+      qualityAnnotationSpan.appendChild(othersAnnotationsSpan)
+      qualityTableAnnotationData.appendChild(qualityAnnotationSpan)
+      qualityTableRow.appendChild(qualityTableAnnotationData)
+      
+      const qualityTablePredictionData = document.createElement("td")
+      qualityTablePredictionData.setAttribute("align", "center")
+      qualityTablePredictionData.style.verticalAlign = "middle"
+      const modelQualityPredictions = getModelPrediction(numValue) || "--"
+      qualityTablePredictionData.innerHTML = modelQualityPredictions
+      qualityTableRow.appendChild(qualityTablePredictionData)
+      qualitySelectTableBody.appendChild(qualityTableRow)
     })
   }
-  qualitySelectDiv.appendChild(qualitySelectorsDiv)
+  getOthersAnnotations(qualityAnnotations)
   qualityAnnotationsDiv.style.display = "flex"
   activateQualitySelector(qualityAnnotations)
 }
 
-const getOthersAnnotations = (qualityAnnotations, numValue) => {
-  const othersAnnotations = Object.values(qualityAnnotations).filter(annotation => annotation && annotation.value === numValue && annotation.userId !== window.localStorage.userId)
-  const othersAnnotationsSpan = document.createElement("span")
-  if (othersAnnotations.length > 0) {
-    othersAnnotationsSpan.setAttribute("class", "othersAnnotations_quality")
-    const othersAnnotationsUsernames = othersAnnotations.map(annotation => annotation.username)
+const getOthersAnnotations = (qualityAnnotations) => {
+  qualityEnum.forEach(quality => {
+    const { numValue } = quality
+    const othersAnnotationsSpan = document.getElementById(`othersAnnotations_quality_${numValue}`)
+    othersAnnotationsSpan.innerHTML = ""
+    if (qualityAnnotations) {
+      const othersAnnotations = Object.values(qualityAnnotations).filter(annotation => annotation && annotation.value === numValue && annotation.userId !== window.localStorage.userId)
+      if (othersAnnotations.length > 0) {
+        othersAnnotationsSpan.setAttribute("class", "othersAnnotations_quality")
+        const othersAnnotationsUsernames = othersAnnotations.map(annotation => annotation.username)
+        
+        let othersAnnotationsText = `--- &nbsp Selected by ${othersAnnotationsUsernames[0]}`
+        othersAnnotationsText += othersAnnotations.length > 1 ? " and " : ""
+        if (othersAnnotations.length === 2) {
+          othersAnnotationsText += othersAnnotationsUsernames[1]
+        }
+        const othersAnnotationsTextElement = document.createElement("span")
+        othersAnnotationsTextElement.setAttribute("class", "othersAnnotations_quality_text")
+        othersAnnotationsTextElement.innerHTML = othersAnnotationsText
+        othersAnnotationsSpan.appendChild(othersAnnotationsTextElement)
+        if (othersAnnotations.length > 2) {
+          const moreNamesElement = document.createElement("u")
+          moreNamesElement.setAttribute("id", `moreNamesElement_${numValue}`)
+          moreNamesElement.style.color = "blue"
+          const moreNamesText = document.createTextNode(`${othersAnnotations.length - 1} others`)
+          moreNamesElement.appendChild(moreNamesText)
+          moreNamesElement.setAttribute("title", othersAnnotationsUsernames.filter((_,ind) => ind !== 0).join("<br/>"))
+          new Tooltip(moreNamesElement, {
+            'placement': "bottom",
+            'animation': "slidenfade",
+            'delay': "400",
+            'html': true
+          })
+          othersAnnotationsSpan.appendChild(moreNamesElement)
     
-    let othersAnnotationsText = `   -------   Selected by ${othersAnnotationsUsernames[0]}`
-    othersAnnotationsText += othersAnnotations.length > 1 ? " and " : ""
-    if (othersAnnotations.length === 2) {
-      othersAnnotationsText += othersAnnotationsUsernames[1]
+        }
+      }
     }
-    const othersAnnotationsTextElement = document.createElement("span")
-    othersAnnotationsTextElement.setAttribute("class", "othersAnnotations_quality_text")
-    othersAnnotationsTextElement.appendChild(document.createTextNode(othersAnnotationsText))
-    othersAnnotationsSpan.appendChild(othersAnnotationsTextElement)
-    if (othersAnnotations.length > 2) {
-      const moreNamesElement = document.createElement("u")
-      moreNamesElement.setAttribute("id", `moreNamesElement_${numValue}`)
-      moreNamesElement.style.color = "blue"
-      const moreNamesText = document.createTextNode(`${othersAnnotations.length - 1} others`)
-      moreNamesElement.appendChild(moreNamesText)
-      moreNamesElement.setAttribute("title", othersAnnotationsUsernames.filter((_,ind) => ind !== 0).join("<br/>"))
-      new Tooltip(moreNamesElement, {
-        'placement': "bottom",
-        'animation': "slidenfade",
-        'delay': "400",
-        'html': true
-      })
-      othersAnnotationsSpan.appendChild(moreNamesElement)
+  })
+}
 
-    }
-  }
-  return othersAnnotationsSpan
+const getModelPrediction = (numValue) => {
+  return null
 }
 
 const activateQualitySelector = (qualityAnnotations) => {
-  const qualitySelectDiv = document.getElementById("qualitySelect")
-  const currentlyActiveButton = qualitySelectDiv.querySelector("button.active")
+  const qualitySelectTable = document.getElementById("qualitySelect")
+  const currentlyActiveButton = qualitySelectTable.querySelector("button.active")
   if (currentlyActiveButton) {
     currentlyActiveButton.classList.remove("active")
   }
   if (qualityAnnotations && qualityAnnotations[window.localStorage.userId]) {
     const userQualityAnnotation = qualityAnnotations[window.localStorage.userId].value
-    qualitySelectDiv.querySelector(`button[value='${userQualityAnnotation}']`).classList.add("active")
-    // qualitySelectDiv.
+    qualitySelectTable.querySelector(`button[value='${userQualityAnnotation}']`).classList.add("active")
+    // qualitySelectTable.
   }
 }
 
