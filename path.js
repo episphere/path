@@ -64,6 +64,9 @@ const path = async () => {
   path.toolsDiv = document.getElementById("toolsDiv")
   path.tmaImage = new Image()
   path.setupEventListeners()
+  window.localStorage.currentImage = ""
+  window.localStorage.currentFolder = ""
+  window.localStorage.fileMetadata = ""
 
   await box()
   loadHashParams()
@@ -125,14 +128,16 @@ path.setupEventListeners = () => {
     document.getElementById("thumbnailPicker").style.display = "none"
   }
 
-  path.tmaImage.onload = path.loadCanvas
+  path.tmaImage.onload = () => {
+    path.loadCanvas()
+    if (path.tmaImage.src.includes("boxcloud.com")) {
+      showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
+    }
+  }
 }
 
 const loadDefaultImage = async () => {
-  // showLoader()
-  if (hashParams['image'] && await box.isLoggedIn()) {
-    loadImageFromBox(hashParams['image'])
-  } else {
+  if (!hashParams['image']) {
     path.tmaImage.src = defaultImg
     document.getElementById("imgHeader").innerHTML = `<h5>Test Image</h5>`
   }
@@ -181,7 +186,6 @@ const loadImageFromBox = async (id, url) => {
         showQualitySelectors()
       })
     }
-    showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
   } else {
     alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
   }
@@ -249,6 +253,7 @@ const hideLoader = () => {
 }
 
 path.loadCanvas = () => {
+  console.log("LOADING CANVAS!", )
   if (path.tmaImage.src.length > 0) {
     // if (path.tmaCanvas.parentElement.getBoundingClientRect().width < path.tmaImage.width * 0.4) {
     //   document.getElementById("canvasWithPickers").style.width = path.tmaImage.width*0.4
@@ -587,7 +592,6 @@ const addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offset) =>
       thumbnailCurrentPageText.stepUp()
       thumbnailCurrentPageText.dispatchEvent(new Event("change"))
     }
-
     
     thumbnailCurrentPageText.onchange = ({target: {value}}) => {
       value = parseInt(value)
@@ -676,4 +680,4 @@ const addAnnotationsTooltip = () => {
 }
 
 window.onload = path
-window.onresize = path.loadCanvas
+window.onresize = () => path.loadCanvas()
