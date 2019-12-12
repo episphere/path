@@ -113,28 +113,7 @@ box.setupFilePicker = (successCB, cancelCB) => {
   
   const defaultSuccessCB = (response) => {
     if (response[0].name.endsWith(".jpg") || response[0].name.endsWith(".png")) {
-      window.localStorage.currentImage = response[0].id
-      if (hashParams['image']) {
-        window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${response[0].id}`)
-      } else {
-        window.location.hash = window.location.hash ? window.location.hash + `&image=${response[0].id}` : `image=${response[0].id}`
-      }
-      path.tmaImage.setAttribute("src", "")
-      path.tmaImage.setAttribute("src", response[0].url)
-      path.tmaImage.setAttribute("crossorigin", "Anonymous")
-      path.tmaImage.setAttribute("alt", response[0].name)
-      box.getData(response[0].id, "file").then(res => {
-        window.localStorage.currentFolder = res.parent.id
-        addImageHeader(res.path_collection.entries, res.id, res.name)
-        window.localStorage.currentThumbnailsOffset = 0
-        if (!res.metadata) {
-          box.createMetadata(res.id, "file").then(res => {
-            window.localStorage.fileMetadata = JSON.stringify(res)
-          })
-        } else {
-          window.localStorage.fileMetadata = JSON.stringify(res.metadata.global.properties)
-        }
-      })
+      loadImageFromBox(response[0].id, response[0].url)
     } else {
       alert("The item you selected from Box was not a valid image. Please select a file of type .jpg or .png!")
     }

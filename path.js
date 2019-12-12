@@ -29,7 +29,6 @@ const loadHashParams = async () => {
     })
   }
   if (hashParams['image'] && hashParams['image'] !== window.localStorage.currentImage) {
-    window.localStorage.currentImage = hashParams['image']
     loadImageFromBox(hashParams['image'])
   }
 }
@@ -139,26 +138,48 @@ const loadDefaultImage = async () => {
   }
 }
 
-const loadImageFromBox = async (id) => {
+const loadImageFromBox = async (id, url) => {
+  console.log(hashParams, id)
+  window.localStorage.currentImage = id
+  
+  if (hashParams['image'] && hashParams['image'] !== id) {
+    window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${id}`)
+  } else if (!hashParams['image']) {
+    window.location.hash = window.location.hash ? window.location.hash + `&image=${id}` : `image=${id}`
+  }
+
+  if (url) {
+    path.tmaImage.setAttribute("src", "")
+    path.tmaImage.setAttribute("src", url)
+    path.tmaImage.setAttribute("crossorigin", "Anonymous")
+  }
+  
   const imageData = await box.getData(id, "file")
   if (!imageData) {
     return
   }
-
   const { type, name, parent, metadata, path_collection: {entries: filePathInBox} } = imageData
 
   if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
     window.localStorage.currentFolder = parent.id
     path.tmaImage.setAttribute("alt", name)
-    const { url } = await box.getFileContent(id)
-    path.tmaImage.src = url
+    if (!url) {
+      const fileContent = await box.getFileContent(id)
+      url = fileContent.url
+      path.tmaImage.setAttribute("src", "")
+      path.tmaImage.setAttribute("src", url)
+      path.tmaImage.setAttribute("crossorigin", "Anonymous")
+    }
+    path.tmaImage.setAttribute("alt", name)
     addImageHeader(filePathInBox, id, name)
     
     if (metadata) {
       window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
+      showQualitySelectors()
     } else {
       box.createMetadata(id, "file").then(res => {
         window.localStorage.fileMetadata = JSON.stringify(res)
+        showQualitySelectors()
       })
     }
   } else {
@@ -248,7 +269,6 @@ path.loadCanvas = () => {
       document.getElementById("canvasWithPickers").style["border-right"] = "1px solid lightgray"
       // console.log("CALLED!!!")
       showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
-      showQualitySelectors()
     }
     if (!path.options) {
       path.loadOptions()
@@ -356,6 +376,7 @@ const zoomInButton = () => {
 }
 
 const showQualitySelectors = () => {
+  console.log("Quality called!")
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
   const qualityAnnotations = fileMetadata.qualityAnnotations && JSON.parse(fileMetadata.qualityAnnotations)
   const qualityAnnotationsDiv = document.getElementById("qualityAnnotations")
@@ -585,7 +606,6 @@ const addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offset) =>
     
     thumbnailPicker.appendChild(thumbnailPageNumSpan)
   } else {
-    console.log(totalPages, totalCount, limit)
     const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
     thumbnailCurrentPageText.setAttribute("max", totalPages)
     const outOfTotalPagesText = document.getElementById("thumbnailPageSelector_totalPages")
@@ -618,11 +638,7 @@ const checkAndDisableButtons = (pageNum, totalPages) => {
 const selectThumbnail = (id) => {
   if (id !== hashParams['image']) {
     showLoader()
-    if (hashParams['image']) {
-      window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${id}`)
-    } else {
-      window.location.hash = window.location.hash ? window.location.hash + `&image=${id}` : `image=${id}`
-    }
+    loadImageFromBox(id)
   }
 }
 
@@ -631,7 +647,10 @@ const highlightThumbnail = (id) => {
   if (prevSelectedThumbnail.length > 0) {
     prevSelectedThumbnail[0].classList.remove("selectedThumbnail")
   }
-  document.getElementById(`thumbnail_${id}`).classList.add("selectedThumbnail")
+  const thumbnailToSelect = document.getElementById(`thumbnail_${id}`)
+  if (thumbnailToSelect){
+    thumbnailToSelect .classList.add("selectedThumbnail")
+  }
 }
 
 const startCollaboration = () => {
