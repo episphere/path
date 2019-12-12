@@ -139,7 +139,6 @@ const loadDefaultImage = async () => {
 }
 
 const loadImageFromBox = async (id, url) => {
-  console.log(hashParams, id)
   window.localStorage.currentImage = id
   
   if (hashParams['image'] && hashParams['image'] !== id) {
@@ -182,6 +181,7 @@ const loadImageFromBox = async (id, url) => {
         showQualitySelectors()
       })
     }
+    showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
   } else {
     alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
   }
@@ -265,11 +265,7 @@ path.loadCanvas = () => {
     tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
     hideLoader()
     // outputContext.drawImage(path.tmaImage, 0, 0, path.outputCanvas.width, path.outputCanvas.height)
-    if (path.tmaImage.src.includes("boxcloud.com")) {
-      document.getElementById("canvasWithPickers").style["border-right"] = "1px solid lightgray"
-      // console.log("CALLED!!!")
-      showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
-    }
+    
     if (!path.options) {
       path.loadOptions()
     }
@@ -376,7 +372,6 @@ const zoomInButton = () => {
 }
 
 const showQualitySelectors = () => {
-  console.log("Quality called!")
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
   const qualityAnnotations = fileMetadata.qualityAnnotations && JSON.parse(fileMetadata.qualityAnnotations)
   const qualityAnnotationsDiv = document.getElementById("qualityAnnotations")
