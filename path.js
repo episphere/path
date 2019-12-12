@@ -137,7 +137,7 @@ path.setupEventListeners = () => {
 }
 
 const loadDefaultImage = async () => {
-  if (!hashParams['image'] || (hashParams['image'] && !await box.isLoggedIn())) {
+  if (!hashParams['image'] || !await box.isLoggedIn()) {
     path.tmaImage.src = defaultImg
     document.getElementById("imgHeader").innerHTML = `<h5>Test Image</h5>`
   }
