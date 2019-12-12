@@ -28,7 +28,7 @@ const loadHashParams = async () => {
       }
     })
   }
-  if (hashParams['image'] && hashParams['image'] !== window.localStorage.currentImage) {
+  if (hashParams['image']) {
     loadImageFromBox(hashParams['image'])
   }
 }
@@ -64,9 +64,6 @@ const path = async () => {
   path.toolsDiv = document.getElementById("toolsDiv")
   path.tmaImage = new Image()
   path.setupEventListeners()
-  window.localStorage.currentImage = ""
-  window.localStorage.currentFolder = ""
-  window.localStorage.fileMetadata = ""
 
   await box()
   loadHashParams()
@@ -144,50 +141,52 @@ const loadDefaultImage = async () => {
 }
 
 const loadImageFromBox = async (id, url) => {
-  window.localStorage.currentImage = id
+  if (path.tmaImage.src !== id) {
+    window.localStorage.currentImage = id
+    
+    if (hashParams['image'] && hashParams['image'] !== id) {
+      window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${id}`)
+    } else if (!hashParams['image']) {
+      window.location.hash = window.location.hash ? window.location.hash + `&image=${id}` : `image=${id}`
+    }
   
-  if (hashParams['image'] && hashParams['image'] !== id) {
-    window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${id}`)
-  } else if (!hashParams['image']) {
-    window.location.hash = window.location.hash ? window.location.hash + `&image=${id}` : `image=${id}`
-  }
-
-  if (url) {
-    path.tmaImage.setAttribute("src", "")
-    path.tmaImage.setAttribute("src", url)
-    path.tmaImage.setAttribute("crossorigin", "Anonymous")
-  }
-  
-  const imageData = await box.getData(id, "file")
-  if (!imageData) {
-    return
-  }
-  const { type, name, parent, metadata, path_collection: {entries: filePathInBox} } = imageData
-
-  if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
-    window.localStorage.currentFolder = parent.id
-    path.tmaImage.setAttribute("alt", name)
-    if (!url) {
-      const fileContent = await box.getFileContent(id)
-      url = fileContent.url
+    if (url) {
       path.tmaImage.setAttribute("src", "")
       path.tmaImage.setAttribute("src", url)
       path.tmaImage.setAttribute("crossorigin", "Anonymous")
     }
-    path.tmaImage.setAttribute("alt", name)
-    addImageHeader(filePathInBox, id, name)
     
-    if (metadata) {
-      window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
-      showQualitySelectors()
-    } else {
-      box.createMetadata(id, "file").then(res => {
-        window.localStorage.fileMetadata = JSON.stringify(res)
-        showQualitySelectors()
-      })
+    const imageData = await box.getData(id, "file")
+    if (!imageData) {
+      return
     }
-  } else {
-    alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
+    const { type, name, parent, metadata, path_collection: {entries: filePathInBox} } = imageData
+  
+    if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
+      window.localStorage.currentFolder = parent.id
+      path.tmaImage.setAttribute("alt", name)
+      if (!url) {
+        const fileContent = await box.getFileContent(id)
+        url = fileContent.url
+        path.tmaImage.setAttribute("src", "")
+        path.tmaImage.setAttribute("src", url)
+        path.tmaImage.setAttribute("crossorigin", "Anonymous")
+      }
+      path.tmaImage.setAttribute("alt", name)
+      addImageHeader(filePathInBox, id, name)
+      
+      if (metadata) {
+        window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
+        showQualitySelectors()
+      } else {
+        box.createMetadata(id, "file").then(res => {
+          window.localStorage.fileMetadata = JSON.stringify(res)
+          showQualitySelectors()
+        })
+      }
+    } else {
+      alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
+    }
   }
 }
 
@@ -270,7 +269,7 @@ path.loadCanvas = () => {
     tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
     hideLoader()
     // outputContext.drawImage(path.tmaImage, 0, 0, path.outputCanvas.width, path.outputCanvas.height)
-    
+    document.getElementById("canvasWithPickers").style.borderRight = "1px solid lightgray"
     if (!path.options) {
       path.loadOptions()
     }
