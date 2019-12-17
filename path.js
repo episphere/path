@@ -1,6 +1,7 @@
 console.log("path.js loaded")
 const urlParams = {}
 const BCAST_root_folder_id = "83472473960"
+
 const loadURLParams = () => {
   window.location.search.slice(1).split('&').forEach(param => {
     const [key, value] = param.split('=')
@@ -28,8 +29,9 @@ const loadHashParams = async () => {
       }
     })
   }
-  if (hashParams['image']) {
-    loadImageFromBox(hashParams['image'])
+  window.localStorage.hashParams = JSON.stringify(hashParams)
+  if (hashParams.image) {
+    loadImageFromBox(hashParams.image)
   }
 }
 
@@ -113,9 +115,9 @@ path.setupEventListeners = () => {
     }
   }) => {
     document.getElementById("imgHeader").innerHTML = `<h5>${files[0].name}</h5>`
-    if (hashParams["image"]) {
-      window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, "")
-      window.localStorage.currentImage = ""
+    if (hashParams.image) {
+      window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, "")
+      hashParams.image = ""
       window.localStorage.currentFolder = ""
     }
     path.tmaImage.setAttribute("src", "") // Unsetting src because Firefox does not update image otherwise.
@@ -134,59 +136,44 @@ path.setupEventListeners = () => {
 }
 
 const loadDefaultImage = async () => {
-  if (!hashParams['image'] || !await box.isLoggedIn()) {
+  if (!hashParams.image || !await box.isLoggedIn()) {
     path.tmaImage.src = defaultImg
     document.getElementById("imgHeader").innerHTML = `<h5>Test Image</h5>`
   }
 }
 
 const loadImageFromBox = async (id, url) => {
-  if (path.tmaImage.src !== id) {
-    window.localStorage.currentImage = id
-    
-    if (hashParams['image'] && hashParams['image'] !== id) {
-      window.location.hash = window.location.hash.replace(`image=${hashParams['image']}`, `image=${id}`)
-    } else if (!hashParams['image']) {
-      window.location.hash = window.location.hash ? window.location.hash + `&image=${id}` : `image=${id}`
-    }
-  
-    if (url) {
+
+  const imageData = await box.getData(id, "file")
+  if (!imageData) {
+    return
+  }
+  const { type, name, parent, metadata, path_collection: {entries: filePathInBox} } = imageData
+
+  if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
+    window.localStorage.currentFolder = parent.id
+    path.tmaImage.setAttribute("alt", name)
+    if (!url) {
+      const fileContent = await box.getFileContent(id)
+      url = fileContent.url
       path.tmaImage.setAttribute("src", "")
       path.tmaImage.setAttribute("src", url)
       path.tmaImage.setAttribute("crossorigin", "Anonymous")
     }
+    path.tmaImage.setAttribute("alt", name)
+    addImageHeader(filePathInBox, id, name)
     
-    const imageData = await box.getData(id, "file")
-    if (!imageData) {
-      return
-    }
-    const { type, name, parent, metadata, path_collection: {entries: filePathInBox} } = imageData
-  
-    if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
-      window.localStorage.currentFolder = parent.id
-      path.tmaImage.setAttribute("alt", name)
-      if (!url) {
-        const fileContent = await box.getFileContent(id)
-        url = fileContent.url
-        path.tmaImage.setAttribute("src", "")
-        path.tmaImage.setAttribute("src", url)
-        path.tmaImage.setAttribute("crossorigin", "Anonymous")
-      }
-      path.tmaImage.setAttribute("alt", name)
-      addImageHeader(filePathInBox, id, name)
-      
-      if (metadata) {
-        window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
-        showQualitySelectors()
-      } else {
-        box.createMetadata(id, "file").then(res => {
-          window.localStorage.fileMetadata = JSON.stringify(res)
-          showQualitySelectors()
-        })
-      }
+    if (metadata) {
+      window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
+      showQualitySelectors()
     } else {
-      alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
+      box.createMetadata(id, "file").then(res => {
+        window.localStorage.fileMetadata = JSON.stringify(res)
+        showQualitySelectors()
+      })
     }
+  } else {
+    alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
   }
 }
 
@@ -252,7 +239,7 @@ const hideLoader = () => {
 }
 
 path.loadCanvas = () => {
-  console.log("LOADING CANVAS!", )
+  console.log("LOADING CANVAS")
   if (path.tmaImage.src.length > 0) {
     // if (path.tmaCanvas.parentElement.getBoundingClientRect().width < path.tmaImage.width * 0.4) {
     //   document.getElementById("canvasWithPickers").style.width = path.tmaImage.width*0.4
@@ -322,7 +309,7 @@ path.qualityAnnotate = async (qualitySelected) => {
     }
 
     const path = "/qualityAnnotations"
-    const newMetadata = await box.updateMetadata(window.localStorage.currentImage, "file", path, JSON.stringify(fileMetadata.qualityAnnotations))
+    const newMetadata = await box.updateMetadata(hashParams.image, "file", path, JSON.stringify(fileMetadata.qualityAnnotations))
 
     window.localStorage.fileMetadata = JSON.stringify(newMetadata)
     activateQualitySelector(JSON.parse(newMetadata.qualityAnnotations))
@@ -408,9 +395,6 @@ const showQualitySelectors = () => {
       qualityButton.appendChild(qualityText)
       qualityAnnotationSpan.appendChild(qualityButton)
 
-      const othersAnnotationsSpan = document.getElementById(`othersAnnotations_quality_${numValue}`) || document.createElement("span")
-      othersAnnotationsSpan.setAttribute("id", `othersAnnotations_quality_${numValue}`)
-      qualityAnnotationSpan.appendChild(othersAnnotationsSpan)
       qualityTableAnnotationData.appendChild(qualityAnnotationSpan)
       qualityTableRow.appendChild(qualityTableAnnotationData)
       
@@ -423,51 +407,27 @@ const showQualitySelectors = () => {
       qualitySelectTableBody.appendChild(qualityTableRow)
     })
   }
-  getOthersAnnotations(qualityAnnotations)
   qualityAnnotationsDiv.style.display = "flex"
   qualityAnnotationsDiv.style.border = "1px solid rgba(0,0,0,.125)"
   activateQualitySelector(qualityAnnotations)
+  getOthersAnnotations(qualityAnnotations)
 }
 
 const getOthersAnnotations = (qualityAnnotations) => {
-  qualityEnum.forEach(quality => {
-    const { numValue } = quality
-    const othersAnnotationsSpan = document.getElementById(`othersAnnotations_quality_${numValue}`)
-    othersAnnotationsSpan.innerHTML = ""
-    if (qualityAnnotations) {
-      const othersAnnotations = Object.values(qualityAnnotations).filter(annotation => annotation && annotation.value === numValue && annotation.userId !== window.localStorage.userId)
-      if (othersAnnotations.length > 0) {
-        othersAnnotationsSpan.setAttribute("class", "othersAnnotations_quality")
-        const othersAnnotationsUsernames = othersAnnotations.map(annotation => annotation.username)
-        
-        let othersAnnotationsText = `--- &nbsp Selected by ${othersAnnotationsUsernames[0]}`
-        othersAnnotationsText += othersAnnotations.length > 1 ? " and " : ""
-        if (othersAnnotations.length === 2) {
-          othersAnnotationsText += othersAnnotationsUsernames[1]
-        }
-        const othersAnnotationsTextElement = document.createElement("span")
-        othersAnnotationsTextElement.setAttribute("class", "othersAnnotations_quality_text")
-        othersAnnotationsTextElement.innerHTML = othersAnnotationsText
-        othersAnnotationsSpan.appendChild(othersAnnotationsTextElement)
-        if (othersAnnotations.length > 2) {
-          const moreNamesElement = document.createElement("u")
-          moreNamesElement.setAttribute("id", `moreNamesElement_${numValue}`)
-          moreNamesElement.style.color = "cornflowerblue"
-          const moreNamesText = document.createTextNode(`${othersAnnotations.length - 1} others`)
-          moreNamesElement.appendChild(moreNamesText)
-          moreNamesElement.setAttribute("title", othersAnnotationsUsernames.filter((_,ind) => ind !== 0).join("<br/>"))
-          new Tooltip(moreNamesElement, {
-            'placement': "bottom",
-            'animation': "slidenfade",
-            'delay': "400",
-            'html': true
-          })
-          othersAnnotationsSpan.appendChild(moreNamesElement)
-    
-        }
-      }
+  if (qualityAnnotations) {
+    const othersAnnotations = Object.values(qualityAnnotations).filter(annotation => annotation && annotation.userId !== window.localStorage.userId)
+    if (othersAnnotations.length > 0) {
+      let othersAnnotationsText = `Annotated by `
+      const othersAnnotationsUsernames = othersAnnotations.map(annotation => annotation.username)
+      const othersAnnotationsUsernamesText = othersAnnotationsUsernames.length === 1 
+      ? 
+      othersAnnotationsUsernames[0]
+      :
+      othersAnnotationsUsernames.slice(0, othersAnnotationsUsernames.length - 1).join(", ") +  " and " + othersAnnotationsUsernames[othersAnnotationsUsernames.length - 1]
+      othersAnnotationsText += othersAnnotationsUsernamesText
+      console.log(othersAnnotationsText, new Date())
     }
-  })
+  }
 }
 
 const getModelPrediction = (numValue) => {
@@ -501,7 +461,7 @@ const showThumbnailPicker = async (limit, offset=0) => {
     addThumbnails(thumbnailPicker, thumbnails)
     addThumbnailPageSelector(thumbnailPicker, total_count, limit, offset)
   } else {
-    highlightThumbnail(window.localStorage.currentImage)
+    highlightThumbnail(hashParams.image)
   }
 }
 
@@ -526,7 +486,7 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
       const thumbnailImg = document.createElement("img")
       thumbnailImg.setAttribute("id", `thumbnail_${thumbnailId}`)
       thumbnailImg.setAttribute("class", "imagePickerThumbnail")
-      if (thumbnailId === window.localStorage.currentImage) {
+      if (thumbnailId === hashParams.image) {
         thumbnailImg.classList.add("selectedThumbnail")
       }
       thumbnailImg.setAttribute("loading", "lazy")
@@ -634,9 +594,9 @@ const checkAndDisableButtons = (pageNum, totalPages) => {
 }
 
 const selectThumbnail = (id) => {
-  if (id !== hashParams['image']) {
+  if (id !== hashParams.image) {
     showLoader()
-    loadImageFromBox(id)
+    window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${id}`)
   }
 }
 
@@ -647,7 +607,7 @@ const highlightThumbnail = (id) => {
   }
   const thumbnailToSelect = document.getElementById(`thumbnail_${id}`)
   if (thumbnailToSelect){
-    thumbnailToSelect .classList.add("selectedThumbnail")
+    thumbnailToSelect.classList.add("selectedThumbnail")
   }
 }
 
@@ -679,4 +639,4 @@ const addAnnotationsTooltip = () => {
 }
 
 window.onload = path
-window.onresize = () => path.loadCanvas()
+window.onresize = path.loadCanvas

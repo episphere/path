@@ -85,11 +85,9 @@ const box = async () => {
       console.log("ERROR LOGGING IN TO BOX!", err)
     }
     let replaceURLPath = window.location.host.includes("localhost") ? "/" : "/path"
-    let urlHash = "#"
-    urlHash += window.localStorage.currentImage ? `image=${window.localStorage.currentImage}` : ""
-    urlHash += window.localStorage.extModules ? (urlHash.length > 1 ? `&extModules=${window.localStorage.extModules}`: `extModules=${window.localStorage.extModules}`) : ""
-    replaceURLPath += urlHash.length > 1 ? urlHash : ""
-    window.history.replaceState({}, "", replaceURLPath)
+    const urlHash = Object.entries(JSON.parse(window.localStorage.hashParams)).map(([key, val]) => `${key}=${val}`).join("&")
+    window.history.replaceState({}, "", `${replaceURLPath}#${urlHash}`)
+    // window.location.hash = urlHash
     triggerLoginEvent()
   } else {
     document.getElementById("boxLoginBtn").style = "display: block"
@@ -113,7 +111,11 @@ box.setupFilePicker = (successCB, cancelCB) => {
   
   const defaultSuccessCB = (response) => {
     if (response[0].name.endsWith(".jpg") || response[0].name.endsWith(".png")) {
-      loadImageFromBox(response[0].id, response[0].url)
+      if (hashParams.image) {
+        window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${response[0].id}`)
+      } else {
+        window.location.hash += `image=${response[0].id}`
+      }
     } else {
       alert("The item you selected from Box was not a valid image. Please select a file of type .jpg or .png!")
     }
@@ -168,7 +170,7 @@ box.getMetadata = async (id, type) => {
   const metadataAPI = `${box.endpoints['data'][type]}/${id}/${box.endpoints['subEndpoints']['metadata']}`
   let metadata = await utils.boxRequest(metadataAPI)
   if (metadata.status === 404) {
-    metadata = await box.createMetadata(id, type)
+    metadata = await box.createMetadata(id, type) // Returns 409 for some reason, but works :/ Probably a bug in the Box API
   }
   return metadata
 }
