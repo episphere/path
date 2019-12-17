@@ -171,11 +171,10 @@ label {
 }
 
 .othersAnnotations_quality {
-  margin-top: auto;
-  margin-bottom: auto;
-  margin-left: 1rem;
+  margin-left: 0.3rem;
+  margin-top: 1rem;
   color: gray;
-  font-size: 15px;
+  font-size: 1rem;
 }
 
 #qualitySelect {

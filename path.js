@@ -239,7 +239,7 @@ const hideLoader = () => {
 }
 
 path.loadCanvas = () => {
-  console.log("LOADING CANVAS")
+
   if (path.tmaImage.src.length > 0) {
     // if (path.tmaCanvas.parentElement.getBoundingClientRect().width < path.tmaImage.width * 0.4) {
     //   document.getElementById("canvasWithPickers").style.width = path.tmaImage.width*0.4
@@ -314,7 +314,6 @@ path.qualityAnnotate = async (qualitySelected) => {
     window.localStorage.fileMetadata = JSON.stringify(newMetadata)
     activateQualitySelector(JSON.parse(newMetadata.qualityAnnotations))
     alert("Image Annotated Successfully!")
-
   }
 }
 
@@ -394,6 +393,7 @@ const showQualitySelectors = () => {
       const qualityText = document.createTextNode(displayText)
       qualityButton.appendChild(qualityText)
       qualityAnnotationSpan.appendChild(qualityButton)
+      qualityTableAnnotationData.style.borderRight = "none"
 
       qualityTableAnnotationData.appendChild(qualityAnnotationSpan)
       qualityTableRow.appendChild(qualityTableAnnotationData)
@@ -401,33 +401,39 @@ const showQualitySelectors = () => {
       const qualityTablePredictionData = document.createElement("td")
       qualityTablePredictionData.setAttribute("align", "center")
       qualityTablePredictionData.style.verticalAlign = "middle"
+      qualityTablePredictionData.style.borderLeft = "none"
       const modelQualityPredictions = getModelPrediction(numValue) || "--"
       qualityTablePredictionData.innerHTML = modelQualityPredictions
       qualityTableRow.appendChild(qualityTablePredictionData)
       qualitySelectTableBody.appendChild(qualityTableRow)
     })
   }
-  qualityAnnotationsDiv.style.display = "flex"
-  qualityAnnotationsDiv.style.border = "1px solid rgba(0,0,0,.125)"
   activateQualitySelector(qualityAnnotations)
-  getOthersAnnotations(qualityAnnotations)
+  const othersAnnotations = getOthersAnnotations(qualityAnnotations)
+  const othersAnnotationsDiv = document.createElement("div")
+  othersAnnotationsDiv.setAttribute("class", "othersAnnotations_quality")
+  othersAnnotationsDiv.innerHTML = othersAnnotations
+  qualityAnnotationsDiv.appendChild(othersAnnotationsDiv)
+  
+  qualityAnnotationsDiv.style.display = "flex"
+  // qualityAnnotationsDiv.style.border = "1px solid rgba(0,0,0,.125)"
 }
 
 const getOthersAnnotations = (qualityAnnotations) => {
+  let othersAnnotationsText = ""
   if (qualityAnnotations) {
     const othersAnnotations = Object.values(qualityAnnotations).filter(annotation => annotation && annotation.userId !== window.localStorage.userId)
     if (othersAnnotations.length > 0) {
-      let othersAnnotationsText = `Annotated by `
       const othersAnnotationsUsernames = othersAnnotations.map(annotation => annotation.username)
       const othersAnnotationsUsernamesText = othersAnnotationsUsernames.length === 1 
       ? 
       othersAnnotationsUsernames[0]
       :
       othersAnnotationsUsernames.slice(0, othersAnnotationsUsernames.length - 1).join(", ") +  " and " + othersAnnotationsUsernames[othersAnnotationsUsernames.length - 1]
-      othersAnnotationsText += othersAnnotationsUsernamesText
-      console.log(othersAnnotationsText, new Date())
+      othersAnnotationsText = `-- Also annotated by ${othersAnnotationsUsernamesText}`
     }
   }
+  return othersAnnotationsText
 }
 
 const getModelPrediction = (numValue) => {
