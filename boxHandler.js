@@ -66,10 +66,7 @@ const box = async () => {
         'Authorization': `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`,
         'Content-Type': opts.method !== "PUT" ?  "application/json" : "application/json-patch+json"
       }
-      opts['headers'] = opts['headers'] ? {
-        ...boxHeaders,
-        ...opts['headers']
-      } : boxHeaders
+      opts['headers'] = opts['headers'] ? Object.assign(boxHeaders, opts['headers']) : boxHeaders   // Using Object.assign instead of spread operator for Edge compatibility
       return utils.request(url, opts, returnJson)
     }
     const boxLoginEvent = new CustomEvent("boxLoggedIn", {})

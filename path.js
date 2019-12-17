@@ -416,7 +416,7 @@ const showQualitySelectors = () => {
   qualityAnnotationsDiv.appendChild(othersAnnotationsDiv)
   
   qualityAnnotationsDiv.style.display = "flex"
-  // qualityAnnotationsDiv.style.border = "1px solid rgba(0,0,0,.125)"
+  qualityAnnotationsDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
 }
 
 const getOthersAnnotations = (qualityAnnotations) => {
