@@ -264,7 +264,7 @@ const populateBoxSubfolderTree = (entries, parentId) => {
       entryBtnSubfolders.setAttribute("class", "boxFileMgr_subFolders")
       entryBtnSubfolders.setAttribute("id", `boxFileMgr_subFolders_${entry.id}`)
       const loaderImage = document.createElement("img")
-      loaderImage.setAttribute("src", "images/loader_sm.gif")
+      loaderImage.setAttribute("src", `${window.location.origin}${window.location.pathname}images/loader_sm.gif`)
       loaderImage.setAttribute("class", "boxFileMgr_loader")
       entryBtnSubfolders.appendChild(loaderImage)
       entryBtnSubfolders.style.display = "none"
