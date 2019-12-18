@@ -274,7 +274,7 @@ const populateBoxSubfolderTree = (entries, parentId) => {
 
     entryBtn.onclick = async () => {
       if (entry.type === "folder") {
-        const isOpen = entryBtnSubfolders.style.display !== "none"
+        const isOpen = entryBtn.querySelector("i").classList.contains("fa-folder-open")
         if (isOpen) {
           // while (entryBtnDiv.childElementCount !== 2) {
           //   entryBtnDiv.removeChild(entryBtnDiv.lastElementChild)
