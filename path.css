@@ -154,6 +154,41 @@ label {
   margin-left: 2rem;
 }
 
+#boxFileManager {
+  padding-top: 1rem;
+}
+
+.boxFileMgr_loader {
+  margin: 0 auto;
+  height: 50px;
+}
+
+.boxFileMgr_subFolders {
+  text-align: center;
+}
+
+#boxFileManager hr {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.boxFileMgr_subFolderTree {
+  flex-direction: column;
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
+
+.boxFileMgr_subFolderTree>div>button {
+  width: 100%;
+  text-align: left;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.selectedImage {
+  background-color: rgba(220, 120, 190, 0.2);
+}
+
 #annotationsDiv {
   height: auto;
   /* border-left: 1px solid lightgray */

@@ -1,6 +1,6 @@
 console.log("path.js loaded")
 const urlParams = {}
-const BCAST_root_folder_id = "83472473960"
+const boxRootFolderId = "0"
 
 const loadURLParams = () => {
   window.location.search.slice(1).split('&').forEach(param => {
@@ -104,7 +104,7 @@ path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
     box.getUserProfile()
     // await box.makeSelections()
-    path.getDatasetSubfolders()
+    path.getBoxFolderTree()
     box.setupFilePicker()
   })
 
@@ -213,15 +213,111 @@ const addImageHeader = (filePathInBox, id, name) => {
   imgHeader.appendChild(folderStructure)
 }
 
-path.getDatasetSubfolders = async () => {
-  const manifest = await box.getData(BCAST_root_folder_id, "folder")
+path.getBoxFolderTree = async (id=boxRootFolderId) => {
+  const manifest = await box.getData(id, "folder")
   if (manifest && manifest.item_status === "active") {
-    path.isBCASTMember = true
-    // document.getElementById("selectMarkersOuterDiv").style.display = "flex"
-
-    // console.log(manifest.item_collection.entries)
-    // manifest.item
+    const { item_collection: { entries }} = manifest
+    const parentElement = id === "0" ? document.getElementById("boxFileManager") : document.getElementById(`boxFileMgr_subFolders_${id}`)
+    if (entries.length !== 0 || parentElement.childElementCount === 0) {
+      const folderSubDiv = populateBoxSubfolderTree(entries, id)
+      parentElement.style.border = "1px solid lightgray"
+      parentElement.style.backgroundColor = "rgba(200, 200, 200, 0.1)"
+      if (id !== "0") {
+        parentElement.style.height = "auto"
+        folderSubDiv.style.height = entries.length < 5 ? `${entries.length*4}rem` : "20rem" ;
+        folderSubDiv.style.width = "100%"
+        folderSubDiv.style.overflowY = "scroll"
+        folderSubDiv.style.borderLeft = "1px dashed gray"
+        parentElement.style.border = "none"
+      }
+      parentElement.appendChild(folderSubDiv)
+    } else if (entries.length === 0) {
+      parentElement.style.color = "gray"
+      parentElement.style.textAlign = "center"
+      parentElement.innerText = "-- Empty Folder --"
+    }
   }
+}
+
+const populateBoxSubfolderTree = (entries, parentId) => {
+  const subFolderDiv = document.createElement("div")
+  subFolderDiv.setAttribute("class", `boxFileMgr_subFolderTree`)
+  subFolderDiv.setAttribute("id", `boxFileMgr_subFolderTree_${parentId}`)
+  entries.forEach(entry => {
+    const entryBtnDiv = document.createElement("div")
+    entryBtnDiv.setAttribute("id", `boxFileMgr_folder_${entry.id}`)
+    const entryBtn = document.createElement("button")
+    entryBtn.setAttribute("class", "btn btn-link")
+    entryBtn.setAttribute("type", "button")
+    const entryIcon = document.createElement("i")
+    if (entry.type === "folder") {
+      entryIcon.setAttribute("class", "fas fa-folder")
+    } else if (entry.type === "file") {
+      entryIcon.setAttribute("class", "fas fa-file")
+    }
+    entryIcon.innerHTML = "&nbsp&nbsp"
+    entryBtn.appendChild(entryIcon)
+    entryBtn.innerHTML += entry.name
+    entryBtnDiv.appendChild(entryBtn)
+    if (entry.type === "folder") {
+      var entryBtnSubfolders = document.createElement("div")
+      entryBtnSubfolders.setAttribute("class", "boxFileMgr_subFolders")
+      entryBtnSubfolders.setAttribute("id", `boxFileMgr_subFolders_${entry.id}`)
+      const loaderImage = document.createElement("img")
+      loaderImage.setAttribute("src", "images/loader_sm.gif")
+      loaderImage.setAttribute("class", "boxFileMgr_loader")
+      entryBtnSubfolders.appendChild(loaderImage)
+      entryBtnSubfolders.style.display = "none"
+      entryBtnDiv.appendChild(entryBtnSubfolders)
+    }
+    entryBtnDiv.appendChild(document.createElement("hr"))
+
+    entryBtn.onclick = async () => {
+      if (entry.type === "folder") {
+        const isOpen = entryBtnSubfolders.style.display !== "none"
+        if (isOpen) {
+          // while (entryBtnDiv.childElementCount !== 2) {
+          //   entryBtnDiv.removeChild(entryBtnDiv.lastElementChild)
+          // }
+          entryBtnSubfolders.style.display = "none"
+          entryBtnDiv.style.backgroundColor = ""
+          entryBtnDiv.style.border = "none"
+          entryBtnDiv.style.height = ""
+          entryBtn.querySelector("i").setAttribute("class", "fas fa-folder")
+          entryBtnDiv.querySelector("img.boxFileMgr_loader").style.display = "none"
+        } else {
+          entryBtn.querySelector("i").setAttribute("class", "fas fa-folder-open")
+          entryBtnDiv.querySelector("img.boxFileMgr_loader").style.display = "block"
+          entryBtnSubfolders.style.display = "flex"
+          if (entryBtnSubfolders.childElementCount === 1) {
+            await path.getBoxFolderTree(entry.id)
+          }
+          entryBtnDiv.querySelector("img.boxFileMgr_loader").style.display = "none"
+          // entryBtnDiv.style.height = "30%"
+        }
+      } else if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png"))) {
+        const previouslySelectedImage = document.getElementById("boxFileManager").querySelector("div.selectedImage")
+        showLoader()
+        if (previouslySelectedImage) {
+          previouslySelectedImage.classList.remove("selectedImage")
+        }
+        entryBtnDiv.classList.add("selectedImage")
+        if (hashParams.image) {
+          window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${entry.id}`)
+        } else {
+          if(window.location.hash.length > 0) {
+            window.location.hash += "&"
+          }
+          window.location.hash += `image=${entry.id}`
+        }
+      }
+    }
+    // const subFolderTree = document.createElement("div")
+    // subFolderTree.setAttribute("class", `boxFileMgr_subFolderTree_${id}`)
+    subFolderDiv.appendChild(entryBtnDiv)
+  })
+  // subFolderDiv.appendChild(subFolderTree)
+  return subFolderDiv
 }
 
 const showLoader = () => {
@@ -246,7 +342,7 @@ path.loadCanvas = () => {
     // }
     path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
     path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
-    showLoader()
+    // showLoader()
     // path.outputCanvas.setAttribute("width", path.outputCanvas.parentElement.getBoundingClientRect().width)
     // path.outputCanvas.setAttribute("height", path.outputCanvas.width * path.tmaImage.height / path.tmaImage.width)
     // path.outputCanvas.style.border = "1px solid red"
@@ -430,7 +526,7 @@ const getOthersAnnotations = (qualityAnnotations) => {
       othersAnnotationsUsernames[0]
       :
       othersAnnotationsUsernames.slice(0, othersAnnotationsUsernames.length - 1).join(", ") +  " and " + othersAnnotationsUsernames[othersAnnotationsUsernames.length - 1]
-      othersAnnotationsText = `-- Also annotated by ${othersAnnotationsUsernamesText}`
+      othersAnnotationsText = `-- ${othersAnnotationsUsernamesText} annotated this image.`
     }
   }
   return othersAnnotationsText

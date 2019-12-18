@@ -80,11 +80,11 @@
       <div id="tabsContainer">
         <ul class="nav nav-tabs" id="tabs" role="tablist">
           <li class="nav-item">
-            <a class="nav-link" id="box-tab" data-toggle="tab" href="#box" role="tab" aria-controls="box"
-              aria-selected="true">My Box</a>
+            <a class="nav-link active" id="box-tab" data-toggle="tab" href="#myBox" role="tab" aria-controls="box"
+              aria-selected="true" style="border-left: none;">My Box</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link active" id="annotations-tab" data-toggle="tab" href="#annotations" role="tab"
+            <a class="nav-link" id="annotations-tab" data-toggle="tab" href="#annotations" role="tab"
               aria-controls="annotations" aria-selected="false">Annotations</a>
           </li>
           <li class="nav-item">
@@ -93,8 +93,13 @@
           </li>
         </ul>
         <div class="tab-content" id="tabsContent">
-          <div class="tab-pane fade" id="box" role="tabpanel" aria-labelledby="box-tab">...</div>
-          <div class="tab-pane fade show active" id="annotations" role="tabpanel" aria-labelledby="annotations-tab">
+          <div class="tab-pane fade show active" id="myBox" role="tabpanel" aria-labelledby="box-tab">
+            <br />
+            <div class="tabContainer" id="boxFileManager">
+
+            </div>
+          </div>
+          <div class="tab-pane fade" id="annotations" role="tabpanel" aria-labelledby="annotations-tab">
             <br />
             <div class="tabContainer" id="annotationsDiv">
               <ol class="list-group">
@@ -110,7 +115,6 @@
                         </tr>
                       </thead>
                       <tbody>
-
                       </tbody>
                     </table>
                   </div>
