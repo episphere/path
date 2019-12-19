@@ -82,7 +82,7 @@ const box = async () => {
       console.log("ERROR LOGGING IN TO BOX!", err)
     }
     let replaceURLPath = window.location.host.includes("localhost") ? "/" : "/path"
-    const urlHash = Object.entries(JSON.parse(window.localStorage.hashParams)).map(([key, val]) => `${key}=${val}`).join("&")
+    const urlHash = window.localStorage.hashParams ? Object.entries(JSON.parse(window.localStorage.hashParams)).map(([key, val]) => `${key}=${val}`).join("&") : ""
     window.history.replaceState({}, "", `${replaceURLPath}#${urlHash}`)
     // window.location.hash = urlHash
     triggerLoginEvent()
@@ -98,33 +98,32 @@ box.getUserProfile = async () => {
   window.localStorage.username = name
   window.localStorage.email = login
   document.getElementById("boxLoginBtn").style = "display: none"
-  document.getElementById("filePickers_or_box").style.display = "block"
   document.getElementById("username").appendChild(document.createTextNode(`Welcome ${window.localStorage.username.split(" ")[0]}!`))
 }
 
 
-box.setupFilePicker = (successCB, cancelCB) => {
-  const boxPopup = new BoxSelect()
+// box.setupFilePicker = (successCB, cancelCB) => {
+//   const boxPopup = new BoxSelect()
   
-  const defaultSuccessCB = (response) => {
-    if (response[0].name.endsWith(".jpg") || response[0].name.endsWith(".png")) {
-      if (hashParams.image) {
-        window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${response[0].id}`)
-      } else {
-        window.location.hash += `image=${response[0].id}`
-      }
-    } else {
-      alert("The item you selected from Box was not a valid image. Please select a file of type .jpg or .png!")
-    }
-  }
-  successCB = successCB || defaultSuccessCB
-  boxPopup.success(successCB)
+//   const defaultSuccessCB = (response) => {
+//     if (response[0].name.endsWith(".jpg") || response[0].name.endsWith(".png")) {
+//       if (hashParams.image) {
+//         window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${response[0].id}`)
+//       } else {
+//         window.location.hash += `image=${response[0].id}`
+//       }
+//     } else {
+//       alert("The item you selected from Box was not a valid image. Please select a file of type .jpg or .png!")
+//     }
+//   }
+//   successCB = successCB || defaultSuccessCB
+//   boxPopup.success(successCB)
   
-  const defaultCancelCB = () => console.log("File Selection Cancelled.")
-  cancelCB = cancelCB || defaultCancelCB
-  boxPopup.cancel(cancelCB)
+//   const defaultCancelCB = () => console.log("File Selection Cancelled.")
+//   cancelCB = cancelCB || defaultCancelCB
+//   boxPopup.cancel(cancelCB)
   
-}
+// }
 
 
 box.getData = async (id, type, fields=[]) => {

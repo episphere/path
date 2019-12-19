@@ -9,12 +9,12 @@ const loadURLParams = () => {
   })
 }
 
-const hashParams = {}
+const hashParams = window.localStorage.hashParams ? JSON.parse(window.localStorage.hashParams) : {}
 const loadHashParams = async () => {
   if (window.location.hash.includes("=")) {
     window.location.hash.slice(1).split('&').forEach(param => {
       let [key, value] = param.split('=')
-      value.replace(/['"]+/g, "")
+      value = value.replace(/['"]+/g, "")
       value = decodeURIComponent(value)
       if (key === "extModules") {
         try {
@@ -29,6 +29,7 @@ const loadHashParams = async () => {
       }
     })
   }
+  
   window.localStorage.hashParams = JSON.stringify(hashParams)
   if (hashParams.image) {
     loadImageFromBox(hashParams.image)
@@ -71,7 +72,6 @@ const path = async () => {
   loadHashParams()
   loadDefaultImage()
   path.loadModules()
-
 }
 
 path.loadModules = async (modules) => {
@@ -105,7 +105,7 @@ path.setupEventListeners = () => {
     box.getUserProfile()
     // await box.makeSelections()
     path.getBoxFolderTree()
-    box.setupFilePicker()
+    // box.setupFilePicker()
   })
 
   const fileInput = document.getElementById("imgInput")
@@ -296,19 +296,21 @@ const populateBoxSubfolderTree = (entries, parentId) => {
           // entryBtnDiv.style.height = "30%"
         }
       } else if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png"))) {
-        const previouslySelectedImage = document.getElementById("boxFileManager").querySelector("div.selectedImage")
-        showLoader()
-        if (previouslySelectedImage) {
-          previouslySelectedImage.classList.remove("selectedImage")
-        }
-        entryBtnDiv.classList.add("selectedImage")
-        if (hashParams.image) {
-          window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${entry.id}`)
-        } else {
-          if(window.location.hash.length > 0) {
-            window.location.hash += "&"
+        if (entry.id !== hashParams.image) {
+          const previouslySelectedImage = document.getElementById("boxFileManager").querySelector("div.selectedImage")
+          showLoader()
+          if (previouslySelectedImage) {
+            previouslySelectedImage.classList.remove("selectedImage")
           }
-          window.location.hash += `image=${entry.id}`
+          entryBtnDiv.classList.add("selectedImage")
+          if (hashParams.image) {
+            window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${entry.id}`)
+          } else {
+            if(window.location.hash.length > 0) {
+              window.location.hash += "&"
+            }
+            window.location.hash += `image=${entry.id}`
+          }
         }
       }
     }
@@ -506,11 +508,8 @@ const showQualitySelectors = () => {
   }
   activateQualitySelector(qualityAnnotations)
   const othersAnnotations = getOthersAnnotations(qualityAnnotations)
-  const othersAnnotationsDiv = document.createElement("div")
-  othersAnnotationsDiv.setAttribute("class", "othersAnnotations_quality")
+  const othersAnnotationsDiv = document.getElementById("quality_othersAnnotations")
   othersAnnotationsDiv.innerHTML = othersAnnotations
-  qualityAnnotationsDiv.appendChild(othersAnnotationsDiv)
-  
   qualityAnnotationsDiv.style.display = "flex"
   qualityAnnotationsDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
 }
@@ -583,7 +582,7 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
   
   thumbnails.forEach(async (thumbnail) => {
     if (thumbnail.type === "file") {
-      const { id: thumbnailId } = thumbnail
+      const { id: thumbnailId, name } = thumbnail
       const thumbnailDiv = document.createElement("div")
       const thumbnailImg = document.createElement("img")
       thumbnailImg.setAttribute("id", `thumbnail_${thumbnailId}`)
@@ -592,7 +591,13 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
         thumbnailImg.classList.add("selectedThumbnail")
       }
       thumbnailImg.setAttribute("loading", "lazy")
+
+      const thumbnailNameText = document.createElement("span")
+      thumbnailNameText.setAttribute("class", "imagePickerThumbnailText")
+      const thumbnailName = name.trim().split(".")[0]
+      thumbnailNameText.innerText = thumbnailName
       thumbnailDiv.appendChild(thumbnailImg)
+      thumbnailDiv.appendChild(thumbnailNameText)
       thumbnailsListDiv.appendChild(thumbnailDiv)
       thumbnailDiv.onclick = () => selectThumbnail(thumbnailId)
       thumbnailImg.src = await box.getThumbnail(thumbnailId)

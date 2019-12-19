@@ -150,6 +150,10 @@ label {
   border: 2px solid dodgerblue;
 }
 
+.imagePickerThumbnailText {
+  font-size: 7px;
+}
+
 .tabContainer {
   margin-left: 2rem;
 }
@@ -205,7 +209,7 @@ label {
   flex-direction: column;
 }
 
-.othersAnnotations_quality {
+#quality_othersAnnotations {
   margin-left: 0.3rem;
   margin-top: 1rem;
   margin-bottom: 1rem;
