@@ -172,6 +172,8 @@ const loadImageFromBox = async (id, url) => {
         showQualitySelectors()
       })
     }
+    highlightThumbnail(id)
+    highlightInBoxFileMgr(id)
   } else {
     alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
   }
@@ -254,6 +256,9 @@ const populateBoxSubfolderTree = (entries, parentId) => {
       entryIcon.setAttribute("class", "fas fa-folder")
     } else if (entry.type === "file") {
       entryIcon.setAttribute("class", "fas fa-file")
+      if (entry.id === hashParams.image) {
+        entryBtnDiv.setAttribute("class", "selectedImage")
+      }
     }
     entryIcon.innerHTML = "&nbsp&nbsp"
     entryBtn.appendChild(entryIcon)
@@ -297,12 +302,7 @@ const populateBoxSubfolderTree = (entries, parentId) => {
         }
       } else if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png"))) {
         if (entry.id !== hashParams.image) {
-          const previouslySelectedImage = document.getElementById("boxFileManager").querySelector("div.selectedImage")
           showLoader()
-          if (previouslySelectedImage) {
-            previouslySelectedImage.classList.remove("selectedImage")
-          }
-          entryBtnDiv.classList.add("selectedImage")
           if (hashParams.image) {
             window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${entry.id}`)
           } else {
@@ -311,6 +311,7 @@ const populateBoxSubfolderTree = (entries, parentId) => {
             }
             window.location.hash += `image=${entry.id}`
           }
+          highlightInBoxFileMgr(entry.id)
         }
       }
     }
@@ -320,6 +321,18 @@ const populateBoxSubfolderTree = (entries, parentId) => {
   })
   // subFolderDiv.appendChild(subFolderTree)
   return subFolderDiv
+}
+
+const highlightInBoxFileMgr = (id) => {
+  const previouslySelectedImage = document.getElementById("boxFileManager").querySelector("div.selectedImage")
+  const newlySelectedImage = document.getElementById(`boxFileMgr_folder_${id}`)
+  if (previouslySelectedImage) {
+    previouslySelectedImage.classList.remove("selectedImage")
+  }
+  if (newlySelectedImage) {
+    newlySelectedImage.classList.add("selectedImage")
+  }
+ 
 }
 
 const showLoader = () => {
@@ -561,8 +574,6 @@ const showThumbnailPicker = async (limit, offset=0) => {
     var { total_count, entries: thumbnails } = await box.getFolderContents(currentFolder, limit, offset)
     addThumbnails(thumbnailPicker, thumbnails)
     addThumbnailPageSelector(thumbnailPicker, total_count, limit, offset)
-  } else {
-    highlightThumbnail(hashParams.image)
   }
 }
 

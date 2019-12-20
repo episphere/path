@@ -136,6 +136,8 @@ label {
 }
 
 #thumbnailPicker>div>div {
+  display: flex;
+  flex-direction: column;
   cursor: pointer;
 }
 
@@ -261,7 +263,7 @@ label {
   }
 
   #canvasWithPickers {
-    width: 50%;
+    width: 51%;
     display: flex;
     flex-direction: row;
   }
