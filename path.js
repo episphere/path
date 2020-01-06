@@ -11,6 +11,15 @@ const loadURLParams = () => {
 
 const hashParams = window.localStorage.hashParams ? JSON.parse(window.localStorage.hashParams) : {}
 const loadHashParams = async () => {
+  if (hashParams) {
+    const createHashFromExistingParams = []
+    Object.entries(hashParams).forEach(([hashParam, value]) => {
+      if (!window.location.hash.includes(hashParam)) {
+        createHashFromExistingParams.push(`${hashParam}=${value}`)
+      }
+    })
+    window.location.hash += (window.location.hash && createHashFromExistingParams.length > 0) ? "&" + createHashFromExistingParams.join("&") : createHashFromExistingParams.join("&")
+  }
   if (window.location.hash.includes("=")) {
     window.location.hash.slice(1).split('&').forEach(param => {
       let [key, value] = param.split('=')
@@ -47,15 +56,20 @@ const utils = {
     .catch(e => console.log(`Error fetching ${url}`, e))
 }
 
+const annotationTypes = [ "tissueAdequacy", "stainingAdequacy" ]
+
 const qualityEnum = [{
   "numValue": 1,
-  "displayText": "👍"
+  "displayText": "👍",
+  "tooltip": "Satisfactory"
 }, {
   "numValue": 0.5,
-  "displayText": "🤞"
+  "displayText": "🤞",
+  "tooltip": "Suboptimal"
 }, {
   "numValue": 0,
-  "displayText": "👎"
+  "displayText": "👎",
+  "tooltip": "Unsatisfactory"
 }]
 
 const path = async () => {
@@ -123,7 +137,7 @@ path.setupEventListeners = () => {
     path.tmaImage.setAttribute("src", "") // Unsetting src because Firefox does not update image otherwise.
     path.tmaImage.setAttribute("src", URL.createObjectURL(files[0]))
     path.tmaImage.setAttribute("crossorigin", "Anonymous")
-    document.getElementById("qualitySelect").style.display = "none"
+    document.getElementById("annotations").style.display = "none"
     document.getElementById("thumbnailPicker").style.display = "none"
   }
 
@@ -165,11 +179,11 @@ const loadImageFromBox = async (id, url) => {
     
     if (metadata) {
       window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
-      showQualitySelectors()
+      annotationTypes.forEach(showQualitySelectors)
     } else {
       box.createMetadata(id, "file").then(res => {
         window.localStorage.fileMetadata = JSON.stringify(res)
-        showQualitySelectors()
+        annotationTypes.forEach(showQualitySelectors)
       })
     }
     highlightThumbnail(id)
@@ -255,7 +269,11 @@ const populateBoxSubfolderTree = (entries, parentId) => {
     if (entry.type === "folder") {
       entryIcon.setAttribute("class", "fas fa-folder")
     } else if (entry.type === "file") {
-      entryIcon.setAttribute("class", "fas fa-file")
+      if (entry.name.endsWith(".jpg") || entry.name.endsWith(".jpeg") || entry.name.endsWith(".png")) {
+        entryIcon.setAttribute("class", "fas fa-file-image")
+      } else {
+        entryIcon.setAttribute("class", "fas fa-file")
+      }
       if (entry.id === hashParams.image) {
         entryBtnDiv.setAttribute("class", "selectedImage")
       }
@@ -340,8 +358,6 @@ const showLoader = () => {
   const { width, height, top, left } = path.tmaCanvas.getBoundingClientRect()
   loaderDiv.style.width = width
   loaderDiv.style.height = height
-  loaderDiv.style.top = top
-  loaderDiv.style.left = left
   loaderDiv.style.display = "inline-block";
 }
 
@@ -382,10 +398,10 @@ path.loadOptions = () => {
   addAnnotationsTooltip()
 }
 
-path.qualityAnnotate = async (qualitySelected) => {
+path.qualityAnnotate = async (annotationType, qualitySelected) => {
   if (await box.isLoggedIn()) {
     const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
-    fileMetadata.qualityAnnotations = fileMetadata.qualityAnnotations ? JSON.parse(fileMetadata.qualityAnnotations) : {}
+    const annotations = fileMetadata[`${annotationType}_annotations`] ? JSON.parse(fileMetadata[`${annotationType}_annotations`]) : {}
 
     const newAnnotation = {
       'userId': window.localStorage.userId,
@@ -395,7 +411,7 @@ path.qualityAnnotate = async (qualitySelected) => {
       'createdAt': Date.now()
     }
 
-    const previousAnnotation = fileMetadata.qualityAnnotations[window.localStorage.userId]
+    const previousAnnotation = annotations[window.localStorage.userId]
     if (previousAnnotation && previousAnnotation.value != newAnnotation.value) {
       const {
         displayText: previousValue
@@ -406,26 +422,41 @@ path.qualityAnnotate = async (qualitySelected) => {
       if (!confirm(`You previously annotated this image to be of ${previousValue} quality. Do you wish to change your annotation to ${newValue} quality?`)) {
         return
       } else {
-        fileMetadata.qualityAnnotations[window.localStorage.userId].value = newAnnotation.value
-        fileMetadata.qualityAnnotations[window.localStorage.userId].createdAt = Date.now()
+        annotations[window.localStorage.userId].value = newAnnotation.value
+        annotations[window.localStorage.userId].createdAt = Date.now()
       }
     } else if (previousAnnotation && previousAnnotation.value == newAnnotation.value) {
       const {
         displayText: previousValue
       } = qualityEnum.find(quality => quality.numValue === previousAnnotation.value)
-      alert(`You've already annotated this image to be of ${previousValue} quality before!`)
+      showToast(`You've already annotated this image to be of ${previousValue} quality before!`)
       return
     } else {
-      fileMetadata.qualityAnnotations[window.localStorage.userId] = newAnnotation
+      annotations[window.localStorage.userId] = newAnnotation
     }
-
-    const path = "/qualityAnnotations"
-    const newMetadata = await box.updateMetadata(hashParams.image, "file", path, JSON.stringify(fileMetadata.qualityAnnotations))
-
-    window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-    activateQualitySelector(JSON.parse(newMetadata.qualityAnnotations))
-    alert("Image Annotated Successfully!")
+    console.log(annotations)
+    const path = `/${annotationType}_annotations`
+    const newMetadata = await box.updateMetadata(hashParams.image, "file", path, JSON.stringify(annotations))
+    if (!newMetadata.status) { // status is returned only on error, change later
+      window.localStorage.fileMetadata[`${annotationType}_annotations`] = JSON.stringify(newMetadata)
+      activateQualitySelector(annotationType, annotations)
+      showToast(`Annotation Successful!`)
+    } else {
+      showToast("Error occurred during annotation, please try again later!")
+    }
   }
+}
+
+let toastTimeout = {}
+const showToast = (message) => {
+  // toastTimeout && clearTimeout(toastTimeout)
+  document.getElementById("toastMessage").innerText = message
+  document.getElementById("toastClose").Toast.show()
+  toastTimeout = setTimeout(() => {
+    if(document.getElementById("toast").classList.contains("showing")){
+      document.getElementById("toast").dispatchEvent(new Event("webkitTransitionEnd"))
+    }
+  }, 3000) //For bug where toast doesn't go away the second time an annotation is made.
 }
 
 const segmentButton = () => {
@@ -434,7 +465,7 @@ const segmentButton = () => {
   new Tooltip(segmentDiv, {
     'placement': "bottom",
     'animation': "slideNfade",
-    'delay': 150
+    'delay': 250
   })
   const segmentBtn = document.createElement("button")
   segmentBtn.setAttribute("class", "btn btn-outline-primary")
@@ -472,65 +503,71 @@ const zoomInButton = () => {
   path.toolsDiv.appendChild(zoomInDiv)
 }
 
-const showQualitySelectors = () => {
+const showQualitySelectors = (annotationType) => {
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
-  const qualityAnnotations = fileMetadata.qualityAnnotations && JSON.parse(fileMetadata.qualityAnnotations)
-  const qualityAnnotationsDiv = document.getElementById("qualityAnnotations")
-  const qualitySelectTable = document.getElementById("qualitySelect")
-  const qualitySelectTableBody = qualitySelectTable.querySelector("tbody")
+  const annotationsAccordion = document.getElementById("annotationsAccordion")
+  const annotations = fileMetadata[`${annotationType}_annotations`] && JSON.parse(fileMetadata[`${annotationType}_annotations`])
+  const annotationsDiv = document.getElementById(`${annotationType}Annotations`)
+  const selectTable = document.getElementById(`${annotationType}Select`)
+  const selectTableBody = selectTable.querySelector("tbody")
   // const qualitySelectorsDiv = document.createElement("div")
   // qualitySelectorsDiv.setAttribute("id", "qualitySelectors")
   // qualitySelectorsDiv.style.display = "flex"
   // qualitySelectorsDiv.style.flexDirection = "column"
-  if (qualitySelectTableBody.childElementCount === 0) {
+  if (selectTableBody.childElementCount === 0) {
     qualityEnum.forEach((quality) => {
       const {
         numValue,
-        displayText
+        displayText,
+        tooltip
       } = quality
-      const qualityTableRow = document.createElement("tr")
-      const qualityTableAnnotationData = document.createElement("td")
-      const qualityAnnotationSpan = document.createElement("span")
-      qualityAnnotationSpan.setAttribute("class", "qualitySelectorSpan")
-      qualityAnnotationSpan.style.display = "flex"
-      qualityAnnotationSpan.style.flexDirection = "row"
-      qualityAnnotationSpan.style.paddingLeft = "0"
-      qualityAnnotationSpan.style.flex = "1"
+      const tableRow = document.createElement("tr")
+      const tableAnnotationData = document.createElement("td")
+      const annotationDiv = document.createElement("div")
+      annotationDiv.setAttribute("class", "qualitySelectorDiv")
+      
       const qualityButton = document.createElement("button")
       qualityButton.setAttribute("class", "btn btn-outline-info")
-      qualityButton.setAttribute("id", `quality_${numValue}`)
+      qualityButton.setAttribute("id", `${annotationType}_${numValue}`)
       qualityButton.setAttribute("value", numValue)
-      qualityButton.setAttribute("onclick", `path.qualityAnnotate(${numValue})`)
-      const qualityText = document.createTextNode(displayText)
-      qualityButton.appendChild(qualityText)
-      qualityAnnotationSpan.appendChild(qualityButton)
-      qualityTableAnnotationData.style.borderRight = "none"
-
-      qualityTableAnnotationData.appendChild(qualityAnnotationSpan)
-      qualityTableRow.appendChild(qualityTableAnnotationData)
+      qualityButton.setAttribute("onclick", `path.qualityAnnotate("${annotationType}", ${numValue})`)
+      qualityButton.innerText = displayText
+      qualityButton.setAttribute("title", tooltip)
+      new Tooltip(qualityButton, {
+        'placement': "right",
+        'animation': "slideNfade",
+        'delay': 100,
+        'html': true
+      })
       
-      const qualityTablePredictionData = document.createElement("td")
-      qualityTablePredictionData.setAttribute("align", "center")
-      qualityTablePredictionData.style.verticalAlign = "middle"
-      qualityTablePredictionData.style.borderLeft = "none"
+      annotationDiv.appendChild(qualityButton)
+      tableAnnotationData.style.borderRight = "none"
+
+      tableAnnotationData.appendChild(annotationDiv)
+      tableRow.appendChild(tableAnnotationData)
+      
+      const tablePredictionData = document.createElement("td")
+      tablePredictionData.setAttribute("align", "center")
+      tablePredictionData.style.verticalAlign = "middle"
+      tablePredictionData.style.borderLeft = "none"
       const modelQualityPredictions = getModelPrediction(numValue) || "--"
-      qualityTablePredictionData.innerHTML = modelQualityPredictions
-      qualityTableRow.appendChild(qualityTablePredictionData)
-      qualitySelectTableBody.appendChild(qualityTableRow)
+      tablePredictionData.innerHTML = modelQualityPredictions
+      tableRow.appendChild(tablePredictionData)
+      selectTableBody.appendChild(tableRow)
     })
   }
-  activateQualitySelector(qualityAnnotations)
-  const othersAnnotations = getOthersAnnotations(qualityAnnotations)
-  const othersAnnotationsDiv = document.getElementById("quality_othersAnnotations")
+  activateQualitySelector(annotationType, annotations)
+  const othersAnnotations = getOthersAnnotations(annotations)
+  const othersAnnotationsDiv = document.getElementById(`${annotationType}_othersAnnotations`)
   othersAnnotationsDiv.innerHTML = othersAnnotations
-  qualityAnnotationsDiv.style.display = "flex"
-  qualityAnnotationsDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
+  annotationsAccordion.style.display = "flex"
+  annotationsDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
 }
 
-const getOthersAnnotations = (qualityAnnotations) => {
+const getOthersAnnotations = (annotations) => {
   let othersAnnotationsText = ""
-  if (qualityAnnotations) {
-    const othersAnnotations = Object.values(qualityAnnotations).filter(annotation => annotation && annotation.userId !== window.localStorage.userId)
+  if (annotations) {
+    const othersAnnotations = Object.values(annotations).filter(annotation => annotation && annotation.userId !== window.localStorage.userId)
     if (othersAnnotations.length > 0) {
       const othersAnnotationsUsernames = othersAnnotations.map(annotation => annotation.username)
       const othersAnnotationsUsernamesText = othersAnnotationsUsernames.length === 1 
@@ -548,15 +585,15 @@ const getModelPrediction = (numValue) => {
   return null
 }
 
-const activateQualitySelector = (qualityAnnotations) => {
-  const qualitySelectTable = document.getElementById("qualitySelect")
-  const currentlyActiveButton = qualitySelectTable.querySelector("button.active")
+const activateQualitySelector = (annotationType, annotations) => {
+  const selectTable = document.getElementById(`${annotationType}Select`)
+  const currentlyActiveButton = selectTable.querySelector("button.active")
   if (currentlyActiveButton) {
     currentlyActiveButton.classList.remove("active")
   }
-  if (qualityAnnotations && qualityAnnotations[window.localStorage.userId]) {
-    const userQualityAnnotation = qualityAnnotations[window.localStorage.userId].value
-    qualitySelectTable.querySelector(`button[value='${userQualityAnnotation}']`).classList.add("active")
+  if (annotations && annotations[window.localStorage.userId]) {
+    const userAnnotation = annotations[window.localStorage.userId].value
+    selectTable.querySelector(`button[value='${userAnnotation}']`).classList.add("active")
     // qualitySelectTable.
   }
 }
@@ -595,6 +632,7 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
     if (thumbnail.type === "file") {
       const { id: thumbnailId, name } = thumbnail
       const thumbnailDiv = document.createElement("div")
+      thumbnailDiv.setAttribute("class", "thumbnailDiv")
       const thumbnailImg = document.createElement("img")
       thumbnailImg.setAttribute("id", `thumbnail_${thumbnailId}`)
       thumbnailImg.setAttribute("class", "imagePickerThumbnail")

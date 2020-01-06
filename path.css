@@ -22,7 +22,7 @@ label {
 }
 
 #tmaPath {
-  margin-top: 1rem;
+  margin-top: 0.5rem;
 }
 
 #loginSpan {
@@ -109,17 +109,20 @@ label {
   position: relative;
 }
 
+#canvasWithPickers {
+  position: relative;
+}
+
 #thumbnailPicker {
   margin: 2rem 0.5rem 0 1.5rem;
   text-align: right;
 }
 
-#thumbnailPicker>div {
-  /* padding-right: 1rem; */
+#thumbnailsList {
   overflow-y: scroll;
 }
 
-#thumbnailPicker>span {
+#thumbnailPageSelector {
   margin-top: 0.5rem;
   margin-left: -1rem;
   /* margin-right: -0.5rem; */
@@ -131,14 +134,15 @@ label {
   list-style-position: unset;
 } */
 
-#thumbnailPicker>div>div:not(:first-child) {
-  margin: 0.7rem 0 0 0;
+.thumbnailDiv:not(:first-child) {
+  margin: 0.7rem 7px 0 0;
 }
 
-#thumbnailPicker>div>div {
+.thumbnailDiv {
   display: flex;
   flex-direction: column;
   cursor: pointer;
+  margin-right: 7px;
 }
 
 .imagePickerThumbnail {
@@ -146,6 +150,7 @@ label {
   height: 5rem;
   border: 1px solid lightpink;
   border-radius: 5px;
+  margin: 0 auto;
 }
 
 .selectedThumbnail {
@@ -205,13 +210,24 @@ label {
   padding: 0;
 }
 
-#qualityAnnotations {
-  width: 100%;
+#annotationsAccordion {
   display: none;
+}
+
+.annotationsCard {
+  width: 100%;
+}
+
+.annotationsCardBody {
+  padding-bottom: 0;
+}
+
+.qualityAnnotations {
+  width: 100%;
   flex-direction: column;
 }
 
-#quality_othersAnnotations {
+.quality_othersAnnotations {
   margin-left: 0.3rem;
   margin-top: 1rem;
   margin-bottom: 1rem;
@@ -219,11 +235,11 @@ label {
   font-size: 1rem;
 }
 
-#qualitySelect {
+.qualitySelect {
   margin-bottom: 0;
 }
 
-.qualitySelectorSpan>button {
+.qualitySelectorDiv>button {
   font-size: 2rem;
 }
 
@@ -231,6 +247,30 @@ label {
   padding-left: 0;
 }
 
+#toast {
+  position: absolute;
+  margin-top: -2.5rem;
+  left: 45%;
+  font-size: 18px;
+  background-color: unset;
+}
+
+.toast-header {
+  background-color: rgba(0, 0, 0, 0.6);
+  color: rgba(250, 250, 250);
+  font-weight: lighter;
+}
+/* .toast {
+  margin: 2rem auto;
+  background-color: rgba(10, 10, 10, 0.4);
+  font-size: 16px;
+  color: white;
+}
+
+#toastClose {
+  margin-right: 1rem;
+  margin-top: 0.7rem;
+} */
 
 /* #selectMarkersOuterDiv {
   display: none;
@@ -263,7 +303,7 @@ label {
   }
 
   #canvasWithPickers {
-    width: 51%;
+    width: 52%;
     display: flex;
     flex-direction: row;
   }
@@ -295,7 +335,7 @@ label {
     margin-top: 2rem;
   }
 
-  #qualitySelect {
+  .qualitySelect {
     flex-direction: row;
   }
 }

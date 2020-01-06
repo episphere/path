@@ -24,6 +24,7 @@ const box = async () => {
   document.getElementById("boxLoginBtn").onclick = () => window.location.replace(boxAuthEndpoint)
 
   box.isLoggedIn = async () => {
+    // console.log(window.localStorage.box)
     if (window.localStorage.box) {
       const boxCreds = JSON.parse(window.localStorage.box)
       if (boxCreds["access_token"] && boxCreds["token_expiry"]) {
@@ -82,7 +83,11 @@ const box = async () => {
       console.log("ERROR LOGGING IN TO BOX!", err)
     }
     let replaceURLPath = window.location.host.includes("localhost") ? "/" : "/path"
-    const urlHash = window.localStorage.hashParams ? Object.entries(JSON.parse(window.localStorage.hashParams)).map(([key, val]) => `${key}=${val}`).join("&") : ""
+    const oldHashParams = window.localStorage.hashParams ? JSON.parse(window.localStorage.hashParams) : {}
+    if (!oldHashParams["folder"]) {
+      oldHashParams["folder"] = boxRootFolderId
+    }
+    const urlHash = Object.entries(oldHashParams).map(([key, val]) => `${key}=${val}`).join("&")
     window.history.replaceState({}, "", `${replaceURLPath}#${urlHash}`)
     // window.location.hash = urlHash
     triggerLoginEvent()
@@ -98,7 +103,7 @@ box.getUserProfile = async () => {
   window.localStorage.username = name
   window.localStorage.email = login
   document.getElementById("boxLoginBtn").style = "display: none"
-  document.getElementById("username").appendChild(document.createTextNode(`Welcome ${window.localStorage.username.split(" ")[0]}!`))
+  document.getElementById("username").innerText = `Welcome ${window.localStorage.username.split(" ")[0]}!`
 }
 
 
