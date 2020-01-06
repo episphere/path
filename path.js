@@ -557,15 +557,15 @@ const showQualitySelectors = (annotationType) => {
     })
   }
   activateQualitySelector(annotationType, annotations)
-  const othersAnnotations = getOthersAnnotations(annotations)
-  const othersAnnotationsDiv = document.getElementById(`${annotationType}_othersAnnotations`)
-  othersAnnotationsDiv.innerHTML = othersAnnotations
+  getOthersAnnotations(annotationType, annotations)
   annotationsAccordion.style.display = "flex"
   annotationsDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
 }
 
-const getOthersAnnotations = (annotations) => {
+const getOthersAnnotations = (annotationType, annotations) => {
   let othersAnnotationsText = ""
+  const othersAnnotationsDiv = document.getElementById(`${annotationType}_othersAnnotations`)
+  const annotationName = othersAnnotationsDiv.parentElement.getAttribute("name")
   if (annotations) {
     const othersAnnotations = Object.values(annotations).filter(annotation => annotation && annotation.userId !== window.localStorage.userId)
     if (othersAnnotations.length > 0) {
@@ -575,10 +575,11 @@ const getOthersAnnotations = (annotations) => {
       othersAnnotationsUsernames[0]
       :
       othersAnnotationsUsernames.slice(0, othersAnnotationsUsernames.length - 1).join(", ") +  " and " + othersAnnotationsUsernames[othersAnnotationsUsernames.length - 1]
-      othersAnnotationsText = `-- ${othersAnnotationsUsernamesText} annotated this image.`
+      othersAnnotationsText = `-- ${othersAnnotationsUsernamesText} annotated this image for ${annotationName}.`
     }
   }
-  return othersAnnotationsText
+  
+  othersAnnotationsDiv.innerHTML = othersAnnotationsText
 }
 
 const getModelPrediction = (numValue) => {
