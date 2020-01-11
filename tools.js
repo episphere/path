@@ -1,5 +1,5 @@
-const watershedSegment = (inputCanvas, outputCanvas, checked) => {
-  let src = cv.imread(inputCanvas)
+const watershedSegment = (canvas, outputCanvas, checked) => {
+  let src = cv.imread(canvas)
   let dst = new cv.Mat()
   let gray = new cv.Mat()
   let opening = new cv.Mat()
@@ -60,54 +60,106 @@ const watershedSegment = (inputCanvas, outputCanvas, checked) => {
 
 }
 
-const zoomInHandler = (inputCanvas, outputCanvas, selected) => {
-  const zoomLens = document.getElementById("img-zoom-lens") || document.createElement("div")
-  
-  if (!selected) {
-    zoomLens.style.display = "none"
-    return
+const zoomHandler = (canvas, image, magnification=2, scrollToZoom=true, selected) => {
+  let zoomLens = document.getElementById("zoomLens")
+  if (!zoomLens) {
+    zoomLens = document.createElement("canvas")
+    zoomLens.setAttribute("id", "zoomLens")
+    canvas.parentElement.appendChild(zoomLens)
   }
-  zoomLens.setAttribute("id", "img-zoom-lens")
-  zoomLens.style.cursor = "zoom-in"
-  inputCanvas.parentElement.insertBefore(zoomLens, inputCanvas)
 
-  const [lensX, lensY] = [outputCanvas.offsetWidth/zoomLens.offsetWidth, outputCanvas.offsetHeight/zoomLens.offsetHeight]
+  const zoomBlockSize = [200, 200]
+  zoomLens.setAttribute("scrolltozoom", scrollToZoom)
+  zoomLens.style.width = `${zoomBlockSize[0]}px`
+  zoomLens.style.height = `${zoomBlockSize[1]}px`
+  zoomLens.style.cursor = "zoom-in"
+  zoomLens.style.left = zoomLens.style.left || 0
+  zoomLens.style.top = zoomLens.style.top || 0
+  zoomLens.style.display = "block"
+
+  const minMagnification = canvas.width/image.width
+  let scaleFactor = magnification * minMagnification
+  const zoomStepSize = 0.02
+  const zoomCtx = zoomLens.getContext("2d")
+  let lensPosition = {
+    x: parseInt(zoomLens.style.left),
+    y: parseInt(zoomLens.style.top)
+  }
   
-  const renderLens = (moveEvent, zoomHandler) => {
+  zoomHandler.moveLens = (moveEvent) => {
     moveEvent.preventDefault()
-    const pos = {
-      x: moveEvent.pageX - inputCanvas.getBoundingClientRect().left - window.pageXOffset,
-      y: moveEvent.pageY - inputCanvas.getBoundingClientRect().top - window.pageYOffset,
+    
+    lensPosition = {
+      x: moveEvent.pageX - canvas.getBoundingClientRect().left - window.pageXOffset,
+      y: moveEvent.pageY - canvas.getBoundingClientRect().top - window.pageYOffset,
     }
-    let x = pos.x - (zoomLens.offsetWidth/2)
-    let y = pos.y - (zoomLens.offsetHeight/2)
-    if (x > inputCanvas.width - zoomLens.offsetWidth) {
-      x = inputCanvas.width - zoomLens.offsetWidth
+    let x = lensPosition.x - (zoomLens.offsetWidth/2)
+    let y = lensPosition.y - (zoomLens.offsetHeight/2)
+
+    if (x > canvas.width - zoomLens.offsetWidth) {
+      x = canvas.width - zoomLens.offsetWidth
     } else if (x < 0) {
       x = 0
     }
-    if (y > inputCanvas.height - zoomLens.offsetHeight) {
-      y = inputCanvas.height - zoomLens.offsetHeight
+    if (y > canvas.height - zoomLens.offsetHeight) {
+      y = canvas.height - zoomLens.offsetHeight
     } else if (y < 0) {
       y = 0
     }
+    
     zoomLens.style.left = `${x}px`
     zoomLens.style.top = `${y}px`
-    zoomLens.onclick = zoomHandler
+    
+    renderZoomedImage(lensPosition)
   }
 
-  const zoomIn = (clickEvent) => {
-    // console.log(clickEvent.x, clickEvent.y)
-    // const div = document.createElement("div")
-    // div.style['position'] = "absolute"
-    // div.style["top"]= clickEvent.pageX + inputCanvas.getBoundingClientRect().left
-    // div.style["left"]= clickEvent.pageY + inputCanvas.getBoundingClientRect().top
-    // div.style['width']= "10px"
-    // div.style["height"]= "10px"
-    // div.style["background-color"]= "red"
-    // document.body.appendChild(div)
+  const getLensPositionInImage = (canvas, image, lensPosition) => {
+    const xInImage = lensPosition.x * (image.width / canvas.width)
+    const yInImage = lensPosition.y * (image.height / canvas.height)
+    return { xInImage, yInImage }
   }
-  
-  zoomLens.onmousemove = (e) => renderLens(e, zoomIn)
-  inputCanvas.onmousemove = (e) => renderLens(e, zoomIn)
+
+  const renderZoomedImage = (lensPosition) => {
+    const { xInImage, yInImage } = getLensPositionInImage(canvas, image, lensPosition)
+    const zoomFactor = 1/scaleFactor
+    zoomCtx.clearRect(0, 0, zoomLens.width, zoomLens.height)
+    zoomCtx.drawImage(path.tmaImage, xInImage-(zoomBlockSize[0]*zoomFactor/2), yInImage-(zoomBlockSize[1]*zoomFactor/2), zoomBlockSize[0]*zoomFactor, zoomBlockSize[1]*zoomFactor, 0, 0, zoomLens.width, zoomLens.height)
+  }
+
+  zoomHandler.changeScale = (scrolledUp) => {
+    if (scrolledUp && scaleFactor <=5) {
+      scaleFactor += zoomStepSize
+    } else if (scaleFactor >= minMagnification) {
+      scaleFactor -= zoomStepSize
+    }
+    renderZoomedImage(lensPosition)
+  }
+
+  zoomLens.onmousemove = mouseMoveHandler
+  canvas.onmousemove = mouseMoveHandler
+  if (scrollToZoom) {
+    zoomLens.addEventListener("wheel", scrollHandler)
+  } else {
+    zoomLens.removeEventListener("wheel", scrollHandler)
+  }
+  if (!selected) {
+    zoomLens.style.display = "none"
+    zoomLens.removeEventListener("mousemove", mouseMoveHandler)
+    canvas.removeEventListener("mousemove", mouseMoveHandler)
+    zoomLens.removeEventListener("wheel", scrollHandler)
+    return
+  }
+  renderZoomedImage(lensPosition)
+}
+
+const mouseMoveHandler = (moveEvent) => {
+  if (moveEvent.target === document.getElementById("zoomLens")) {
+    moveEvent.stopPropagation()
+  }
+  zoomHandler.moveLens(moveEvent)
+}
+
+const scrollHandler = (wheelEvent) => {
+    wheelEvent.preventDefault()
+    zoomHandler.changeScale(wheelEvent.deltaY>=0)
 }

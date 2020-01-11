@@ -17,9 +17,10 @@ p {
   color: navy
 }
 
-label {
-  margin-left: 0.5rem;
-}
+/* 
+canvas {
+  position: absolute;
+} */
 
 #tmaPath {
   margin-top: 0.5rem;
@@ -81,19 +82,32 @@ label {
   margin-right: 1rem;
 }
 
-#toolsDiv div:first-child {
+#toolsDiv>div:first-child {
   margin-top: 0.5rem;
 }
 
-#toolsDiv div:not(:first-child) {
+#toolsDiv>div:not(:first-child) {
   margin-top: 1.5rem;
 }
 
-#loaderDiv {
-  display: none;
-  position: absolute;
-  background-color: rgba(220, 220, 220, 0.4);
-  z-index: 2;
+.tool {
+  display: flex;
+  flex-direction: row;
+}
+
+.dropdown-toggle {
+  height: 100%;
+  padding-left:0.2rem;
+  padding-right: 0.2rem;
+}
+
+.dropdown-menu {
+  padding: 1rem;
+}
+
+#scrollToZoom {
+  position: relative;
+  margin-left: 0.5rem;
 }
 
 #loaderImg {
@@ -105,8 +119,15 @@ label {
   bottom: 0;
 }
 
-.canvasDiv>div {
+#canvasParent {
   position: relative;
+}
+
+#loaderDiv {
+  display: none;
+  position: absolute;
+  background-color: rgba(220, 220, 220, 0.4);
+  z-index: 2;
 }
 
 #canvasWithPickers {
@@ -116,6 +137,7 @@ label {
 #thumbnailPicker {
   margin: 2rem 0.5rem 0 1.5rem;
   text-align: right;
+  z-index: 5;
 }
 
 #thumbnailsList {
@@ -142,7 +164,7 @@ label {
   display: flex;
   flex-direction: column;
   cursor: pointer;
-  margin-right: 7px;
+  margin-right: 0.4rem;
 }
 
 .imagePickerThumbnail {
@@ -289,12 +311,12 @@ label {
   width: 100%;
 } */
 
-#img-zoom-lens {
+#zoomLens {
   position: absolute;
   display: block;
-  border: 2px solid lightcoral;
-  width: 150px;
-  height: 150px;
+  border: 1px solid lightcoral;
+  border-radius: 10px;
+  box-shadow: 0px 0px 3px 3px lightgray;
 }
 
 @media only screen and (min-width: 768px) {
@@ -308,7 +330,7 @@ label {
     flex-direction: row;
   }
 
-  .canvasDiv {
+  #canvasDiv {
     width: 80%;
     margin-left: 1.5rem;
   }
@@ -323,7 +345,7 @@ label {
     flex-direction: column;
   }
 
-  .canvasDiv {
+  #canvasDiv {
     width: 80%
   }
 

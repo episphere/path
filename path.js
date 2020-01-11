@@ -157,11 +157,16 @@ const loadDefaultImage = async () => {
 }
 
 const loadImageFromBox = async (id, url) => {
-
-  const imageData = await box.getData(id, "file")
-  if (!imageData) {
+  let imageData = ""
+  imageData = await box.getData(id, "file")
+  if (imageData.status === 404) {
+    console.log(`Can't fetch data for image ID ${id} from Box`)
+    alert("The image ID in the URL does not point to a file in Box!")
+    path.tmaImage.src = defaultImg
+    selectImage()
     return
   }
+  
   const { type, name, parent, metadata, path_collection: {entries: filePathInBox} } = imageData
 
   if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
@@ -320,15 +325,7 @@ const populateBoxSubfolderTree = (entries, parentId) => {
         }
       } else if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png"))) {
         if (entry.id !== hashParams.image) {
-          showLoader()
-          if (hashParams.image) {
-            window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${entry.id}`)
-          } else {
-            if(window.location.hash.length > 0) {
-              window.location.hash += "&"
-            }
-            window.location.hash += `image=${entry.id}`
-          }
+          selectImage(entry.id)
           highlightInBoxFileMgr(entry.id)
         }
       }
@@ -379,7 +376,6 @@ path.loadCanvas = () => {
     // path.outputCanvas.style.border = "1px solid red"
     const tmaContext = path.tmaCanvas.getContext('2d')
     // const outputContext = path.outputCanvas.getContext('2d')
-  
     tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
     hideLoader()
     // outputContext.drawImage(path.tmaImage, 0, 0, path.outputCanvas.width, path.outputCanvas.height)
@@ -393,7 +389,7 @@ path.loadCanvas = () => {
 path.loadOptions = () => {
   path.options = true
   document.getElementById("toolsOuterDiv").style.visibility = "visible"
-  zoomInButton()
+  zoomButton()
   segmentButton()
   addAnnotationsTooltip()
 }
@@ -461,6 +457,7 @@ const showToast = (message) => {
 
 const segmentButton = () => {
   const segmentDiv = document.createElement("div")
+  segmentDiv.setAttribute("class", "tool")
   segmentDiv.setAttribute("title", "Under Development!")
   new Tooltip(segmentDiv, {
     'placement': "bottom",
@@ -480,27 +477,134 @@ const segmentButton = () => {
   path.toolsDiv.appendChild(segmentDiv)
 }
 
-const zoomInButton = () => {
-  const zoomInDiv = document.createElement("div")
-  const zoomInBtn = document.createElement("button")
-  zoomInBtn.setAttribute("class", "btn btn-outline-primary")
-  zoomInBtn.setAttribute("title", "Zoom In")
-  zoomInBtn.onclick = () => {
-    let selected = true
-    if (zoomInBtn.classList.contains("active")) {
-      selected = false
-      zoomInBtn.classList.remove("active")
-    } else {
-      selected = true
-      zoomInBtn.classList.add("active")
+const zoomButton = () => {
+  let magnification = 2
+  let scrollToZoom = true
+  let toolSelected = false
+
+  const zoomToolDiv = document.createElement("div")
+  zoomToolDiv.setAttribute("id", "zoomWithDropdown")
+  zoomToolDiv.setAttribute("class", "tool")
+  
+  const zoomBtnDiv = document.createElement("div")
+  const zoomBtn = document.createElement("button")
+  zoomBtn.setAttribute("id", "zoomButton")
+  zoomBtn.setAttribute("class", "btn btn-outline-primary")
+  zoomBtn.setAttribute("title", "Zoom In")
+  document.onkeydown = (keyEvent) => {
+    if(keyEvent.key === "Escape" && toolSelected) {
+      zoomBtn.click()
     }
-    zoomInHandler(path.tmaCanvas, path.tmaCanvas, selected)
   }
+  zoomBtn.onclick = () => {
+    if (zoomBtn.classList.contains("active")) {
+      toolSelected = false
+      zoomBtn.classList.remove("active")
+    } else {
+      toolSelected = true
+      zoomBtn.classList.add("active")
+    }
+    zoomHandler(path.tmaCanvas, path.tmaImage, magnification, scrollToZoom, toolSelected)
+  }
+  
   const zoomInIcon = document.createElement("i")
   zoomInIcon.setAttribute("class", "fas fa-search-plus")
-  zoomInBtn.appendChild(zoomInIcon)
-  zoomInDiv.appendChild(zoomInBtn)
-  path.toolsDiv.appendChild(zoomInDiv)
+  zoomBtn.appendChild(zoomInIcon)
+  zoomBtnDiv.appendChild(zoomBtn)
+  
+  const zoomOptionsDiv = document.createElement("div")
+  zoomOptionsDiv.setAttribute("class", "dropdown")
+  
+  const zoomOptionsBtn = document.createElement("button")
+  zoomOptionsBtn.setAttribute("class", "btn btn-outline-link dropdown-toggle")
+  zoomOptionsBtn.setAttribute("type", "button")
+  zoomOptionsBtn.setAttribute("data-toggle", "dropdown")
+  zoomOptionsBtn.innerText = ""
+  
+  const zoomOptionsDropdown = document.createElement("div")
+  zoomOptionsDropdown.setAttribute("class", "dropdown-menu")
+  
+  const magnificationSelectorParentDiv = document.createElement("div")
+  magnificationSelectorParentDiv.innerHTML = "<b>Magnification:</b>"
+  const magnificationSelector = document.createElement("div")
+  magnificationSelector.setAttribute("class", "btn-group btn-group-sm")
+  magnificationSelector.setAttribute("role", "group")
+  
+  const magnifications = [{
+    "displayText": "2x",
+    "value": 2
+  }, {
+    "displayText": "5x",
+    "value": 5
+  }, {
+    "displayText": "10x",
+    "value": 10
+  }, {
+    "displayText": "20x",
+    "value": 20
+  }, {
+    "displayText": "40x",
+    "value": 40
+  }]
+
+  magnifications.forEach(mag => {
+    const selectMagnificationBtn = document.createElement("button")
+    selectMagnificationBtn.setAttribute("type", "button")
+    selectMagnificationBtn.setAttribute("class", "btn btn-outline-info")
+    if (magnification === mag.value) {
+      selectMagnificationBtn.classList.add("active")
+    }
+    selectMagnificationBtn.setAttribute("value", mag.value)
+    selectMagnificationBtn.innerText = mag.displayText
+    selectMagnificationBtn.onclick = (_) => {
+      magnification = mag.value
+      const previouslySelectedMagnification = selectMagnificationBtn.parentElement.querySelector("button.active")
+      if (toolSelected) {
+        zoomHandler(path.tmaCanvas, path.tmaImage, magnification, scrollToZoom, toolSelected)
+      }
+      if (previouslySelectedMagnification !== selectMagnificationBtn) {
+        previouslySelectedMagnification.classList.remove("active")
+      }
+      selectMagnificationBtn.classList.add("active")
+    }
+    magnificationSelector.appendChild(selectMagnificationBtn)
+  })
+
+  const scrollToZoomDiv = document.createElement("div")
+  const scrollToZoomLabel = document.createElement("label")
+  scrollToZoomLabel.setAttribute("for", "scrollToZoom")
+  scrollToZoomLabel.style.margin = 0
+  scrollToZoomLabel.innerHTML = "<b>Scroll To Zoom  <b>"
+  const scrollToZoomCheckbox = document.createElement("input")
+  scrollToZoomCheckbox.setAttribute("type", "checkbox")
+  scrollToZoomCheckbox.setAttribute("id", "scrollToZoom")
+  scrollToZoomCheckbox.setAttribute("class", "form-check-input")
+  scrollToZoomCheckbox.onchange = ({target}) => {
+    scrollToZoom = target.checked
+    if (toolSelected) {
+      zoomHandler(path.tmaCanvas, path.tmaImage, magnification, scrollToZoom, toolSelected)
+    }
+  }
+  if (scrollToZoom) {
+    scrollToZoomCheckbox.setAttribute("checked", "true")
+  }
+  scrollToZoomDiv.appendChild(scrollToZoomLabel)
+  scrollToZoomDiv.appendChild(scrollToZoomCheckbox)
+  
+  magnificationSelectorParentDiv.appendChild(magnificationSelector)
+  zoomOptionsDropdown.appendChild(magnificationSelectorParentDiv)
+  zoomOptionsDropdown.appendChild(document.createElement("br"))
+  zoomOptionsDropdown.appendChild(scrollToZoomDiv)
+
+  zoomOptionsDiv.appendChild(zoomOptionsBtn)
+  zoomOptionsDiv.appendChild(zoomOptionsDropdown)
+  
+  zoomToolDiv.appendChild(zoomBtnDiv)
+  zoomToolDiv.appendChild(zoomOptionsDiv)
+
+  new Dropdown(zoomOptionsBtn, true);
+
+  path.toolsDiv.appendChild(zoomToolDiv)
 }
 
 const showQualitySelectors = (annotationType) => {
@@ -649,7 +753,7 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
       thumbnailDiv.appendChild(thumbnailImg)
       thumbnailDiv.appendChild(thumbnailNameText)
       thumbnailsListDiv.appendChild(thumbnailDiv)
-      thumbnailDiv.onclick = () => selectThumbnail(thumbnailId)
+      thumbnailDiv.onclick = () => selectImage(thumbnailId)
       thumbnailImg.src = await box.getThumbnail(thumbnailId)
     }
   })
@@ -750,10 +854,16 @@ const checkAndDisableButtons = (pageNum, totalPages) => {
   }
 }
 
-const selectThumbnail = (id) => {
-  if (id !== hashParams.image) {
+const selectImage = (id) => {
+  if (id && id !== hashParams.image) {
     showLoader()
-    window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${id}`)
+    if (hashParams.image) {
+      window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${id}`)
+    } else {
+      window.location.hash += window.location.hash.length > 0 ? `&image=${id}`: `image=${id}`
+    }
+  } else if (!id) {
+    window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, "")
   }
 }
 
