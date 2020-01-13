@@ -122,7 +122,6 @@ const zoomHandler = (canvas, image, magnification=2, scrollToZoom=true, selected
   const renderZoomedImage = (lensPosition) => {
     const { xInImage, yInImage } = getLensPositionInImage(canvas, image, lensPosition)
     const zoomFactor = 1/scaleFactor
-    zoomCtx.clearRect(0, 0, zoomLens.width, zoomLens.height)
     zoomCtx.drawImage(path.tmaImage, xInImage-(zoomBlockSize[0]*zoomFactor/2), yInImage-(zoomBlockSize[1]*zoomFactor/2), zoomBlockSize[0]*zoomFactor, zoomBlockSize[1]*zoomFactor, 0, 0, zoomLens.width, zoomLens.height)
   }
 

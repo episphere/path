@@ -141,7 +141,7 @@ box.getData = async (id, type, fields=[]) => {
 }
 
 box.getFolderContents = async (folderId, limit=15, offset=0) => {
-  const fieldsParam = "fields=id,name"
+  const fieldsParam = "fields=id,type,name"
   let itemsEndpoint = `${box.endpoints['data']['folder']}/${folderId}/${box.endpoints['subEndpoints']['items']}`
   itemsEndpoint += `?${fieldsParam}&limit=${limit}&offset=${offset}`
   return await utils.boxRequest(itemsEndpoint)

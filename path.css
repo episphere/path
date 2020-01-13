@@ -175,6 +175,14 @@ canvas {
   margin: 0 auto;
 }
 
+.annotationsPartlyCompletedThumbnail {
+  border-color: #a4d100
+}
+
+.annotationsCompletedThumbnail {
+  border-color: rgb(0, 99, 0);
+}
+
 .selectedThumbnail {
   border: 2px solid dodgerblue;
 }
@@ -270,8 +278,10 @@ canvas {
 }
 
 #toast {
-  position: absolute;
-  margin-top: -2.5rem;
+  position: fixed;
+  /* margin-top: -2.5rem; */
+  bottom: 0;
+  width: 100%;
   left: 45%;
   font-size: 18px;
   background-color: unset;

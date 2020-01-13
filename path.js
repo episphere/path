@@ -1,6 +1,9 @@
 console.log("path.js loaded")
 const urlParams = {}
 const boxRootFolderId = "0"
+var currentThumbnailsList = []
+
+window.localStorage.allFilesInFolder = window.localStorage.allFilesInFolder || JSON.stringify({})
 
 const loadURLParams = () => {
   window.location.search.slice(1).split('&').forEach(param => {
@@ -11,15 +14,15 @@ const loadURLParams = () => {
 
 const hashParams = window.localStorage.hashParams ? JSON.parse(window.localStorage.hashParams) : {}
 const loadHashParams = async () => {
-  if (hashParams) {
-    const createHashFromExistingParams = []
-    Object.entries(hashParams).forEach(([hashParam, value]) => {
-      if (!window.location.hash.includes(hashParam)) {
-        createHashFromExistingParams.push(`${hashParam}=${value}`)
-      }
-    })
-    window.location.hash += (window.location.hash && createHashFromExistingParams.length > 0) ? "&" + createHashFromExistingParams.join("&") : createHashFromExistingParams.join("&")
-  }
+  // if (hashParams) {
+  //   const createHashFromExistingParams = []
+  //   Object.entries(hashParams).forEach(([hashParam, value]) => {
+  //     if (!window.location.hash.includes(hashParam)) {
+  //       createHashFromExistingParams.push(`${hashParam}=${value}`)
+  //     }
+  //   })
+  //   window.location.hash += (window.location.hash && createHashFromExistingParams.length > 0) ? "&" + createHashFromExistingParams.join("&") : createHashFromExistingParams.join("&")
+  // }
   if (window.location.hash.includes("=")) {
     window.location.hash.slice(1).split('&').forEach(param => {
       let [key, value] = param.split('=')
@@ -121,7 +124,8 @@ path.setupEventListeners = () => {
     path.getBoxFolderTree()
     // box.setupFilePicker()
   })
-
+  
+  
   const fileInput = document.getElementById("imgInput")
   fileInput.onchange = ({
     target: {
@@ -141,10 +145,11 @@ path.setupEventListeners = () => {
     document.getElementById("thumbnailPicker").style.display = "none"
   }
 
-  path.tmaImage.onload = () => {
+  path.tmaImage.onload = async () => {
     path.loadCanvas()
     if (path.tmaImage.src.includes("boxcloud.com")) {
-      showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
+      await showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
+      showNextImageButton()
     }
   }
 }
@@ -157,44 +162,48 @@ const loadDefaultImage = async () => {
 }
 
 const loadImageFromBox = async (id, url) => {
-  let imageData = ""
-  imageData = await box.getData(id, "file")
-  if (imageData.status === 404) {
-    console.log(`Can't fetch data for image ID ${id} from Box`)
-    alert("The image ID in the URL does not point to a file in Box!")
-    path.tmaImage.src = defaultImg
-    selectImage()
-    return
-  }
-  
-  const { type, name, parent, metadata, path_collection: {entries: filePathInBox} } = imageData
-
-  if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
-    window.localStorage.currentFolder = parent.id
-    path.tmaImage.setAttribute("alt", name)
-    if (!url) {
-      const fileContent = await box.getFileContent(id)
-      url = fileContent.url
-      path.tmaImage.setAttribute("src", "")
-      path.tmaImage.setAttribute("src", url)
-      path.tmaImage.setAttribute("crossorigin", "Anonymous")
+  if (await utils.boxRequest) {
+    const imageData = await box.getData(id, "file") || {}
+    if (imageData.status === 404) {
+      console.log(`Can't fetch data for image ID ${id} from Box`)
+      alert("The image ID in the URL does not point to a file in Box!")
+      path.tmaImage.src = defaultImg
+      selectImage()
+      return
     }
-    path.tmaImage.setAttribute("alt", name)
-    addImageHeader(filePathInBox, id, name)
     
-    if (metadata) {
-      window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
-      annotationTypes.forEach(showQualitySelectors)
-    } else {
-      box.createMetadata(id, "file").then(res => {
-        window.localStorage.fileMetadata = JSON.stringify(res)
+    const { type, name, parent, metadata, path_collection: {entries: filePathInBox} } = imageData
+  
+    if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
+      window.localStorage.currentFolder = parent.id
+      const allFilesInFolderObj = JSON.parse(window.localStorage.allFilesInFolder) || {}
+      allFilesInFolderObj[parent.id] = parent.id in allFilesInFolderObj && allFilesInFolderObj[parent.id].length > 0 ? allFilesInFolderObj[parent.id] : []
+      window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
+      path.tmaImage.setAttribute("alt", name)
+      if (!url) {
+        const fileContent = await box.getFileContent(id)
+        url = fileContent.url
+        path.tmaImage.setAttribute("src", "")
+        path.tmaImage.setAttribute("src", url)
+        path.tmaImage.setAttribute("crossorigin", "Anonymous")
+      }
+      path.tmaImage.setAttribute("alt", name)
+      addImageHeader(filePathInBox, id, name)
+      
+      if (metadata) {
+        window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
         annotationTypes.forEach(showQualitySelectors)
-      })
+      } else {
+        box.createMetadata(id, "file").then(res => {
+          window.localStorage.fileMetadata = JSON.stringify(res)
+          annotationTypes.forEach(showQualitySelectors)
+        })
+      }
+      highlightThumbnail(id)
+      highlightInBoxFileMgr(id)
+    } else {
+      alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
     }
-    highlightThumbnail(id)
-    highlightInBoxFileMgr(id)
-  } else {
-    alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
   }
 }
 
@@ -430,17 +439,76 @@ path.qualityAnnotate = async (annotationType, qualitySelected) => {
     } else {
       annotations[window.localStorage.userId] = newAnnotation
     }
-    console.log(annotations)
     const path = `/${annotationType}_annotations`
     const newMetadata = await box.updateMetadata(hashParams.image, "file", path, JSON.stringify(annotations))
-    if (!newMetadata.status) { // status is returned only on error, change later
-      window.localStorage.fileMetadata[`${annotationType}_annotations`] = JSON.stringify(newMetadata)
+    
+    if (!newMetadata.status) { // status is returned only on error, check for errors properly later
+      window.localStorage.fileMetadata = JSON.stringify(newMetadata)
       activateQualitySelector(annotationType, annotations)
       showToast(`Annotation Successful!`)
+      borderByAnnotations(hashParams.image, newMetadata)
+      showNextImageButton(newMetadata)
     } else {
       showToast("Error occurred during annotation, please try again later!")
     }
   }
+}
+
+const showNextImageButton = (metadata) => {
+  metadata = metadata || JSON.parse(window.localStorage.fileMetadata)
+  const numAnnotationsCompleted = Object.keys(metadata).reduce((total, key) => {
+    if (key.includes("_annotations")) {
+      const annotationMade = key.split("_annotations")[0]
+      if (annotationTypes.includes(annotationMade)) {
+        total += 1
+      }
+    }
+    return total
+  }, 0)
+
+  const nextImageMessage = document.getElementById("nextImageMessage")
+  const nextImageText = `<b style='padding-bottom:.75rem;'><span style='color:darkorchid'>${numAnnotationsCompleted}</span> / ${annotationTypes.length} Annotations Completed!</b>`
+  nextImageMessage.innerHTML = nextImageText
+
+  const nextImageButton = document.getElementById("nextImageBtn") || document.createElement("button")
+  nextImageButton.setAttribute("type", "button")
+  nextImageButton.setAttribute("id", "nextImageBtn")
+  nextImageButton.setAttribute("class", "btn btn-link")
+  nextImageButton.innerHTML = "Next Image >>"
+  const allFilesInCurrentFolder = JSON.parse(window.localStorage.allFilesInFolder)[window.localStorage.currentFolder]
+  if (allFilesInCurrentFolder.length > 0) {
+    const currentImageIndex = allFilesInCurrentFolder.indexOf(hashParams.image.toString())
+    if (currentImageIndex === allFilesInCurrentFolder.length - 1) {
+      return
+    }
+    nextImageButton.onclick = async (_) => {
+      if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
+        const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
+        thumbnailCurrentPageText.stepUp()
+        thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+      }
+      selectImage(allFilesInCurrentFolder[currentImageIndex + 1])
+    }
+  } else {
+    // Fallback for first load where allFilesInFolder is yet to be populated, since doing that takes a lot of time.
+    const currentImageIndex = currentThumbnailsList.indexOf(hashParams.image.toString())
+    if (currentImageIndex === currentThumbnailsList.length - 1 && isThumbnailsLastPage()) {
+      return
+    }
+    nextImageButton.onclick = async (_) => {
+      if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
+        const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
+        thumbnailCurrentPageText.stepUp()
+        thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+        setTimeout(() => { // Needs to wait for new thumbnails list to be loaded. Very ugly, need rethinking later.
+          selectImage(currentThumbnailsList[0])
+        }, 3000)
+      } else {
+        selectImage(currentThumbnailsList[currentImageIndex + 1])
+      }
+    }
+  }
+  nextImageMessage.appendChild(nextImageButton)
 }
 
 let toastTimeout = {}
@@ -714,8 +782,23 @@ const showThumbnailPicker = async (limit, offset=0) => {
     window.localStorage.currentThumbnailsOffset = offset
     const { currentFolder } = window.localStorage
     var { total_count, entries: thumbnails } = await box.getFolderContents(currentFolder, limit, offset)
+    currentThumbnailsList = thumbnails.map(t => t.id)
     addThumbnails(thumbnailPicker, thumbnails)
     addThumbnailPageSelector(thumbnailPicker, total_count, limit, offset)
+  }
+  let allFilesInFolder = JSON.parse(window.localStorage.allFilesInFolder)
+  if (allFilesInFolder[window.localStorage.currentFolder].length === 0) {
+    box.getFolderContents(window.localStorage.currentFolder, total_count, 0).then(({entries}) => {
+      const onlyFiles = []
+      entries.forEach(entry => {
+        if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png"))) {
+          onlyFiles.push(entry.id)
+        }
+      })
+      const allFilesInFolderObj = allFilesInFolder
+      allFilesInFolderObj[window.localStorage.currentFolder] = onlyFiles
+      window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
+    })
   }
 }
 
@@ -755,6 +838,7 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
       thumbnailsListDiv.appendChild(thumbnailDiv)
       thumbnailDiv.onclick = () => selectImage(thumbnailId)
       thumbnailImg.src = await box.getThumbnail(thumbnailId)
+      getAnnotationsForBorder(thumbnailId)
     }
   })
   
@@ -771,9 +855,7 @@ const addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offset) =>
   
     const thumbnailPrevPageBtn = document.createElement("button")
     thumbnailPrevPageBtn.setAttribute("class", "btn btn-sm btn-light")
-    if (currentPageNum === 1) {
-      thumbnailPrevPageBtn.setAttribute("disabled", "")
-    }
+
     const prevBtnText = document.createTextNode("<")
     thumbnailPrevPageBtn.style["font-size"] = "9px"
     thumbnailPrevPageBtn.style["margin-right"] = "0.18rem"
@@ -794,9 +876,6 @@ const addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offset) =>
     
     const thumbnailNextPageBtn = document.createElement("button")
     thumbnailNextPageBtn.setAttribute("class", "btn btn-sm btn-light")
-    if (currentPageNum === totalPages) {
-      thumbnailNextPageBtn.setAttribute("disabled", "")
-    }
   
     const nextBtnText = document.createTextNode(">")
     thumbnailNextPageBtn.style["font-size"] = "9px"
@@ -824,6 +903,8 @@ const addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offset) =>
     thumbnailPageNumSpan.appendChild(thumbnailNextPageBtn)
     
     thumbnailPicker.appendChild(thumbnailPageNumSpan)
+
+    checkAndDisableButtons(currentPageNum, totalPages)
   } else {
     const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
     thumbnailCurrentPageText.setAttribute("max", totalPages)
@@ -840,13 +921,49 @@ const addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offset) =>
   }
 }
 
+const getAnnotationsForBorder = (thumbnailId) => {
+  box.getData(thumbnailId, "file").then(resp => {
+    if (resp && resp.metadata && resp.metadata.global && resp.metadata.global.properties) {
+      metadata = resp.metadata.global.properties
+      borderByAnnotations(thumbnailId, metadata)
+    }
+  })
+}
+
+const borderByAnnotations = (thumbnailId, metadata) => {
+  let numAnnotationsCompleted = 0
+  annotationTypes.forEach(annotationType => {
+    if (`${annotationType}_annotations` in metadata && window.localStorage.userId in JSON.parse(metadata[`${annotationType}_annotations`])) {
+      numAnnotationsCompleted += 1
+    }
+  })
+  const thumbnailImg = document.getElementById(`thumbnail_${thumbnailId}`)
+  if (numAnnotationsCompleted === annotationTypes.length) {
+    thumbnailImg.classList.add("annotationsCompletedThumbnail")
+  } else if (numAnnotationsCompleted > 0) {
+    thumbnailImg.classList.add("annotationsPartlyCompletedThumbnail")
+  }
+}
+
+const isThumbnailsFirstPage = () => {
+  // For use when changing thumbnails list from elsewhere, for instance showNextImageButton().
+  const [ thumbnailPrevPageBtn, _ ] = document.getElementById("thumbnailPageSelector").querySelectorAll("button")
+  return thumbnailPrevPageBtn.getAttribute("disabled") === "true"
+}
+
+const isThumbnailsLastPage = () => {
+  // For use when changing thumbnails list from elsewhere, for instance showNextImageButton().
+  const [ _, thumbnailNextPageBtn ] = document.getElementById("thumbnailPageSelector").querySelectorAll("button")
+  return thumbnailNextPageBtn.getAttribute("disabled") === "true"
+}
+
 const checkAndDisableButtons = (pageNum, totalPages) => {
   const [ thumbnailPrevPageBtn, thumbnailNextPageBtn ] = document.getElementById("thumbnailPageSelector").querySelectorAll("button")
   if (pageNum === 1) {
-    thumbnailPrevPageBtn.setAttribute("disabled", "")
+    thumbnailPrevPageBtn.setAttribute("disabled", "true")
     thumbnailNextPageBtn.removeAttribute("disabled")
   } else if (pageNum === totalPages) {
-    thumbnailNextPageBtn.setAttribute("disabled", "")
+    thumbnailNextPageBtn.setAttribute("disabled", "true")
     thumbnailPrevPageBtn.removeAttribute("disabled")
   } else {
     thumbnailPrevPageBtn.removeAttribute("disabled")
