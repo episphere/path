@@ -1,10 +1,9 @@
-console.log("path.js loaded")
-const urlParams = {}
 const boxRootFolderId = "0"
 var currentThumbnailsList = []
 
 window.localStorage.allFilesInFolder = window.localStorage.allFilesInFolder || JSON.stringify({})
 
+const urlParams = {}
 const loadURLParams = () => {
   window.location.search.slice(1).split('&').forEach(param => {
     const [key, value] = param.split('=')
@@ -458,8 +457,8 @@ const showNextImageButton = (metadata) => {
   metadata = metadata || JSON.parse(window.localStorage.fileMetadata)
   const numAnnotationsCompleted = Object.keys(metadata).reduce((total, key) => {
     if (key.includes("_annotations")) {
-      const annotationMade = key.split("_annotations")[0]
-      if (annotationTypes.includes(annotationMade)) {
+      const annotationMade = JSON.parse(metadata[key])
+      if (annotationTypes.includes(key.split("_annotations")[0]) && window.localStorage.userId in annotationMade) {
         total += 1
       }
     }
@@ -768,7 +767,6 @@ const activateQualitySelector = (annotationType, annotations) => {
   if (annotations && annotations[window.localStorage.userId]) {
     const userAnnotation = annotations[window.localStorage.userId].value
     selectTable.querySelector(`button[value='${userAnnotation}']`).classList.add("active")
-    // qualitySelectTable.
   }
 }
 
