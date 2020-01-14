@@ -595,6 +595,7 @@ const zoomButton = () => {
   const magnificationSelectorParentDiv = document.createElement("div")
   magnificationSelectorParentDiv.innerHTML = "<b>Magnification:</b>"
   const magnificationSelector = document.createElement("div")
+  magnificationSelector.setAttribute("id", "magnificationSelectors")
   magnificationSelector.setAttribute("class", "btn-group btn-group-sm")
   magnificationSelector.setAttribute("role", "group")
   
@@ -630,7 +631,7 @@ const zoomButton = () => {
       if (toolSelected) {
         zoomHandler(path.tmaCanvas, path.tmaImage, magnification, scrollToZoom, toolSelected)
       }
-      if (previouslySelectedMagnification !== selectMagnificationBtn) {
+      if (previouslySelectedMagnification && previouslySelectedMagnification !== selectMagnificationBtn) {
         previouslySelectedMagnification.classList.remove("active")
       }
       selectMagnificationBtn.classList.add("active")

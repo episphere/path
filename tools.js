@@ -160,5 +160,9 @@ const mouseMoveHandler = (moveEvent) => {
 
 const scrollHandler = (wheelEvent) => {
     wheelEvent.preventDefault()
+    const activeMagnificationSelector = document.getElementById("magnificationSelectors").querySelector("button.active")
+    if (activeMagnificationSelector) {
+      activeMagnificationSelector.classList.remove("active")
+    }
     zoomHandler.changeScale(wheelEvent.deltaY>=0)
 }
