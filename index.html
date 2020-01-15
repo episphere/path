@@ -62,8 +62,8 @@
       <div id="canvasWithPickers">
         <div id="canvasDiv">
           <nav aria-label="breadcrumb" id="imgHeader"></nav>
-          <div id="loaderDiv">
-            <img src="images/loader.gif" id="loaderImg">
+          <div class="loaderDiv" id="imgLoaderDiv">
+            <img src="images/loader.gif" class="loaderImg" id="loaderImg">
           </div>
           <div id="canvasParent">
             <canvas id="tmaCanvas"></canvas>
@@ -95,9 +95,13 @@
         </ul>
         <div class="tab-content" id="tabsContent">
           <div class="tab-pane fade show active" id="myBox" role="tabpanel" aria-labelledby="box-tab">
-            <br />
             <div class="tabContainer" id="boxFileManager">
-
+              <div id="fileMgrLoaderDiv" class="loaderDiv">
+                <img src="images/loader.gif" id="fileMgrLoader" class="loaderImg"/>
+              </div>
+              <div id="boxFileMgrTools"></div>
+              <div id="boxFolderTree">
+              </div>
             </div>
           </div>
           <div class="tab-pane fade" id="annotations" role="tabpanel" aria-labelledby="annotations-tab">

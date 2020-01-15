@@ -1,8 +1,6 @@
 const boxRootFolderId = "0"
 var currentThumbnailsList = []
 
-window.localStorage.allFilesInFolder = window.localStorage.allFilesInFolder || JSON.stringify({})
-
 const urlParams = {}
 const loadURLParams = () => {
   window.location.search.slice(1).split('&').forEach(param => {
@@ -11,27 +9,19 @@ const loadURLParams = () => {
   })
 }
 
-const hashParams = window.localStorage.hashParams ? JSON.parse(window.localStorage.hashParams) : {}
+var hashParams
 const loadHashParams = async () => {
-  // if (hashParams) {
-  //   const createHashFromExistingParams = []
-  //   Object.entries(hashParams).forEach(([hashParam, value]) => {
-  //     if (!window.location.hash.includes(hashParam)) {
-  //       createHashFromExistingParams.push(`${hashParam}=${value}`)
-  //     }
-  //   })
-  //   window.location.hash += (window.location.hash && createHashFromExistingParams.length > 0) ? "&" + createHashFromExistingParams.join("&") : createHashFromExistingParams.join("&")
-  // }
+  hashParams = {} 
   if (window.location.hash.includes("=")) {
     window.location.hash.slice(1).split('&').forEach(param => {
       let [key, value] = param.split('=')
-      value = value.replace(/['"]+/g, "")
+      value = value.replace(/['"]+/g, "") // for when the hash parameter contains quotes.
       value = decodeURIComponent(value)
       if (key === "extModules") {
         try {
           window.localStorage.extModules = value
-          hashParams[key] = eval(value)
-        } catch (e) {
+          hashParams[key] = eval(value) // for when the extModules parameter is an array/object.
+        } catch (e) {  // If eval doesn't work, just add the value as a string.
           console.warn("The extModules parameter should be either be a URL without quotes or a proper array containing individual URL(s) inside quotes!", e)
           hashParams[key] = value
         }
@@ -40,10 +30,18 @@ const loadHashParams = async () => {
       }
     })
   }
-  
   window.localStorage.hashParams = JSON.stringify(hashParams)
-  if (hashParams.image) {
-    loadImageFromBox(hashParams.image)
+  if (hashParams["extModules"]) {
+    path.loadModules()
+  }
+  if (hashParams.image && hashParams.image !== window.localStorage.currentImage) {
+    await loadImageFromBox(hashParams.image)
+  }
+  if (hashParams.folder) {
+    window.localStorage.currentFolder = hashParams.folder
+    loadBoxFolderTree(hashParams.folder)
+  } else if (!hashParams.folder && await box.isLoggedIn() && !path.tmaImage.src) {
+    selectFolder(boxRootFolderId)
   }
 }
 
@@ -75,6 +73,12 @@ const qualityEnum = [{
 }]
 
 const path = async () => {
+  window.localStorage.currentImage = ""
+  window.localStorage.currentFolder = ""
+  window.localStorage.allFilesInFolder = window.localStorage.allFilesInFolder || JSON.stringify({})
+  window.localStorage.currentThumbnailsOffset = window.localStorage.currentThumbnailsOffset || "0"
+  window.localStorage.fileMetadata = JSON.stringify({})
+
   loadURLParams()
   path.root = document.getElementById("tmaPath")
   path.imageDiv = document.getElementById("imageDiv")
@@ -109,19 +113,11 @@ path.loadModules = async (modules) => {
       loadModule(modules)
     }
   }
-
-  window.onhashchange = () => {
-    loadHashParams()
-    path.loadModules()
-  }
 }
 
 path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
     box.getUserProfile()
-    // await box.makeSelections()
-    path.getBoxFolderTree()
-    // box.setupFilePicker()
   })
   
   
@@ -166,15 +162,14 @@ const loadImageFromBox = async (id, url) => {
     if (imageData.status === 404) {
       console.log(`Can't fetch data for image ID ${id} from Box`)
       alert("The image ID in the URL does not point to a file in Box!")
-      path.tmaImage.src = defaultImg
       selectImage()
+      loadDefaultImage()
       return
     }
     
     const { type, name, parent, metadata, path_collection: {entries: filePathInBox} } = imageData
   
     if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
-      window.localStorage.currentFolder = parent.id
       const allFilesInFolderObj = JSON.parse(window.localStorage.allFilesInFolder) || {}
       allFilesInFolderObj[parent.id] = parent.id in allFilesInFolderObj && allFilesInFolderObj[parent.id].length > 0 ? allFilesInFolderObj[parent.id] : []
       window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
@@ -188,6 +183,7 @@ const loadImageFromBox = async (id, url) => {
       }
       path.tmaImage.setAttribute("alt", name)
       addImageHeader(filePathInBox, id, name)
+      window.localStorage.currentImage = id
       
       if (metadata) {
         window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
@@ -198,7 +194,11 @@ const loadImageFromBox = async (id, url) => {
           annotationTypes.forEach(showQualitySelectors)
         })
       }
+      
       highlightThumbnail(id)
+      if(!hashParams.folder) {
+        selectFolder(parent.id)
+      }
       highlightInBoxFileMgr(id)
     } else {
       alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
@@ -242,23 +242,25 @@ const addImageHeader = (filePathInBox, id, name) => {
   imgHeader.appendChild(folderStructure)
 }
 
-path.getBoxFolderTree = async (id=boxRootFolderId) => {
-  const manifest = await box.getData(id, "folder")
-  if (manifest && manifest.item_status === "active") {
-    const { item_collection: { entries }} = manifest
-    const parentElement = id === "0" ? document.getElementById("boxFileManager") : document.getElementById(`boxFileMgr_subFolders_${id}`)
-    if (entries.length !== 0 || parentElement.childElementCount === 0) {
-      const folderSubDiv = populateBoxSubfolderTree(entries, id)
-      parentElement.style.border = "1px solid lightgray"
-      parentElement.style.backgroundColor = "rgba(200, 200, 200, 0.1)"
-      if (id !== "0") {
-        parentElement.style.height = "auto"
-        folderSubDiv.style.height = entries.length < 5 ? `${entries.length*4}rem` : "20rem" ;
-        folderSubDiv.style.width = "100%"
-        folderSubDiv.style.overflowY = "scroll"
-        folderSubDiv.style.borderLeft = "1px dashed gray"
-        parentElement.style.border = "none"
+const loadBoxFolderTree = async (id=boxRootFolderId) => {
+  const loaderElementId = "fileMgrLoaderDiv"
+  const folderData = await box.getData(id, "folder")
+  if (folderData && folderData.item_status === "active") {
+    const { item_collection: { entries }} = folderData
+    const parentElement = document.getElementById("boxFolderTree")
+    if (entries.length !== 0) {
+      if (parentElement.childElementCount > 0) {
+        const overlayOn = document.getElementById("boxFolderTree")
+        showLoader(loaderElementId, overlayOn)
       }
+      parentElement.firstChild && parentElement.removeChild(parentElement.firstChild)
+      const folderSubDiv = populateBoxfolderTree(entries, id)
+      parentElement.style.height = window.innerHeight - parentElement.getBoundingClientRect().y - 100
+      folderSubDiv.style.border = "1px solid lightgray"
+      folderSubDiv.style.backgroundColor = "rgba(200, 200, 200, 0.1)"
+      folderSubDiv.style.height = "100%"
+      folderSubDiv.style.width = "100%"
+      folderSubDiv.style.overflowY = "scroll"
       parentElement.appendChild(folderSubDiv)
     } else if (entries.length === 0) {
       parentElement.style.color = "gray"
@@ -266,15 +268,17 @@ path.getBoxFolderTree = async (id=boxRootFolderId) => {
       parentElement.innerText = "-- Empty Folder --"
     }
   }
+  hideLoader(loaderElementId)
 }
 
-const populateBoxSubfolderTree = (entries, parentId) => {
-  const subFolderDiv = document.createElement("div")
-  subFolderDiv.setAttribute("class", `boxFileMgr_subFolderTree`)
-  subFolderDiv.setAttribute("id", `boxFileMgr_subFolderTree_${parentId}`)
+const populateBoxfolderTree = (entries, id) => {
+  const currentFolderDiv = document.createElement("div")
+  currentFolderDiv.setAttribute("class", `boxFileMgr_folderTree`)
+  currentFolderDiv.setAttribute("id", `boxFileMgr_folderTree_${id}`)
   entries.forEach(entry => {
     const entryBtnDiv = document.createElement("div")
-    entryBtnDiv.setAttribute("id", `boxFileMgr_folder_${entry.id}`)
+    entryBtnDiv.setAttribute("id", `boxFileMgr_subFolder_${entry.id}`)
+    entryBtnDiv.setAttribute("class", `boxFileMgr_subFolder`)
     const entryBtn = document.createElement("button")
     entryBtn.setAttribute("class", "btn btn-link")
     entryBtn.setAttribute("type", "button")
@@ -288,49 +292,24 @@ const populateBoxSubfolderTree = (entries, parentId) => {
         entryIcon.setAttribute("class", "fas fa-file")
       }
       if (entry.id === hashParams.image) {
-        entryBtnDiv.setAttribute("class", "selectedImage")
+        entryBtnDiv.classList.add("selectedImage")
       }
     }
     entryIcon.innerHTML = "&nbsp&nbsp"
     entryBtn.appendChild(entryIcon)
     entryBtn.innerHTML += entry.name
+    // const loaderImage = document.createElement("img")
+    // loaderImage.setAttribute("src", `${window.location.origin}${window.location.pathname}/images/loader_sm.gif`)
+    // loaderImage.setAttribute("class", "boxFileMgr_loader")
+    // entryBtnSubfolders.appendChild(loaderImage)
+    // entryBtnSubfolders.style.display = "none"
+    // entryBtnDiv.appendChild(entryBtnSubfolders)
     entryBtnDiv.appendChild(entryBtn)
-    if (entry.type === "folder") {
-      var entryBtnSubfolders = document.createElement("div")
-      entryBtnSubfolders.setAttribute("class", "boxFileMgr_subFolders")
-      entryBtnSubfolders.setAttribute("id", `boxFileMgr_subFolders_${entry.id}`)
-      const loaderImage = document.createElement("img")
-      loaderImage.setAttribute("src", `${window.location.origin}${window.location.pathname}/images/loader_sm.gif`)
-      loaderImage.setAttribute("class", "boxFileMgr_loader")
-      entryBtnSubfolders.appendChild(loaderImage)
-      entryBtnSubfolders.style.display = "none"
-      entryBtnDiv.appendChild(entryBtnSubfolders)
-    }
     entryBtnDiv.appendChild(document.createElement("hr"))
 
     entryBtn.onclick = async () => {
       if (entry.type === "folder") {
-        const isOpen = entryBtn.querySelector("i").classList.contains("fa-folder-open")
-        if (isOpen) {
-          // while (entryBtnDiv.childElementCount !== 2) {
-          //   entryBtnDiv.removeChild(entryBtnDiv.lastElementChild)
-          // }
-          entryBtnSubfolders.style.display = "none"
-          entryBtnDiv.style.backgroundColor = ""
-          entryBtnDiv.style.border = "none"
-          entryBtnDiv.style.height = ""
-          entryBtn.querySelector("i").setAttribute("class", "fas fa-folder")
-          entryBtnDiv.querySelector("img.boxFileMgr_loader").style.display = "none"
-        } else {
-          entryBtn.querySelector("i").setAttribute("class", "fas fa-folder-open")
-          entryBtnDiv.querySelector("img.boxFileMgr_loader").style.display = "block"
-          entryBtnSubfolders.style.display = "flex"
-          if (entryBtnSubfolders.childElementCount === 1) {
-            await path.getBoxFolderTree(entry.id)
-          }
-          entryBtnDiv.querySelector("img.boxFileMgr_loader").style.display = "none"
-          // entryBtnDiv.style.height = "30%"
-        }
+        selectFolder(entry.id)
       } else if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png"))) {
         if (entry.id !== hashParams.image) {
           selectImage(entry.id)
@@ -338,17 +317,17 @@ const populateBoxSubfolderTree = (entries, parentId) => {
         }
       }
     }
-    // const subFolderTree = document.createElement("div")
-    // subFolderTree.setAttribute("class", `boxFileMgr_subFolderTree_${id}`)
-    subFolderDiv.appendChild(entryBtnDiv)
+    // const folderTree = document.createElement("div")
+    // folderTree.setAttribute("class", `boxFileMgr_folderTree_${id}`)
+    currentFolderDiv.appendChild(entryBtnDiv)
   })
-  // subFolderDiv.appendChild(subFolderTree)
-  return subFolderDiv
+  // currentFolderDiv.appendChild(folderTree)
+  return currentFolderDiv
 }
 
 const highlightInBoxFileMgr = (id) => {
   const previouslySelectedImage = document.getElementById("boxFileManager").querySelector("div.selectedImage")
-  const newlySelectedImage = document.getElementById(`boxFileMgr_folder_${id}`)
+  const newlySelectedImage = document.getElementById(`boxFileMgr_subFolder_${id}`)
   if (previouslySelectedImage) {
     previouslySelectedImage.classList.remove("selectedImage")
   }
@@ -358,16 +337,16 @@ const highlightInBoxFileMgr = (id) => {
  
 }
 
-const showLoader = () => {
-  const loaderDiv = document.getElementById("loaderDiv")
-  const { width, height, top, left } = path.tmaCanvas.getBoundingClientRect()
+const showLoader = (id, overlayOnElement) => {
+  const loaderDiv = document.getElementById(id)
+  const { width, height } = overlayOnElement.getBoundingClientRect()
   loaderDiv.style.width = width
   loaderDiv.style.height = height
   loaderDiv.style.display = "inline-block";
 }
 
-const hideLoader = () => {
-  document.getElementById("loaderDiv").style.display = "none";
+const hideLoader = (id) => {
+  document.getElementById(id).style.display = "none";
 }
 
 path.loadCanvas = () => {
@@ -385,7 +364,7 @@ path.loadCanvas = () => {
     const tmaContext = path.tmaCanvas.getContext('2d')
     // const outputContext = path.outputCanvas.getContext('2d')
     tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
-    hideLoader()
+    // hideLoader()
     // outputContext.drawImage(path.tmaImage, 0, 0, path.outputCanvas.width, path.outputCanvas.height)
     document.getElementById("canvasWithPickers").style.borderRight = "1px solid lightgray"
     if (!path.options) {
@@ -816,7 +795,7 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
   thumbnailsListDiv.scrollTop = 0
   
   thumbnails.forEach(async (thumbnail) => {
-    if (thumbnail.type === "file") {
+    if (thumbnail.type === "file" && (thumbnail.name.endsWith(".jpg") || thumbnail.name.endsWith(".png"))) {
       const { id: thumbnailId, name } = thumbnail
       const thumbnailDiv = document.createElement("div")
       thumbnailDiv.setAttribute("class", "thumbnailDiv")
@@ -867,7 +846,7 @@ const addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offset) =>
     thumbnailCurrentPageText.setAttribute("min", "1")
     thumbnailCurrentPageText.setAttribute("max", totalPages)
     thumbnailCurrentPageText.setAttribute("value", currentPageNum)
-    thumbnailCurrentPageText.style.width = "35px";
+    thumbnailCurrentPageText.style.width = "30px";
   
     const outOfTotalPagesText = document.createElement("span")
     outOfTotalPagesText.setAttribute("id", "thumbnailPageSelector_totalPages")
@@ -970,17 +949,39 @@ const checkAndDisableButtons = (pageNum, totalPages) => {
   }
 }
 
-const selectImage = (id) => {
-  if (id && id !== hashParams.image) {
-    showLoader()
+const selectImage = (imageId) => {
+  const loaderElementId = "imgLoaderDiv"
+  const overlayOn = path.tmaCanvas
+  if (imageId && imageId !== hashParams.image) {
+    showLoader(loaderElementId, overlayOn)
     if (hashParams.image) {
-      window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${id}`)
+      console.log(hashParams.image)
+      window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${imageId}`)
+      window.location.hash = window.location.hash.replace(`image=${hashParams.image}&`, `image=${imageId}&`)
+      window.location.hash = window.location.hash.replace(`&image=${hashParams.image}`, `&image=${imageId}`)
     } else {
-      window.location.hash += window.location.hash.length > 0 ? `&image=${id}`: `image=${id}`
+      window.location.hash += window.location.hash.length > 0 ? `&image=${imageId}`: `image=${imageId}`
     }
-  } else if (!id) {
+  } else if (!imageId) {
     window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, "")
   }
+  hideLoader(loaderElementId)
+}
+
+const selectFolder = (folderId) => {
+  const loaderElementId = "fileMgrLoaderDiv"
+  const overlayOn = document.getElementById("boxFolderTree")
+  if (folderId && folderId !== hashParams.folder) {
+    showLoader(loaderElementId, overlayOn)
+    if (hashParams.folder) {
+      window.location.hash = window.location.hash.replace(`folder=${hashParams.folder}`, `folder=${folderId}`)
+    } else {
+      window.location.hash += window.location.hash.length > 0 ? `&folder=${folderId}` : `folder=${folderId}`
+    }
+  } else if (!folderId) {
+    window.location.hash = window.location.hash.replace(`folder=${hashParams.folder}`, "")
+  }
+  hideLoader(loaderElementId)
 }
 
 const highlightThumbnail = (id) => {
@@ -1023,3 +1024,4 @@ const addAnnotationsTooltip = () => {
 
 window.onload = path
 window.onresize = path.loadCanvas
+window.onhashchange = loadHashParams

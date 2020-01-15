@@ -110,7 +110,14 @@ canvas {
   margin-left: 0.5rem;
 }
 
-#loaderImg {
+.loaderDiv {
+  display: none;
+  position: absolute;
+  background-color: rgba(220, 220, 220, 0.4);
+  z-index: 2;
+}
+
+.loaderImg {
   position: absolute;
   margin: auto;
   top: 0;
@@ -123,19 +130,13 @@ canvas {
   position: relative;
 }
 
-#loaderDiv {
-  display: none;
-  position: absolute;
-  background-color: rgba(220, 220, 220, 0.4);
-  z-index: 2;
-}
 
 #canvasWithPickers {
   position: relative;
 }
 
 #thumbnailPicker {
-  margin: 2rem 0.5rem 0 1.5rem;
+  margin: 2rem 0rem 0 1.5rem;
   text-align: right;
   z-index: 5;
 }
@@ -146,8 +147,10 @@ canvas {
 
 #thumbnailPageSelector {
   margin-top: 0.5rem;
-  margin-left: -1rem;
-  /* margin-right: -0.5rem; */
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   font-size: 11px;
 }
 
@@ -157,14 +160,15 @@ canvas {
 } */
 
 .thumbnailDiv:not(:first-child) {
-  margin: 0.7rem 7px 0 0;
+  margin-top: 0.7rem;
 }
 
 .thumbnailDiv {
   display: flex;
   flex-direction: column;
+  margin-right: 0.75rem;
   cursor: pointer;
-  margin-right: 0.4rem;
+  align-items:center;
 }
 
 .imagePickerThumbnail {
@@ -172,7 +176,6 @@ canvas {
   height: 5rem;
   border: 1px solid lightpink;
   border-radius: 5px;
-  margin: 0 auto;
 }
 
 .annotationsPartlyCompletedThumbnail {
@@ -197,15 +200,12 @@ canvas {
 
 #boxFileManager {
   padding-top: 1rem;
+  margin-left: 0;
 }
 
-.boxFileMgr_loader {
-  margin: 0 auto;
-  height: 50px;
-}
-
-.boxFileMgr_subFolders {
-  text-align: center;
+#boxFolderTree {
+  position: relative;
+  width: 100%;
 }
 
 #boxFileManager hr {
@@ -213,13 +213,13 @@ canvas {
   margin-bottom: 0;
 }
 
-.boxFileMgr_subFolderTree {
+.boxFileMgr_subFolder {
   flex-direction: column;
-  margin-left: 1rem;
-  margin-right: 1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
-.boxFileMgr_subFolderTree>div>button {
+.boxFileMgr_subFolder>button {
   width: 100%;
   text-align: left;
   padding-top: 1rem;
