@@ -136,7 +136,7 @@ canvas {
 }
 
 #thumbnailPicker {
-  margin: 2rem 0rem 0 1.5rem;
+  margin: 2rem 0 0 1rem;
   text-align: right;
   z-index: 5;
 }
@@ -166,7 +166,7 @@ canvas {
 .thumbnailDiv {
   display: flex;
   flex-direction: column;
-  margin-right: 0.75rem;
+  margin-right: 0.5rem;
   cursor: pointer;
   align-items:center;
 }
@@ -224,6 +224,20 @@ canvas {
   text-align: left;
   padding-top: 1rem;
   padding-bottom: 1rem;
+}
+
+#boxFileMgrHeader {
+  display: flex;
+  flex-direction: row;
+}
+
+.boxFileMgrHeaderBtn {
+  margin: 0 auto;
+}
+
+.boxFileMgrHeaderBtn > button {
+  /* background-color: rgba(220, 220, 220, 0.4); */
+  box-shadow: 0.5px 0.5px 0.5px 0.5px lightgray;
 }
 
 .selectedImage {

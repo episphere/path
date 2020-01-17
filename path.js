@@ -39,8 +39,9 @@ const loadHashParams = async () => {
   }
   if (hashParams.folder) {
     window.localStorage.currentFolder = hashParams.folder
-    loadBoxFolderTree(hashParams.folder)
-  } else if (!hashParams.folder && await box.isLoggedIn() && !path.tmaImage.src) {
+    window.localStorage.allFilesInFolder[hashParams.folder] = {}
+    loadBoxFileManager(hashParams.folder)
+  } else if (!hashParams.folder && await box.isLoggedIn()) {
     selectFolder(boxRootFolderId)
   }
 }
@@ -242,9 +243,87 @@ const addImageHeader = (filePathInBox, id, name) => {
   imgHeader.appendChild(folderStructure)
 }
 
-const loadBoxFolderTree = async (id=boxRootFolderId) => {
-  const loaderElementId = "fileMgrLoaderDiv"
+const loadBoxFileManager = async (id=boxRootFolderId) => {
+  const boxFileMgrHeaderDiv = document.getElementById("boxFileMgrHeader")
+  const [fileMgrTools, fileMgrNav] = boxFileMgrHeaderDiv.children
+  fileMgrTools.style.width = "20%"
+  fileMgrTools.style.display = "flex"
+  fileMgrTools.style["flex-direction"] = "row"
+  fileMgrTools.style.margin = "auto 0"
+  fileMgrTools.style["justify-content"] = "space-between"
+
   const folderData = await box.getData(id, "folder")
+  if (folderData) {
+    let backBtnSpan = document.getElementById("fileMgrBackBtn") 
+    if (!backBtnSpan) {
+      backBtnSpan = document.createElement("span")
+      backBtnSpan.setAttribute("id", "fileMgrBackBtn")
+      backBtnSpan.setAttribute("class", "boxFileMgrHeaderBtn")
+      const backButton = 
+        `<button type="button" class="btn" style="background-color: rgba(190, 190, 190, 0.1); box-shadow: 0.5px 0.5px 0.5px 0.5 px lightgrey">
+          <i style="font-size:25px; color: royalblue;" class="fas fa-caret-left"></i>
+        </button>`
+      backBtnSpan.innerHTML = backButton
+      fileMgrTools.appendChild(backBtnSpan)
+    }
+    backBtnSpan.onclick = id === boxRootFolderId ? () => {} : (e) => {
+      selectFolder(folderData.path_collection.entries[folderData.path_collection.entries.length - 1])
+    }
+    
+    let homeBtnSpan = document.getElementById("fileMgrHomeBtn")
+    if (!homeBtnSpan) {
+      homeBtnSpan = document.createElement("span")
+      homeBtnSpan.setAttribute("id", "fileMgrHomeBtn")
+      homeBtnSpan.setAttribute("class", "boxFileMgrHeaderBtn")
+      const homeButton = 
+        `<button type="button" class="btn" style="background-color: rgba(190, 190, 190, 0.1); box-shadow: 0.5px 0.5px 0.5px 0.5 px lightgrey">
+          <i style="font-size:25px; color: royalblue;" class="fas fa-home"></i>
+        </button>`
+      homeBtnSpan.innerHTML = homeButton
+      fileMgrTools.appendChild(homeBtnSpan)
+    }
+    homeBtnSpan.onclick = id === boxRootFolderId ? () => {} : (e) => {
+      selectFolder(boxRootFolderId)
+    }
+
+    fileMgrNav.setAttribute("id", "boxFileMgrNav")
+    fileMgrNav.style.width = "70%"
+    fileMgrNav.style.margin = "auto 0"
+    fileMgrNav.style["text-align"] = "center"
+    fileMgrNav.innerHTML = 
+      `<strong style="font-size: 18px;">
+        <a href="${box.appBasePath}/${folderData.type}/${folderData.id}" target="_blank">
+          ${folderData.name}
+        </a>
+      </strong>`
+
+    boxFileMgrHeaderDiv.style.height = "4rem";
+    boxFileMgrHeaderDiv.style["background-color"] = "rgba(210, 210, 210, 0.1)";
+    if (!boxFileMgrHeaderDiv.parentElement.querySelector("hr")) {
+      boxFileMgrHeaderDiv.parentElement.insertBefore(document.createElement("hr"), boxFileMgrHeaderDiv.nextElementSibling)
+
+    }
+  
+    loadBoxFolderTree(folderData)
+
+  } else if (folderData.status === 404) {
+    alert("The folder ID in the URL does not point to a valid folder in your Box account!")
+    selectFolder(boxRootFolderId)
+  }
+
+  // const forwardBtnSpan = document.getElementById("fileMgrForwardBtn") || document.createElement("span")
+  // forwardBtnSpan.setAttribute("id", "fileMgrForwardBtn")
+  // forwardBtnSpan.setAttribute("class", "boxFileMgrBtn")
+  // const forwardButton = 
+  //   `<button type="button" class="btn btn-light">
+  //     <i class="fas fa-caret-right"></i>
+  //   </button>`
+  // forwardBtnSpan.innerHTML = forwardButton
+}
+
+const loadBoxFolderTree = (folderData) => {
+  const { id } = folderData
+  const loaderElementId = "fileMgrLoaderDiv"
   if (folderData && folderData.item_status === "active") {
     const { item_collection: { entries }} = folderData
     const parentElement = document.getElementById("boxFolderTree")
@@ -256,14 +335,13 @@ const loadBoxFolderTree = async (id=boxRootFolderId) => {
       parentElement.firstChild && parentElement.removeChild(parentElement.firstChild)
       const folderSubDiv = populateBoxfolderTree(entries, id)
       parentElement.style.height = window.innerHeight - parentElement.getBoundingClientRect().y - 100
-      folderSubDiv.style.border = "1px solid lightgray"
-      folderSubDiv.style.backgroundColor = "rgba(200, 200, 200, 0.1)"
+      // folderSubDiv.style.border = "1px solid lightgray"
+      // folderSubDiv.style.backgroundColor = "rgba(200, 200, 200, 0.1)"
       folderSubDiv.style.height = "100%"
       folderSubDiv.style.width = "100%"
       folderSubDiv.style.overflowY = "scroll"
       parentElement.appendChild(folderSubDiv)
     } else if (entries.length === 0) {
-      parentElement.style.color = "gray"
       parentElement.style.textAlign = "center"
       parentElement.innerText = "-- Empty Folder --"
     }
@@ -409,10 +487,6 @@ path.qualityAnnotate = async (annotationType, qualitySelected) => {
         annotations[window.localStorage.userId].createdAt = Date.now()
       }
     } else if (previousAnnotation && previousAnnotation.value == newAnnotation.value) {
-      const {
-        displayText: previousValue
-      } = qualityEnum.find(quality => quality.numValue === previousAnnotation.value)
-      showToast(`You've already annotated this image to be of ${previousValue} quality before!`)
       return
     } else {
       annotations[window.localStorage.userId] = newAnnotation
@@ -500,22 +574,24 @@ const showToast = (message) => {
     }
   }, 3000) //For bug where toast doesn't go away the second time an annotation is made.
 }
-
+clicked = false
 const segmentButton = () => {
   const segmentDiv = document.createElement("div")
   segmentDiv.setAttribute("class", "tool")
-  segmentDiv.setAttribute("title", "Under Development!")
-  new Tooltip(segmentDiv, {
-    'placement': "bottom",
-    'animation': "slideNfade",
-    'delay': 250
-  })
+  // segmentDiv.setAttribute("title", "Under Development!")
+  // new Tooltip(segmentDiv, {
+  //   'placement': "bottom",
+  //   'animation': "slideNfade",
+  //   'delay': 250
+  // })
   const segmentBtn = document.createElement("button")
   segmentBtn.setAttribute("class", "btn btn-outline-primary")
-  segmentBtn.setAttribute("disabled", "")
+  // segmentBtn.setAttribute("disabled", "")
   const segmentIcon = document.createElement("i")
   segmentIcon.setAttribute("class", "fas fa-qrcode")
-  segmentBtn.onchange = () => watershedSegment(path.tmaCanvas, path.tmaCanvas, segmentBtn.checked)
+  segmentBtn.onclick = () => {
+    clicked = !clicked
+    watershedSegment(path.tmaCanvas, path.tmaCanvas, clicked) }
   // const segmentLabel = document.createElement("label")
   // segmentLabel.appendChild(document.createTextNode(`Segment Image`))
   segmentBtn.appendChild(segmentIcon)
@@ -761,10 +837,13 @@ const showThumbnailPicker = async (limit, offset=0) => {
     const { currentFolder } = window.localStorage
     var { total_count, entries: thumbnails } = await box.getFolderContents(currentFolder, limit, offset)
     currentThumbnailsList = thumbnails.map(t => t.id)
-    addThumbnails(thumbnailPicker, thumbnails)
-    addThumbnailPageSelector(thumbnailPicker, total_count, limit, offset)
+    if (thumbnails) {
+      addThumbnails(thumbnailPicker, thumbnails)
+      addThumbnailPageSelector(thumbnailPicker, total_count, limit, offset)
+    }
   }
   let allFilesInFolder = JSON.parse(window.localStorage.allFilesInFolder)
+  console.log(allFilesInFolder, window.localStorage.currentFolder)
   if (allFilesInFolder[window.localStorage.currentFolder].length === 0) {
     box.getFolderContents(window.localStorage.currentFolder, total_count, 0).then(({entries}) => {
       const onlyFiles = []

@@ -25,7 +25,7 @@ const watershedSegment = (canvas, outputCanvas, checked) => {
     cv.distanceTransform(opening, distTrans, cv.DIST_L2, 5)
     cv.normalize(distTrans, distTrans, 1, 0, cv.NORM_INF)
     // get foreground
-    cv.threshold(distTrans, foreground, 0.05 * 1, 255, cv.THRESH_BINARY)
+    cv.threshold(distTrans, foreground, 0.005 * 1, 255, cv.THRESH_BINARY)
     foreground.convertTo(foreground, cv.CV_8U, 1, 0)
     cv.subtract(background, foreground, unknown)
 
