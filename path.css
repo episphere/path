@@ -199,7 +199,8 @@ canvas {
 }
 
 #boxFileManager {
-  padding-top: 1rem;
+  display: flex;
+  flex-direction: column;
   margin-left: 0;
 }
 
@@ -232,12 +233,7 @@ canvas {
 }
 
 .boxFileMgrHeaderBtn {
-  margin: 0 auto;
-}
-
-.boxFileMgrHeaderBtn > button {
-  /* background-color: rgba(220, 220, 220, 0.4); */
-  box-shadow: 0.5px 0.5px 0.5px 0.5px lightgray;
+  margin-left: 1.2rem;
 }
 
 .selectedImage {
@@ -281,6 +277,10 @@ canvas {
 
 .qualitySelect {
   margin-bottom: 0;
+}
+
+.modelPrediction {
+  background-color: rgba(180, 255, 180, 0.5);
 }
 
 .qualitySelectorDiv>button {

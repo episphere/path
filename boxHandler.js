@@ -150,7 +150,7 @@ box.getFolderContents = async (folderId, limit=15, offset=0) => {
 box.getFileContent = async (id) => {
   const contentEndpoint = `${box.endpoints['data']['file']}/${id}/${box.endpoints['subEndpoints']['content']}`
   if (await box.isLoggedIn()) {
-    return await fetch(`${contentEndpoint}`, {
+    return await fetch(contentEndpoint, {
       'headers': {
         'Authorization': `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`
       }
