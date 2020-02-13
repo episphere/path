@@ -449,7 +449,9 @@ path.loadCanvas = () => {
     if (!path.options) {
       path.loadOptions()
     }
-    annotationTypes.forEach(showQualitySelectors)
+    if (path.tmaImage.src.includes("boxcloud.com")) {
+      annotationTypes.forEach(showQualitySelectors)
+    }
   }
 }
 
@@ -785,7 +787,7 @@ const showQualitySelectors = async (annotationType) => {
       selectTableBody.appendChild(tableRow)
     })
   }
-  const modelQualityPrediction = await getModelPrediction()
+  const modelQualityPrediction = await getModelPrediction(annotationType)
   qualityEnum.forEach(({label}) => {
     const labelPrediction = modelQualityPrediction.find(pred => pred.displayName === label)
     const labelScore = labelPrediction ? Number.parseFloat(labelPrediction.classification.score).toPrecision(3) : "--"
@@ -826,8 +828,10 @@ const getOthersAnnotations = (annotationType, annotations) => {
   othersAnnotationsDiv.innerHTML = othersAnnotationsText
 }
 
-const getModelPrediction = async () => {
+const getModelPrediction = async (annotationType) => {
+  console.log(annotationType)
   const payload = {
+    annotationType,
     "image": path.tmaCanvas.toDataURL().split("base64,")[1]
   }
   const prediction =  await utils.request("https://us-central1-nih-nci-dceg-episphere-dev.cloudfunctions.net/getPathPrediction", {
