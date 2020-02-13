@@ -61,14 +61,17 @@ const annotationTypes = [ "tissueAdequacy", "stainingAdequacy" ]
 
 const qualityEnum = [{
   "label": "O",
+  "numValue": 1,
   "displayText": "👍",
   "tooltip": "Satisfactory"
 }, {
   "label": "M",
+  "numValue": 0.5,
   "displayText": "🤞",
   "tooltip": "Suboptimal"
 }, {
   "label": "S",
+  "numValue": 0,
   "displayText": "👎",
   "tooltip": "Unsatisfactory"
 }]
@@ -267,7 +270,6 @@ const loadBoxFileManager = async (id=boxRootFolderId) => {
       fileMgrTools.appendChild(backBtnSpan)
     }
     backBtnSpan.onclick = id === boxRootFolderId ? () => {} : (e) => {
-      console.log(folderData.path_collection.entries)
       selectFolder(folderData.path_collection.entries[folderData.path_collection.entries.length - 1].id)
     }
     
@@ -829,7 +831,6 @@ const getOthersAnnotations = (annotationType, annotations) => {
 }
 
 const getModelPrediction = async (annotationType) => {
-  console.log(annotationType)
   const payload = {
     annotationType,
     "image": path.tmaCanvas.toDataURL().split("base64,")[1]
@@ -842,7 +843,6 @@ const getModelPrediction = async (annotationType) => {
     body: JSON.stringify(payload)
   }, false).then(res => res.json())
   
-  console.log("getting preds", prediction)
   return prediction
 }
 
@@ -853,7 +853,12 @@ const activateQualitySelector = (annotationType, annotations) => {
     currentlyActiveButton.classList.remove("active")
   }
   if (annotations && annotations[window.localStorage.userId]) {
-    const userAnnotation = annotations[window.localStorage.userId].value
+    let userAnnotation = annotations[window.localStorage.userId].value
+    // Temporary fix for problem of label mismatch due to AutoML (they were 0, 0.5, 1 before, had to be changed to 
+    // O, M, S for AutoML training). Need to change the metadata of all annotated files to solve the problem properly. 
+    if (qualityEnum.map(q => q.label).indexOf(userAnnotation) === -1) {
+      userAnnotation = qualityEnum.find(quality => quality.numValue === annotations[window.localStorage.userId].value).label
+    }
     selectTable.querySelector(`button[value='${userAnnotation}']`).classList.add("active")
   }
 }
