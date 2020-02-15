@@ -147,6 +147,7 @@ path.setupEventListeners = () => {
   path.tmaImage.onload = async () => {
     path.loadCanvas()
     if (path.tmaImage.src.includes("boxcloud.com")) {
+      annotationTypes.forEach(showQualitySelectors)
       await showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
       showNextImageButton()
     }
@@ -452,7 +453,7 @@ path.loadCanvas = () => {
       path.loadOptions()
     }
     if (path.tmaImage.src.includes("boxcloud.com")) {
-      annotationTypes.forEach(showQualitySelectors)
+      annotationTypes.forEach(loadModelPrediction)
     }
   }
 }
@@ -782,6 +783,7 @@ const showQualitySelectors = async (annotationType) => {
       
       const tablePredictionData = document.createElement("td")
       tablePredictionData.setAttribute("id", `prediction_${label}`)
+      tablePredictionData.setAttribute("class", `predictionScore`)
       tablePredictionData.setAttribute("align", "center")
       tablePredictionData.style.verticalAlign = "middle"
       tablePredictionData.style.borderLeft = "none"
@@ -789,6 +791,21 @@ const showQualitySelectors = async (annotationType) => {
       selectTableBody.appendChild(tableRow)
     })
   }
+  const previousPrediction = selectTableBody.querySelector("tr.modelPrediction")
+  if (previousPrediction) {
+    previousPrediction.classList.remove("modelPrediction")
+    const previousPredictionTD = previousPrediction.querySelector("td.predictionScore")
+    previousPredictionTD.innerHTML = "--"
+  }
+  activateQualitySelector(annotationType, annotations)
+  getOthersAnnotations(annotationType, annotations)
+  annotationsAccordion.style.display = "flex"
+  annotationsDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
+}
+
+const loadModelPrediction = async (annotationType) => {
+  const selectTable = document.getElementById(`${annotationType}Select`)
+  const selectTableBody = selectTable.querySelector("tbody")
   const modelQualityPrediction = await getModelPrediction(annotationType)
   qualityEnum.forEach(({label}) => {
     const labelPrediction = modelQualityPrediction.find(pred => pred.displayName === label)
@@ -796,18 +813,9 @@ const showQualitySelectors = async (annotationType) => {
     const tablePredictionData = selectTableBody.querySelector(`td#prediction_${label}`)
     tablePredictionData.innerHTML = labelScore
     if (labelScore > 0.5) {
-      // selectTableBody.querySelector(`tr[style="border:3px solid lightgreen]"`).style.border = "none"
-      const previousPrediction = selectTableBody.querySelector("tr.modelPrediction")
-      if (previousPrediction) {
-        previousPrediction.classList.remove("modelPrediction")
-      }
       tablePredictionData.parentElement.classList.add("modelPrediction")
     }
   })
-  activateQualitySelector(annotationType, annotations)
-  getOthersAnnotations(annotationType, annotations)
-  annotationsAccordion.style.display = "flex"
-  annotationsDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
 }
 
 const getOthersAnnotations = (annotationType, annotations) => {
@@ -815,7 +823,8 @@ const getOthersAnnotations = (annotationType, annotations) => {
   const othersAnnotationsDiv = document.getElementById(`${annotationType}_othersAnnotations`)
   const annotationName = othersAnnotationsDiv.parentElement.getAttribute("name")
   if (annotations) {
-    const othersAnnotations = Object.values(annotations).filter(annotation => annotation && annotation.userId !== window.localStorage.userId)
+    const { model, ...nonModelAnnotations } = annotations
+    let othersAnnotations = Object.values(nonModelAnnotations).filter(annotation => annotation && annotation.userId !== window.localStorage.userId)
     if (othersAnnotations.length > 0) {
       const othersAnnotationsUsernames = othersAnnotations.map(annotation => annotation.username)
       const othersAnnotationsUsernamesText = othersAnnotationsUsernames.length === 1 
@@ -831,6 +840,22 @@ const getOthersAnnotations = (annotationType, annotations) => {
 }
 
 const getModelPrediction = async (annotationType) => {
+
+  // const getBase64FromImage = (image) => {
+  //   const tmpCanvas = document.createElement("canvas")
+  //   tmpCanvas.width = image.width
+  //   tmpCanvas.height = image.height
+  //   const tmpCtx = tmpCanvas.getContext("2d")
+  //   tmpCtx.drawImage(image, 0, 0, image.width, image.height)
+  //   return tmpCanvas.toDataURL().split("base64,")[1]
+  // }
+
+  let annotations = JSON.parse(window.localStorage.fileMetadata)[`${annotationType}_annotations`]
+  annotations = annotations ? JSON.parse(annotations) : {}
+  if (annotations["model"]) {
+    return annotations["model"]
+  }
+  
   const payload = {
     annotationType,
     "image": path.tmaCanvas.toDataURL().split("base64,")[1]
@@ -843,6 +868,11 @@ const getModelPrediction = async (annotationType) => {
     body: JSON.stringify(payload)
   }, false).then(res => res.json())
   
+  annotations["model"] = prediction
+  const metadataPath = `/${annotationType}_annotations`
+  box.updateMetadata(hashParams.image, "file", metadataPath, JSON.stringify(annotations)).then(newMetadata => {
+    window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+  })
   return prediction
 }
 
