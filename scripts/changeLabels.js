@@ -1,7 +1,7 @@
 // RUN IN BROWSER CONSOLE
 
 const boxAccessToken = JSON.parse(window.localStorage.box).access_token
-const boxFolderId = "97077691060"
+const boxFolderId = hashParams.folder || "86570922727"
 const annotationTypes2 = ["tissueAdequacy_annotations", "stainingAdequacy_annotations"]
 const changeLabel = {
   "0": "U",
@@ -24,17 +24,30 @@ const rectify = (metadata) => {
   return {model, ...meta}
 }
 
-const folderContents = await box.getFolderContents(boxFolderId, 1000, 0, ["metadata.global.properties"])
+const getFolderContents = async (boxFolderId, limit=1000, offset=0, prevEntries=[]) => {
+  const {total_count, entries: folderContents } = await box.getFolderContents(boxFolderId, limit, offset, ["metadata.global.properties"])
+  const entries = prevEntries.concat(folderContents)
+  if (entries.length < total_count) {
+    return getFolderContents(boxFolderId, total_count, entries.length, entries)
+  }
+  console.log("DONE", entries.length)
+  return entries
+}
 
-const doIt = () => {
-    for (item of folderContents.entries) {
-      if (item.type === "file") {
-        annotationTypes2.forEach(async (annot) => {
+const changeLabels = (folderContents) => {
+  for (item of folderContents) {
+    if (item.type === "file") {
+      annotationTypes2.forEach(async (annot) => {
+        if (item.metadata && item.metadata.global && item.metadata.global.properties && item.metadata.global.properties[annot]) {
           const newMeta = rectify(item.metadata.global.properties[annot])
           const path = `/${annot}`
           const newMetadata = await box.updateMetadata(item.id, "file", path, JSON.stringify(newMeta))
-          console.log(newMetadata)
-        })
-      }
+          console.log(`Updated ${annot} for ${item.id}`)
+        }
+      })
     }
+  }
 }
+
+const folderContents = await getFolderContents(boxFolderId, 1000, 0, [])
+changeLabels(folderContents)

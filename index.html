@@ -111,66 +111,7 @@
             <br />
             <div class="tabContainer" id="annotationsDiv">
               <span id="nextImageMessage"></span>
-              <div class="accordion" id="annotationsAccordion">
-                <div class="card annotationsCard">
-                  <div class="card-header">
-                    <h2 class="mb-0">
-                      <button class="btn btn-link" type="button" data-toggle="collapse"
-                        data-target="#tissueAdequacyAnnotations">
-                        Tissue Adequacy
-                      </button>
-                    </h2>
-                  </div>
-
-                  <div id="tissueAdequacyAnnotations" class="collapse show annotationsTable qualityAnnotations" data-parent="#annotationsAccordion">
-                    <div class="card-body annotationsCardBody" name="Tissue Adequacy">
-                      <table id="tissueAdequacySelect" class="table table-bordered qualitySelect">
-                        <thead>
-                          <tr>
-                            <th scope="col" style="border-right: none;">Tissue Adequacy</th>
-                            <th scope="col" style="border-left: none;">
-                              <div class="text-center">Model Prediction</div>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                        </tbody>
-                      </table>
-                      <div id="tissueAdequacy_othersAnnotations" class="quality_othersAnnotations"></div>
-                    </div>
-                  </div>
-                  <div class="card annotationsCard">
-                    <div class="card-header">
-                      <h2 class="mb-0">
-                        <button class="btn btn-link" type="button" data-toggle="collapse"
-                          data-target="#stainingAdequacyAnnotations">
-                          IHC Adequacy
-                        </button>
-                      </h2>
-                    </div>
-  
-                    <div id="stainingAdequacyAnnotations" class="collapse annotationsTable qualityAnnotations" data-parent="#annotationsAccordion">
-                      <div class="card-body annotationsCardBody" name="IHC Adequacy">
-                        <table id="stainingAdequacySelect" class="table table-bordered qualitySelect">
-                          <thead>
-                            <tr>
-                              <th scope="col" style="border-right: none;">IHC Adequacy</th>
-                              <th scope="col" style="border-left: none;">
-                                <div class="text-center">Model Prediction</div>
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                          </tbody>
-                        </table>
-                        <div id="stainingAdequacy_othersAnnotations" class="quality_othersAnnotations"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <!-- </li>
-              </ol> -->
+              <div class="accordion" id="annotationsAccordion"></div>
               <button type="button" class="btn btn-link" id="addAnnotationsBtn">+ Add More Annotations</button>
             </div>
           </div>
@@ -212,5 +153,7 @@
   </div> -->
   </div>
 </body>
-<script src="opencv.js" async></script>
+<!-- <script src="opencv.js" async></script> -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl"></script>
 </html>

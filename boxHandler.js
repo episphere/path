@@ -29,7 +29,13 @@ const box = async () => {
       const boxCreds = JSON.parse(window.localStorage.box)
       if (boxCreds["access_token"] && boxCreds["token_expiry"]) {
         if (boxCreds["token_expiry"] < Date.now()) {
-          await getAccessToken('refresh_token', boxCreds["refresh_token"])
+          try {
+            await getAccessToken('refresh_token', boxCreds["refresh_token"])
+          } catch (err) {
+            showToast("Some error occurred while logging in to Box. Please try again!")
+            console.log(err)
+            return false
+          }
         }
         return true
       }
@@ -39,15 +45,19 @@ const box = async () => {
 
   const getAccessToken = async (type, token) => {
     const requestType = type === "refresh_token" ? type : "code"
-    // try {
-    const resp = await utils.request(boxAccessTokenEndpoint, {
-      'method': "POST",
-      'body': `grant_type=${type}&${requestType}=${token}&client_id=${client_id}&client_secret=${client_secret}`
-    })
-    storeCredsToLS(resp)
-    // } catch (err) {
-    //   console.log("ERROR Retrieving Box Access Token!", err)
-    // } 
+    try {
+      const resp = await utils.request(boxAccessTokenEndpoint, {
+        'method': "POST",
+        'body': `grant_type=${type}&${requestType}=${token}&client_id=${client_id}&client_secret=${client_secret}`
+      })
+      if (resp["access_token"]) {
+        storeCredsToLS(resp)
+      }
+      return true
+    } catch (err) {
+      console.log("ERROR Retrieving Box Access Token!", err)
+    } 
+    return false
   }
 
   const storeCredsToLS = (boxCreds) => {
@@ -140,24 +150,22 @@ box.getData = async (id, type, fields=[]) => {
   return utils.boxRequest && await utils.boxRequest(dataEndpoint)
 }
 
-box.getFolderContents = async (folderId, limit=15, offset=0) => {
-  const fieldsParam = "fields=id,type,name"
+box.getFolderContents = async (folderId, limit=15, offset=0, fields=[]) => {
+  const defaultFields = ["id","type","name"]
+  const fieldsToRequest = defaultFields.concat(fields).join(",")
+  const fieldsParam =  `fields=${fieldsToRequest}`
   let itemsEndpoint = `${box.endpoints['data']['folder']}/${folderId}/${box.endpoints['subEndpoints']['items']}`
   itemsEndpoint += `?${fieldsParam}&limit=${limit}&offset=${offset}`
   return await utils.boxRequest(itemsEndpoint)
 }
 
-box.getFileContent = async (id) => {
+box.getFileContent = async (id, isFileJSON=false) => {
   const contentEndpoint = `${box.endpoints['data']['file']}/${id}/${box.endpoints['subEndpoints']['content']}`
-  if (await box.isLoggedIn()) {
-    return await fetch(contentEndpoint, {
-      'headers': {
-        'Authorization': `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`
-      }
-    })
-  } else {
-    return {}
-  }
+  return await utils.boxRequest(contentEndpoint, {
+    'headers': {
+      'Authorization': `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`
+    }
+  }, isFileJSON)
 }
 
 box.getThumbnail = async (id) => {

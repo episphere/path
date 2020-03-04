@@ -60,18 +60,26 @@ const watershedSegment = (canvas, outputCanvas, checked) => {
 
 }
 
-const zoomHandler = (canvas, image, magnification=2, scrollToZoom=true, selected) => {
+const zoomHandler = (canvas, image, magnification=2, scrollToZoom=true, lensSize, selected) => {
   let zoomLens = document.getElementById("zoomLens")
+  if (!selected) {
+    zoomLens.style.display = "none"
+    zoomLens.removeEventListener("mousemove", mouseMoveHandler)
+    canvas.removeEventListener("mousemove", mouseMoveHandler)
+    zoomLens.removeEventListener("wheel", scrollHandler)
+    return
+  }
+  
   if (!zoomLens) {
     zoomLens = document.createElement("canvas")
     zoomLens.setAttribute("id", "zoomLens")
     canvas.parentElement.appendChild(zoomLens)
   }
 
-  const zoomBlockSize = [200, 200]
+  lensSize = lensSize || [path.tmaCanvas.width * 0.2, path.tmaCanvas.height * 0.2]
   zoomLens.setAttribute("scrolltozoom", scrollToZoom)
-  zoomLens.style.width = `${zoomBlockSize[0]}px`
-  zoomLens.style.height = `${zoomBlockSize[1]}px`
+  zoomLens.style.width = `${lensSize[0]}px`
+  zoomLens.style.height = `${lensSize[1]}px`
   zoomLens.style.cursor = "zoom-in"
   zoomLens.style.left = zoomLens.style.left || 0
   zoomLens.style.top = zoomLens.style.top || 0
@@ -122,7 +130,7 @@ const zoomHandler = (canvas, image, magnification=2, scrollToZoom=true, selected
   const renderZoomedImage = (lensPosition) => {
     const { xInImage, yInImage } = getLensPositionInImage(canvas, image, lensPosition)
     const zoomFactor = 1/scaleFactor
-    zoomCtx.drawImage(path.tmaImage, xInImage-(zoomBlockSize[0]*zoomFactor/2), yInImage-(zoomBlockSize[1]*zoomFactor/2), zoomBlockSize[0]*zoomFactor, zoomBlockSize[1]*zoomFactor, 0, 0, zoomLens.width, zoomLens.height)
+    zoomCtx.drawImage(path.tmaImage, xInImage-(lensSize[0]*zoomFactor/2), yInImage-(lensSize[1]*zoomFactor/2), lensSize[0]*zoomFactor, lensSize[1]*zoomFactor, 0, 0, zoomLens.width, zoomLens.height)
   }
 
   zoomHandler.changeScale = (scrolledUp) => {
@@ -136,18 +144,13 @@ const zoomHandler = (canvas, image, magnification=2, scrollToZoom=true, selected
 
   zoomLens.onmousemove = mouseMoveHandler
   canvas.onmousemove = mouseMoveHandler
+  
   if (scrollToZoom) {
     zoomLens.addEventListener("wheel", scrollHandler)
   } else {
     zoomLens.removeEventListener("wheel", scrollHandler)
   }
-  if (!selected) {
-    zoomLens.style.display = "none"
-    zoomLens.removeEventListener("mousemove", mouseMoveHandler)
-    canvas.removeEventListener("mousemove", mouseMoveHandler)
-    zoomLens.removeEventListener("wheel", scrollHandler)
-    return
-  }
+  
   renderZoomedImage(lensPosition)
 }
 

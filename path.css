@@ -251,7 +251,9 @@ canvas {
 }
 
 #annotationsAccordion {
-  display: none;
+  display: flex;
+  flex-direction: column;
+  
 }
 
 .annotationsCard {

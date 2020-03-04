@@ -1,4 +1,5 @@
 const boxRootFolderId = "0"
+const configFileId = 627997326641
 var currentThumbnailsList = []
 
 const urlParams = {}
@@ -65,12 +66,12 @@ const qualityEnum = [{
   "displayText": "👍",
   "tooltip": "Satisfactory"
 }, {
-  "label": "M",
+  "label": "S",
   "numValue": 0.5,
   "displayText": "🤞",
   "tooltip": "Suboptimal"
 }, {
-  "label": "S",
+  "label": "U",
   "numValue": 0,
   "displayText": "👎",
   "tooltip": "Unsatisfactory"
@@ -91,11 +92,17 @@ const path = async () => {
   path.toolsDiv = document.getElementById("toolsDiv")
   path.tmaImage = new Image()
   path.setupEventListeners()
-
+  
+  
   await box()
   loadHashParams()
   loadDefaultImage()
   path.loadModules()
+  path.getAppConfig()
+
+  if ("useWorker" in hashParams) {
+    path.worker = new Worker('modelPrediction.js')
+  }
 }
 
 path.loadModules = async (modules) => {
@@ -122,6 +129,7 @@ path.loadModules = async (modules) => {
 path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
     box.getUserProfile()
+    loadLocalModel()
   })
   
   
@@ -147,11 +155,29 @@ path.setupEventListeners = () => {
   path.tmaImage.onload = async () => {
     path.loadCanvas()
     if (path.tmaImage.src.includes("boxcloud.com")) {
-      annotationTypes.forEach(showQualitySelectors)
+      path.appConfig.annotations.forEach(showQualitySelectors)
       await showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
       showNextImageButton()
+      if (path.worker) {
+        path.worker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
+        path.worker.onmessage = (e) => {
+          console.log("Message received from worker!", e.data)
+        }
+      } else {
+        setTimeout(() => {
+          path.model.classify(path.tmaImage).then(preds => console.log("Local Model Prediction", preds))
+        }, 3000)
+      }
     }
   }
+}
+
+path.getAppConfig = async () => {
+  const isFileJSON = true
+  path.appConfig = await box.getFileContent(configFileId, isFileJSON)
+  const annotations = path.appConfig.annotations.filter(annotation => !annotation.private || (annotation.private && annotation.createdBy === window.localStorage.userId))
+  path.appConfig.annotations = annotations
+  path.appConfig.annotations.forEach(createAnnotationTables)
 }
 
 const loadDefaultImage = async () => {
@@ -453,7 +479,7 @@ path.loadCanvas = () => {
       path.loadOptions()
     }
     if (path.tmaImage.src.includes("boxcloud.com")) {
-      annotationTypes.forEach(loadModelPrediction)
+      path.appConfig.annotations.forEach(({annotationName}) => loadModelPrediction(annotationName))
     }
   }
 }
@@ -466,10 +492,10 @@ path.loadOptions = () => {
   addAnnotationsTooltip()
 }
 
-path.qualityAnnotate = async (annotationType, qualitySelected) => {
+path.qualityAnnotate = async (annotationName, qualitySelected) => {
   if (await box.isLoggedIn()) {
     const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
-    const annotations = fileMetadata[`${annotationType}_annotations`] ? JSON.parse(fileMetadata[`${annotationType}_annotations`]) : {}
+    const annotations = fileMetadata[`${annotationName}_annotations`] ? JSON.parse(fileMetadata[`${annotationName}_annotations`]) : {}
 
     const newAnnotation = {
       'userId': window.localStorage.userId,
@@ -498,12 +524,12 @@ path.qualityAnnotate = async (annotationType, qualitySelected) => {
     } else {
       annotations[window.localStorage.userId] = newAnnotation
     }
-    const path = `/${annotationType}_annotations`
+    const path = `/${annotationName}_annotations`
     const newMetadata = await box.updateMetadata(hashParams.image, "file", path, JSON.stringify(annotations))
     
     if (!newMetadata.status) { // status is returned only on error, check for errors properly later
       window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-      activateQualitySelector(annotationType, annotations)
+      activateQualitySelector(annotationName, annotations)
       showToast(`Annotation Successful!`)
       borderByAnnotations(hashParams.image, newMetadata)
       showNextImageButton(newMetadata)
@@ -581,7 +607,7 @@ const showToast = (message) => {
     }
   }, 3000) //For bug where toast doesn't go away the second time an annotation is made.
 }
-clicked = false
+let clicked = false
 const segmentButton = () => {
   const segmentDiv = document.createElement("div")
   segmentDiv.setAttribute("class", "tool")
@@ -633,7 +659,7 @@ const zoomButton = () => {
       toolSelected = true
       zoomBtn.classList.add("active")
     }
-    zoomHandler(path.tmaCanvas, path.tmaImage, magnification, scrollToZoom, toolSelected)
+    zoomHandler(path.tmaCanvas, path.tmaImage, magnification, scrollToZoom, [200,200], toolSelected)
   }
   
   const zoomInIcon = document.createElement("i")
@@ -690,7 +716,7 @@ const zoomButton = () => {
       magnification = mag.value
       const previouslySelectedMagnification = selectMagnificationBtn.parentElement.querySelector("button.active")
       if (toolSelected) {
-        zoomHandler(path.tmaCanvas, path.tmaImage, magnification, scrollToZoom, toolSelected)
+        zoomHandler(path.tmaCanvas, path.tmaImage, magnification, scrollToZoom, [200,200], toolSelected)
       }
       if (previouslySelectedMagnification && previouslySelectedMagnification !== selectMagnificationBtn) {
         previouslySelectedMagnification.classList.remove("active")
@@ -712,7 +738,7 @@ const zoomButton = () => {
   scrollToZoomCheckbox.onchange = ({target}) => {
     scrollToZoom = target.checked
     if (toolSelected) {
-      zoomHandler(path.tmaCanvas, path.tmaImage, magnification, scrollToZoom, toolSelected)
+      zoomHandler(path.tmaCanvas, path.tmaImage, magnification, scrollToZoom, [200,200], toolSelected)
     }
   }
   if (scrollToZoom) {
@@ -737,12 +763,49 @@ const zoomButton = () => {
   path.toolsDiv.appendChild(zoomToolDiv)
 }
 
-const showQualitySelectors = async (annotationType) => {
-  const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
+const createAnnotationTables = async (annotation) => {
+  const { displayName, annotationName, definition } = annotation
+
+  const annotationCard = `
+    <div class="card annotationsCard">
+      <div class="card-header">
+        <h2 class="mb-0">
+          <button class="btn btn-link" type="button" data-toggle="collapse"
+            data-target="#${annotationName}Annotations">
+            ${displayName}
+          </button>
+        </h2>
+      </div>
+
+      <div id="${annotationName}Annotations" class="collapse show annotationsTable qualityAnnotations" data-parent="#annotationsAccordion">
+        <div class="card-body annotationsCardBody" name="${displayName}">
+          <table id="${annotationName}Select" class="table table-bordered qualitySelect">
+            <thead>
+              <tr>
+                <th scope="col" style="border-right: none;">${displayName}</th>
+                <th scope="col" style="border-left: none;">
+                  <div class="text-center">Model Prediction</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
+          <div id="${annotationName}_othersAnnotations" class="quality_othersAnnotations"></div>
+        </div>
+      </div>
+    </div>
+    `
   const annotationsAccordion = document.getElementById("annotationsAccordion")
-  const annotations = fileMetadata[`${annotationType}_annotations`] && JSON.parse(fileMetadata[`${annotationType}_annotations`])
-  const annotationsDiv = document.getElementById(`${annotationType}Annotations`)
-  const selectTable = document.getElementById(`${annotationType}Select`)
+  annotationsAccordion.innerHTML += annotationCard
+}
+
+const showQualitySelectors = async (annotation) => {
+  const { annotationName, metaName, labels } = annotation
+  const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
+  const fileAnnotations = fileMetadata[metaName] && JSON.parse(fileMetadata[metaName])
+  const annotationsDiv = document.getElementById(`${annotationName}Annotations`)
+  const selectTable = document.getElementById(`${annotationName}Select`)
   const selectTableBody = selectTable.querySelector("tbody")
   
   // const qualitySelectorsDiv = document.createElement("div")
@@ -750,12 +813,12 @@ const showQualitySelectors = async (annotationType) => {
   // qualitySelectorsDiv.style.display = "flex"
   // qualitySelectorsDiv.style.flexDirection = "column"
   if (selectTableBody.childElementCount === 0) {
-    qualityEnum.forEach((quality) => {
+    labels.forEach((labelConfig) => {
       const {
         label,
         displayText,
         tooltip
-      } = quality
+      } = labelConfig
       const tableRow = document.createElement("tr")
       const tableAnnotationData = document.createElement("td")
       const annotationDiv = document.createElement("div")
@@ -763,9 +826,9 @@ const showQualitySelectors = async (annotationType) => {
       
       const qualityButton = document.createElement("button")
       qualityButton.setAttribute("class", "btn btn-outline-info")
-      qualityButton.setAttribute("id", `${annotationType}_${label}`)
+      qualityButton.setAttribute("id", `${annotationName}_${label}`)
       qualityButton.setAttribute("value", label)
-      qualityButton.setAttribute("onclick", `path.qualityAnnotate("${annotationType}", "${label}")`)
+      qualityButton.setAttribute("onclick", `path.qualityAnnotate("${annotationName}", "${label}")`)
       qualityButton.innerText = displayText
       qualityButton.setAttribute("title", tooltip)
       new Tooltip(qualityButton, {
@@ -797,33 +860,34 @@ const showQualitySelectors = async (annotationType) => {
     const previousPredictionTD = previousPrediction.querySelector("td.predictionScore")
     previousPredictionTD.innerHTML = "--"
   }
-  activateQualitySelector(annotationType, annotations)
-  getOthersAnnotations(annotationType, annotations)
-  annotationsAccordion.style.display = "flex"
+  activateQualitySelector(annotationName, fileAnnotations)
+  getOthersAnnotations(annotationName, fileAnnotations)
   annotationsDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
 }
 
-const loadModelPrediction = async (annotationType) => {
-  const selectTable = document.getElementById(`${annotationType}Select`)
+const loadModelPrediction = async (annotationName) => {
+  const selectTable = document.getElementById(`${annotationName}Select`)
   const selectTableBody = selectTable.querySelector("tbody")
-  const modelQualityPrediction = await getModelPrediction(annotationType)
-  qualityEnum.forEach(({label}) => {
-    const labelPrediction = modelQualityPrediction.find(pred => pred.displayName === label)
-    const labelScore = labelPrediction ? Number.parseFloat(labelPrediction.classification.score).toPrecision(3) : "--"
-    const tablePredictionData = selectTableBody.querySelector(`td#prediction_${label}`)
-    tablePredictionData.innerHTML = labelScore
-    if (labelScore > 0.5) {
-      tablePredictionData.parentElement.classList.add("modelPrediction")
-    }
-  })
+  const modelQualityPrediction = await getModelPrediction(annotationName)
+  if (modelQualityPrediction) {
+    qualityEnum.forEach(({label}) => {
+      const labelPrediction = modelQualityPrediction.find(pred => pred.displayName === label)
+      const labelScore = labelPrediction ? Number.parseFloat(labelPrediction.classification.score).toPrecision(3) : "--"
+      const tablePredictionData = selectTableBody.querySelector(`td#prediction_${label}`)
+      tablePredictionData.innerHTML = labelScore
+      if (labelScore > 0.5) {
+        tablePredictionData.parentElement.classList.add("modelPrediction")
+      }
+    })
+  }
 }
 
-const getOthersAnnotations = (annotationType, annotations) => {
+const getOthersAnnotations = (annotationName, fileAnnotations) => {
   let othersAnnotationsText = ""
-  const othersAnnotationsDiv = document.getElementById(`${annotationType}_othersAnnotations`)
-  const annotationName = othersAnnotationsDiv.parentElement.getAttribute("name")
-  if (annotations) {
-    const { model, ...nonModelAnnotations } = annotations
+  const othersAnnotationsDiv = document.getElementById(`${annotationName}_othersAnnotations`)
+  const annotationDisplayName = othersAnnotationsDiv.parentElement.getAttribute("name")
+  if (fileAnnotations) {
+    const { model, ...nonModelAnnotations } = fileAnnotations
     let othersAnnotations = Object.values(nonModelAnnotations).filter(annotation => annotation && annotation.userId !== window.localStorage.userId)
     if (othersAnnotations.length > 0) {
       const othersAnnotationsUsernames = othersAnnotations.map(annotation => annotation.username)
@@ -832,52 +896,15 @@ const getOthersAnnotations = (annotationType, annotations) => {
       othersAnnotationsUsernames[0]
       :
       othersAnnotationsUsernames.slice(0, othersAnnotationsUsernames.length - 1).join(", ") +  " and " + othersAnnotationsUsernames[othersAnnotationsUsernames.length - 1]
-      othersAnnotationsText = `-- ${othersAnnotationsUsernamesText} annotated this image for ${annotationName}.`
+      othersAnnotationsText = `-- ${othersAnnotationsUsernamesText} annotated this image for ${annotationDisplayName}.`
     }
   }
   
   othersAnnotationsDiv.innerHTML = othersAnnotationsText
 }
 
-const getModelPrediction = async (annotationType) => {
-
-  // const getBase64FromImage = (image) => {
-  //   const tmpCanvas = document.createElement("canvas")
-  //   tmpCanvas.width = image.width
-  //   tmpCanvas.height = image.height
-  //   const tmpCtx = tmpCanvas.getContext("2d")
-  //   tmpCtx.drawImage(image, 0, 0, image.width, image.height)
-  //   return tmpCanvas.toDataURL().split("base64,")[1]
-  // }
-
-  let annotations = JSON.parse(window.localStorage.fileMetadata)[`${annotationType}_annotations`]
-  annotations = annotations ? JSON.parse(annotations) : {}
-  if (annotations["model"]) {
-    return annotations["model"]
-  }
-  
-  const payload = {
-    annotationType,
-    "image": path.tmaCanvas.toDataURL().split("base64,")[1]
-  }
-  const prediction =  await utils.request("https://us-central1-nih-nci-dceg-episphere-dev.cloudfunctions.net/getPathPrediction", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  }, false).then(res => res.json())
-  
-  annotations["model"] = prediction
-  const metadataPath = `/${annotationType}_annotations`
-  box.updateMetadata(hashParams.image, "file", metadataPath, JSON.stringify(annotations)).then(newMetadata => {
-    window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-  })
-  return prediction
-}
-
-const activateQualitySelector = (annotationType, annotations) => {
-  const selectTable = document.getElementById(`${annotationType}Select`)
+const activateQualitySelector = (annotationName, annotations) => {
+  const selectTable = document.getElementById(`${annotationName}Select`)
   const currentlyActiveButton = selectTable.querySelector("button.active")
   if (currentlyActiveButton) {
     currentlyActiveButton.classList.remove("active")
@@ -887,13 +914,13 @@ const activateQualitySelector = (annotationType, annotations) => {
     // Temporary fix for problem of label mismatch due to AutoML (they were 0, 0.5, 1 before, had to be changed to 
     // O, M, S for AutoML training). Need to change the metadata of all annotated files to solve the problem properly. 
     if (qualityEnum.map(q => q.label).indexOf(userAnnotation) === -1) {
-      userAnnotation = qualityEnum.find(quality => quality.numValue === annotations[window.localStorage.userId].value).label
+      userAnnotation = qualityEnum.find(quality => quality.label === annotations[window.localStorage.userId].value).label
     }
     selectTable.querySelector(`button[value='${userAnnotation}']`).classList.add("active")
   }
 }
 
-showThumbnailPicker = async (limit, offset=0) => {
+const showThumbnailPicker = async (limit, offset=0) => {
   const thumbnailPicker = document.getElementById("thumbnailPicker")
   if (thumbnailPicker.childElementCount === 0 || thumbnailPicker.getAttribute("folder") !== window.localStorage.currentThumbnailsFolder || window.localStorage.currentThumbnailsOffset !== offset) {
     thumbnailPicker.setAttribute("folder", window.localStorage.currentThumbnailsFolder)
@@ -911,18 +938,24 @@ showThumbnailPicker = async (limit, offset=0) => {
     }
   }
   let allFilesInFolder = JSON.parse(window.localStorage.allFilesInFolder)
-  if (allFilesInFolder[window.localStorage.currentThumbnailsFolder] && allFilesInFolder[window.localStorage.currentThumbnailsFolder].length === 0) {
-    box.getFolderContents(window.localStorage.currentThumbnailsFolder, total_count, 0).then(({entries}) => {
-      const onlyFiles = []
+  if (allFilesInFolder[window.localStorage.currentThumbnailsFolder] && allFilesInFolder[window.localStorage.currentThumbnailsFolder].length < total_count) {
+    const populateAllFilesInFolder = async (prevEntries=[], offset=0) => {
+      const folderContents = await box.getFolderContents(window.localStorage.currentThumbnailsFolder, total_count, offset)
+      const entries = prevEntries.concat(folderContents.entries)
+      if (entries.length < total_count) {
+        return populateAllFilesInFolder(entries, entries.length)
+      }
+      const onlyImages = []
       entries.forEach(entry => {
         if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png"))) {
-          onlyFiles.push(entry.id)
+          onlyImages.push(entry.id)
         }
       })
       const allFilesInFolderObj = allFilesInFolder
-      allFilesInFolderObj[window.localStorage.currentThumbnailsFolder] = onlyFiles
+      allFilesInFolderObj[window.localStorage.currentThumbnailsFolder] = onlyImages
       window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
-    })
+    }
+    // populateAllFilesInFolder([], 0)
   }
 }
 
@@ -1056,13 +1089,13 @@ const getAnnotationsForBorder = (thumbnailId) => {
 
 const borderByAnnotations = (thumbnailId, metadata) => {
   let numAnnotationsCompleted = 0
-  annotationTypes.forEach(annotationType => {
-    if (`${annotationType}_annotations` in metadata && window.localStorage.userId in JSON.parse(metadata[`${annotationType}_annotations`])) {
+  path.appConfig.annotations.forEach(({metaName}) => {
+    if (metaName in metadata && window.localStorage.userId in JSON.parse(metadata[metaName])) {
       numAnnotationsCompleted += 1
     }
   })
   const thumbnailImg = document.getElementById(`thumbnail_${thumbnailId}`)
-  if (numAnnotationsCompleted === annotationTypes.length) {
+  if (numAnnotationsCompleted === path.appConfig.annotations.length) {
     thumbnailImg.classList.add("annotationsCompletedThumbnail")
   } else if (numAnnotationsCompleted > 0) {
     thumbnailImg.classList.add("annotationsPartlyCompletedThumbnail")
@@ -1160,6 +1193,73 @@ const addAnnotationsTooltip = () => {
     'placement': "bottom",
     'animation': "slideNfade",
     'delay': 150
+  })
+}
+
+const getModelPrediction = async (annotationType) => {
+
+  // const getBase64FromImage = (image) => {
+  //   const tmpCanvas = document.createElement("canvas")
+  //   tmpCanvas.width = image.width
+  //   tmpCanvas.height = image.height
+  //   const tmpCtx = tmpCanvas.getContext("2d")
+  //   tmpCtx.drawImage(image, 0, 0, image.width, image.height)
+  //   return tmpCanvas.toDataURL().split("base64,")[1]
+  // }
+  let annotations = JSON.parse(window.localStorage.fileMetadata)[`${annotationType}_annotations`]
+  annotations = annotations ? JSON.parse(annotations) : {}
+  if (annotations["model"]) {
+    return annotations["model"]
+  }
+  
+  const payload = {
+    annotationType,
+    "image": path.tmaCanvas.toDataURL().split("base64,")[1]
+  }
+  const prediction =  await utils.request("https://us-central1-nih-nci-dceg-episphere-dev.cloudfunctions.net/getPathPrediction", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  }, false).then(res => {
+    return res.json()
+  }).catch(err => {})
+  
+  if (prediction) {
+    annotations["model"] = prediction
+    const metadataPath = `/${annotationType}_annotations`
+    box.updateMetadata(hashParams.image, "file", metadataPath, JSON.stringify(annotations)).then(newMetadata => {
+      window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+    })
+    return prediction
+  }
+}
+
+const loadLocalModel = async () => {
+  path.model = await tf.automl.loadImageClassification("./model/model.json")
+  console.log("LOADED", path.model)
+}
+
+const annotateFolder = async () => {
+  path.annotationsForFolder = "id,tissue_adequacy,tissue_adequacy_score,url_in_app"
+  const folderContents = JSON.parse(window.localStorage.allFilesInFolder)[hashParams.folder]
+  
+  const makePrediction = async (id) => {
+
+    const imageElement = new Image()
+    const actualImage = await box.getFileContent(id)
+    imageElement.crossOrigin = "anonymous"
+    imageElement.src = actualImage.url
+    imageElement.onload = async () => {
+      const pred = await path.model.classify(imageElement)
+      const { label, prob } = pred.reduce((prev, current) => prev.prob > current.prob ? prev : current)
+      path.annotationsForFolder += `\n${id},${label},${prob},${window.location.origin+window.location.pathname}#image=${id}`
+      // return makePrediction(folderContents[1])
+    }
+  }
+  folderContents.forEach(async (image,ind) => {
+    await makePrediction(image)
   })
 }
 
