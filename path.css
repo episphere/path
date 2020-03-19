@@ -195,7 +195,7 @@ canvas {
 }
 
 .tabContainer {
-  margin-left: 2rem;
+  margin-left: 1.5rem;
 }
 
 #boxFileManager {
@@ -242,6 +242,7 @@ canvas {
 
 #annotationsDiv {
   height: auto;
+  display: none;
   /* border-left: 1px solid lightgray */
 }
 
@@ -253,7 +254,6 @@ canvas {
 #annotationsAccordion {
   display: flex;
   flex-direction: column;
-  
 }
 
 .annotationsCard {
@@ -267,6 +267,7 @@ canvas {
 .qualityAnnotations {
   width: 100%;
   flex-direction: column;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.125);
 }
 
 .quality_othersAnnotations {
@@ -307,6 +308,31 @@ canvas {
   background-color: rgba(0, 0, 0, 0.6);
   color: rgba(250, 250, 250);
   font-weight: lighter;
+}
+
+#addAnnotationsModal {
+  overflow-y: scroll;
+}
+
+#enableDescription {
+  width: auto;
+  margin-left: 0.7rem;
+}
+
+#addLabelsToModal {
+  display: none;
+  flex-direction: column;
+}
+
+/* #modalLabelsList {
+} */
+
+.form-group.row {
+  padding-left: 1rem;
+}
+
+.required-asterisk {
+  color: red;
 }
 /* .toast {
   margin: 2rem auto;

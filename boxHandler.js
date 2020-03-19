@@ -7,12 +7,14 @@ const box = async () => {
   const boxAccessTokenEndpoint = "https://api.box.com/oauth2/token"
   box.appBasePath = "https://nih.app.box.com"
   box.basePath = "https://api.box.com/2.0"
+  box.uploadBasePath = "https://upload.box.com/api/2.0/"
   box.endpoints = {
     'user': `${box.basePath}/users/me`,
     'data': {
       'folder': `${box.basePath}/folders`,
       'file': `${box.basePath}/files`
     },
+    'upload': `${box.uploadBasePath}/files`,
     'subEndpoints': {
       'metadata': "metadata/global/properties",
       'content': "content",
@@ -48,16 +50,20 @@ const box = async () => {
     try {
       const resp = await utils.request(boxAccessTokenEndpoint, {
         'method': "POST",
-        'body': `grant_type=${type}&${requestType}=${token}&client_id=${client_id}&client_secret=${client_secret}`
+        'body': `grant_type=${type}&${requestType}=${token}&client_id=${client_id}&client_secret=${client_secret}`,
+        'headers': {
+          'Content-Type': "application/x-www-form-urlencoded"
+        }
       })
       if (resp["access_token"]) {
         storeCredsToLS(resp)
+        return true
       }
-      return true
     } catch (err) {
       console.log("ERROR Retrieving Box Access Token!", err)
-    } 
-    return false
+      throw new Error(err)
+    }
+    throw new Error("Failed to get access token from Box!", type)
   }
 
   const storeCredsToLS = (boxCreds) => {
@@ -73,9 +79,10 @@ const box = async () => {
   const triggerLoginEvent = async () => {
     utils.boxRequest = async (url, opts = {}, returnJson=true) => {
       await box.isLoggedIn()
-      const boxHeaders = {
-        'Authorization': `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`,
-        'Content-Type': opts.method !== "PUT" ?  "application/json" : "application/json-patch+json"
+      const boxHeaders = {}
+      boxHeaders['Authorization'] = `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`
+      if (opts.method === "PUT"){
+        boxHeaders['Content-Type'] = "application/json-patch+json"
       }
       opts['headers'] = opts['headers'] ? Object.assign(boxHeaders, opts['headers']) : boxHeaders   // Using Object.assign instead of spread operator for Edge compatibility
       return utils.request(url, opts, returnJson)
@@ -87,11 +94,6 @@ const box = async () => {
   if (await box.isLoggedIn()) {
     triggerLoginEvent()
   } else if (urlParams["code"]) {
-    try {
-      await getAccessToken("authorization_code", urlParams["code"])
-    } catch (err) {
-      console.log("ERROR LOGGING IN TO BOX!", err)
-    }
     let replaceURLPath = window.location.host.includes("localhost") ? "/" : "/path"
     const oldHashParams = window.localStorage.hashParams ? JSON.parse(window.localStorage.hashParams) : {}
     if (!oldHashParams["folder"]) {
@@ -99,8 +101,15 @@ const box = async () => {
     }
     const urlHash = Object.entries(oldHashParams).map(([key, val]) => `${key}=${val}`).join("&")
     window.history.replaceState({}, "", `${replaceURLPath}#${urlHash}`)
-    // window.location.hash = urlHash
-    triggerLoginEvent()
+    try {
+      await getAccessToken("authorization_code", urlParams["code"])
+      triggerLoginEvent()
+    } catch (err) {
+      showToast("Some error occurred while logging in to Box. Please try again!")
+      document.getElementById("boxLoginBtn").style = "display: block"
+      console.log("ERROR LOGGING IN TO BOX!", err)
+      return
+    }
   } else {
     document.getElementById("boxLoginBtn").style = "display: block"
     return
@@ -189,6 +198,14 @@ box.getMetadata = async (id, type) => {
 box.createMetadata = async (id, type) => {
   const metadataAPI = `${box.endpoints['data'][type]}/${id}/${box.endpoints['subEndpoints']['metadata']}`
   return utils.boxRequest(metadataAPI, { 'method': "POST", 'body': JSON.stringify({}) })
+}
+
+box.updateFile = async (id, updateData) => {
+  const contentEndpoint = `${box.endpoints['upload']}/${id}/${box.endpoints['subEndpoints']['content']}`
+  return await utils.boxRequest(contentEndpoint, {
+    'method': "POST",
+    'body': updateData
+  })
 }
 
 box.updateMetadata = async (id, type, path, updateData) => {

@@ -35,15 +35,17 @@ const loadHashParams = async () => {
   if (hashParams["extModules"]) {
     path.loadModules()
   }
-  if (hashParams.image && hashParams.image !== window.localStorage.currentImage) {
-    await loadImageFromBox(hashParams.image)
-  }
-  if (hashParams.folder) {
-    window.localStorage.currentFolder = hashParams.folder
-    window.localStorage.allFilesInFolder[hashParams.folder] = {}
-    loadBoxFileManager(hashParams.folder)
-  } else if (!hashParams.folder && await box.isLoggedIn()) {
-    selectFolder(boxRootFolderId)
+  if (await box.isLoggedIn()) {
+    if (hashParams.image && hashParams.image !== window.localStorage.currentImage) {
+      await loadImageFromBox(hashParams.image)
+    }
+    if (hashParams.folder) {
+      window.localStorage.currentFolder = hashParams.folder
+      window.localStorage.allFilesInFolder[hashParams.folder] = {}
+      loadBoxFileManager(hashParams.folder)
+    } else {
+      selectFolder(boxRootFolderId)
+    }
   }
 }
 
@@ -55,7 +57,9 @@ const utils = {
   request: (url, opts, returnJson = true) =>
     fetch(url, opts)
     .then(res => res.ok ? (returnJson ? res.json() : res) : res)
-    .catch(e => console.log(`Error fetching ${url}`, e))
+    .catch(e => {
+      throw new Error("HTTP Request failed!", e)
+    })
 }
 
 const annotationTypes = [ "tissueAdequacy", "stainingAdequacy" ]
@@ -98,7 +102,6 @@ const path = async () => {
   loadHashParams()
   loadDefaultImage()
   path.loadModules()
-  path.getAppConfig()
 
   if ("useWorker" in hashParams) {
     path.worker = new Worker('modelPrediction.js')
@@ -128,10 +131,15 @@ path.loadModules = async (modules) => {
 
 path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
+    path.getAppConfig()
     box.getUserProfile()
     loadLocalModel()
   })
   
+  const addAnnotationsModal = document.getElementById("addAnnotationsModal")
+  addAnnotationsModal.addEventListener("show.bs.modal", (evt) => {
+    document.getElementById("datasetFolderId").value = path.appConfig.datasetFolderId ? path.appConfig.datasetFolderId : "INVALID"
+  })
   
   const fileInput = document.getElementById("imgInput")
   fileInput.onchange = ({
@@ -155,7 +163,7 @@ path.setupEventListeners = () => {
   path.tmaImage.onload = async () => {
     path.loadCanvas()
     if (path.tmaImage.src.includes("boxcloud.com")) {
-      path.appConfig.annotations.forEach(showQualitySelectors)
+      path.appConfig.annotations.forEach(createAnnotationTables)
       await showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
       showNextImageButton()
       if (path.worker) {
@@ -164,9 +172,9 @@ path.setupEventListeners = () => {
           console.log("Message received from worker!", e.data)
         }
       } else {
-        setTimeout(() => {
-          path.model.classify(path.tmaImage).then(preds => console.log("Local Model Prediction", preds))
-        }, 3000)
+        // setTimeout(() => {
+        //   path.model.classify(path.tmaImage).then(preds => console.log("Local Model Prediction", preds))
+        // }, 3000)
       }
     }
   }
@@ -177,7 +185,6 @@ path.getAppConfig = async () => {
   path.appConfig = await box.getFileContent(configFileId, isFileJSON)
   const annotations = path.appConfig.annotations.filter(annotation => !annotation.private || (annotation.private && annotation.createdBy === window.localStorage.userId))
   path.appConfig.annotations = annotations
-  path.appConfig.annotations.forEach(createAnnotationTables)
 }
 
 const loadDefaultImage = async () => {
@@ -277,6 +284,9 @@ const addImageHeader = (filePathInBox, id, name) => {
 
 const loadBoxFileManager = async (id=boxRootFolderId) => {
   const boxFileMgrHeaderDiv = document.getElementById("boxFileMgrHeader")
+  if (boxFileMgrHeaderDiv.parentElement.getAttribute("folderId") === hashParams.folder) {
+    return
+  }
   const [fileMgrTools, fileMgrNav] = boxFileMgrHeaderDiv.children
   fileMgrTools.style.display = "flex"
   fileMgrTools.style["flex-direction"] = "row"
@@ -331,12 +341,12 @@ const loadBoxFileManager = async (id=boxRootFolderId) => {
     boxFileMgrHeaderDiv.style["background-color"] = "rgba(210, 210, 210, 0.2)";
     if (!boxFileMgrHeaderDiv.parentElement.querySelector("hr")) {
       boxFileMgrHeaderDiv.parentElement.insertBefore(document.createElement("hr"), boxFileMgrHeaderDiv.nextElementSibling)
-
     }
   
     loadBoxFolderTree(folderData)
+    boxFileMgrHeaderDiv.parentElement.setAttribute("folderId", id)
 
-  } else if (folderData.status === 404) {
+  } else if (folderData && folderData.status === 404) {
     alert("The folder ID in the URL does not point to a valid folder in your Box account!")
     selectFolder(boxRootFolderId)
   }
@@ -478,9 +488,6 @@ path.loadCanvas = () => {
     if (!path.options) {
       path.loadOptions()
     }
-    if (path.tmaImage.src.includes("boxcloud.com")) {
-      path.appConfig.annotations.forEach(({annotationName}) => loadModelPrediction(annotationName))
-    }
   }
 }
 
@@ -489,7 +496,7 @@ path.loadOptions = () => {
   document.getElementById("toolsOuterDiv").style.visibility = "visible"
   zoomButton()
   segmentButton()
-  addAnnotationsTooltip()
+  // addAnnotationsTooltip()
 }
 
 path.qualityAnnotate = async (annotationName, qualitySelected) => {
@@ -764,25 +771,29 @@ const zoomButton = () => {
 }
 
 const createAnnotationTables = async (annotation) => {
+  // return
+  const annotationsAccordion = document.getElementById("annotationsAccordion")
   const { displayName, annotationName, definition } = annotation
-
-  const annotationCard = `
-    <div class="card annotationsCard">
+  if (!annotationsAccordion.querySelector(`#${annotationName}Card`)) {
+    const annotationCardDiv = document.createElement("div")
+    annotationCardDiv.setAttribute("class", "card annotationsCard")
+    annotationCardDiv.setAttribute("id", `${annotationName}Card`)
+    const annotationCard = `
       <div class="card-header">
         <h2 class="mb-0">
           <button class="btn btn-link" type="button" data-toggle="collapse"
-            data-target="#${annotationName}Annotations">
+            data-target="#${annotationName}Annotations" id="${annotationName}Toggle">
             ${displayName}
           </button>
         </h2>
       </div>
-
-      <div id="${annotationName}Annotations" class="collapse show annotationsTable qualityAnnotations" data-parent="#annotationsAccordion">
+  
+      <div id="${annotationName}Annotations" class="collapse qualityAnnotations" data-parent="#annotationsAccordion">
         <div class="card-body annotationsCardBody" name="${displayName}">
           <table id="${annotationName}Select" class="table table-bordered qualitySelect">
             <thead>
               <tr>
-                <th scope="col" style="border-right: none;">${displayName}</th>
+                <th scope="col" style="border-right: none;">Annotation</th>
                 <th scope="col" style="border-left: none;">
                   <div class="text-center">Model Prediction</div>
                 </th>
@@ -794,17 +805,20 @@ const createAnnotationTables = async (annotation) => {
           <div id="${annotationName}_othersAnnotations" class="quality_othersAnnotations"></div>
         </div>
       </div>
-    </div>
-    `
-  const annotationsAccordion = document.getElementById("annotationsAccordion")
-  annotationsAccordion.innerHTML += annotationCard
+      `
+      annotationCardDiv.innerHTML += annotationCard
+      annotationsAccordion.appendChild(annotationCardDiv)
+      new Collapse(document.getElementById(`${annotationName}Toggle`))
+  }
+  showQualitySelectors(annotation)
+  annotationsAccordion.parentElement.style.display = "block"
 }
 
 const showQualitySelectors = async (annotation) => {
   const { annotationName, metaName, labels } = annotation
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
   const fileAnnotations = fileMetadata[metaName] && JSON.parse(fileMetadata[metaName])
-  const annotationsDiv = document.getElementById(`${annotationName}Annotations`)
+  const annotationDiv = document.getElementById(`${annotationName}Annotations`)
   const selectTable = document.getElementById(`${annotationName}Select`)
   const selectTableBody = selectTable.querySelector("tbody")
   
@@ -830,13 +844,15 @@ const showQualitySelectors = async (annotation) => {
       qualityButton.setAttribute("value", label)
       qualityButton.setAttribute("onclick", `path.qualityAnnotate("${annotationName}", "${label}")`)
       qualityButton.innerText = displayText
-      qualityButton.setAttribute("title", tooltip)
-      new Tooltip(qualityButton, {
-        'placement': "right",
-        'animation': "slideNfade",
-        'delay': 100,
-        'html': true
-      })
+      if (tooltip) {
+        qualityButton.setAttribute("title", tooltip)
+        new Tooltip(qualityButton, {
+          'placement': "right",
+          'animation': "slideNfade",
+          'delay': 100,
+          'html': true
+        })
+      }
       
       annotationDiv.appendChild(qualityButton)
       tableAnnotationData.style.borderRight = "none"
@@ -862,18 +878,17 @@ const showQualitySelectors = async (annotation) => {
   }
   activateQualitySelector(annotationName, fileAnnotations)
   getOthersAnnotations(annotationName, fileAnnotations)
-  annotationsDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
+  loadModelPrediction(annotationName, selectTableBody)
+  annotationDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
 }
 
-const loadModelPrediction = async (annotationName) => {
-  const selectTable = document.getElementById(`${annotationName}Select`)
-  const selectTableBody = selectTable.querySelector("tbody")
+const loadModelPrediction = async (annotationName, tableBodyElement) => {
   const modelQualityPrediction = await getModelPrediction(annotationName)
   if (modelQualityPrediction) {
     qualityEnum.forEach(({label}) => {
       const labelPrediction = modelQualityPrediction.find(pred => pred.displayName === label)
       const labelScore = labelPrediction ? Number.parseFloat(labelPrediction.classification.score).toPrecision(3) : "--"
-      const tablePredictionData = selectTableBody.querySelector(`td#prediction_${label}`)
+      const tablePredictionData = tableBodyElement.querySelector(`td#prediction_${label}`)
       tablePredictionData.innerHTML = labelScore
       if (labelScore > 0.5) {
         tablePredictionData.parentElement.classList.add("modelPrediction")
@@ -1194,6 +1209,146 @@ const addAnnotationsTooltip = () => {
     'animation': "slideNfade",
     'delay': 150
   })
+}
+
+const addAnnotationToConfig = () => {
+  const modalCloseBtn = document.getElementsByClassName("modal-footer")[0].querySelector("button[data-dismiss=modal]")
+  modalCloseBtn.click()
+  const newAnnotation = {
+    "displayName": "",
+    "annotationName": "",
+    "metaName": "",
+    "definition": "",
+    "enableDescriptionTextField": false,
+    "labelType": "",
+    "labels": [],
+    "createdBy": "",
+    "createdAt": "",
+    "private": false,
+  }
+  const annotationForm = document.getElementById("createAnnotationForm")
+  annotationForm.querySelectorAll(".form-control").forEach(element => {
+    if (element.name) {
+      switch(element.name){
+        case "datasetFolderId" :
+          // Check if dataset folder exists in Box and if it has a config. Fetch it if it does.
+          break
+        
+        case "displayName":
+          if (!element.value) {
+            alert("Annotation Name Missing!")
+            return
+          }
+          newAnnotation["displayName"] = element.value
+          newAnnotation["annotationName"] = element.value.split(" ").map((word, ind) => {
+            if (ind === 0) {
+              return word.toLowerCase()
+            } else {
+              return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            }
+          }).join("")
+          newAnnotation["metaName"] = `${newAnnotation["annotationName"]}_annotations`
+          break
+  
+        case "displayText":
+          if (!element.value) {
+            alert("Label Name Missing!")
+            return
+          }
+          const labelIndex = parseInt(element.id.split("_")[1])
+          newAnnotation.labels[labelIndex] = newAnnotation.labels[labelIndex] ? {"displayText": element.value, ...newAnnotation.labels[labelIndex] } : {"displayText": element.value}
+          break
+  
+        case "label":
+          if (!element.value) {
+            alert("Label Name Missing!")
+            return
+          }
+          const labelIdx = parseInt(element.id.split("_")[1])
+          newAnnotation.labels[labelIdx] = newAnnotation.labels[labelIdx] ? {"label": element.value, ...newAnnotation.labels[labelIdx] } : {"displayText": element.value}
+          break
+  
+        default:
+          newAnnotation[element.name] = element.type === "checkbox" ? element.checked : element.value
+      }
+    }
+  })
+  newAnnotation["createdAt"] = Date.now()
+  newAnnotation["createdBy"] = window.localStorage.userId
+  updateConfigInBox("annotations", "append", newAnnotation)
+}
+
+const updateConfigInBox = async (changedProperty="annotations", operation, deltaData) => {
+  if (deltaData) {
+    const isFileJSON = true
+    const appConfig = await box.getFileContent(configFileId, isFileJSON)
+    if (appConfig) {
+      if (operation === "append") {
+        if (Array.isArray(appConfig[changedProperty])) {
+          appConfig[changedProperty].push(deltaData)
+        } else if (typeof(appConfig[changedProperty]) === "object") {
+          appConfig[changedProperty] = {...deltaData, ...appConfig[changedProperty]}
+        }
+      } else if (operation === "remove") {
+        if (Array.isArray(appConfig[changedProperty])) {
+          appConfig[changedProperty] = appConfig[changedProperty].filter(obj => obj !== deltaData)
+        } else if (typeof(appConfig[changedProperty]) === "object" && appConfig[changedProperty][deltaData]) {
+          delete appConfig[changedProperty][deltaData]
+        } else {
+          console.log("UPDATE CONFIG OPERATION FAILED!")
+          return
+        }
+      }
+    }
+    
+    const newConfigFormData = new FormData()
+    const configFileAttributes = {
+      "name": "appConfig.json"
+    }
+    const newConfigBlob = new Blob([JSON.stringify(appConfig)], {type: "application/json"})
+    newConfigFormData.append("attributes", JSON.stringify(configFileAttributes))
+    newConfigFormData.append("file", newConfigBlob)
+    
+    try {
+      await box.updateFile(configFileId, newConfigFormData)
+      showToast("New Annotation Added Successfully!")
+      path.appConfig = appConfig
+      path.appConfig.annotations.forEach(createAnnotationTables)
+    } catch (e) {
+      console.log("Couldn't upload new config to Box!", e)
+      showToast("Some error occurred while adding the annotation. Please try again!")
+    }
+  }
+}
+
+const addLabelToModal = () => {
+  const modalLabelsList = document.getElementById("modalLabelsList")
+  const numLabelsAdded = modalLabelsList.childElementCount
+  const newLabelRow = document.createElement("div")
+  newLabelRow.setAttribute("class", "row")
+  newLabelRow.innerHTML = `
+    <div class="form-group row addedLabel">
+      <div class="col">
+        <input type="text" class="form-control" placeholder="Display Name*" name="displayText" id="labelDisplayText_${numLabelsAdded}" required="true"></input>
+      </div>
+    </div>
+    <div class="form-group row addedLabel">
+      <div class="col">
+        <input type="text" class="form-control" placeholder="Label Value*" name="label" id="labelValue_${numLabelsAdded}" required="true"></input>
+      </div>
+    </div>
+    <div class="col-sm-1">
+    <button type="button" class="close" aria-label="Close" style="margin-top: 50%" onclick="removeLabelFromModal(this);">
+      <span aria-hidden="true">&times;</span>
+    </button>
+    </div>
+  `
+  modalLabelsList.appendChild(newLabelRow)
+}
+
+const removeLabelFromModal = (target) => {
+  const modalLabelsList = document.getElementById("modalLabelsList")
+  modalLabelsList.removeChild(target.parentElement.parentElement)
 }
 
 const getModelPrediction = async (annotationType) => {

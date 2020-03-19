@@ -4,9 +4,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EpiPath TMAs</title>
   <!-- <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"></script> -->
-  <script type="text/javascript"
-    src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap.native/2.0.27/bootstrap-native-v4.min.js" async></script>
-  <!-- <script src="bsn_temp.js "></script> -->
+  <!-- <script type="text/javascript"
+    src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap.native/2.0.27/bootstrap-native-v4.min.js" async></script> -->
+  <!-- <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script> -->
+  <script src="bsn_temp.js "></script>
   <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.2/css/all.min.css">
   <script src="path.js"></script>
@@ -95,9 +96,9 @@
         </ul>
         <div class="tab-content" id="tabsContent">
           <div class="tab-pane fade show active" id="myBox" role="tabpanel" aria-labelledby="box-tab">
-            <div class="tabContainer" id="boxFileManager">
+            <div class="tabContainer" id="boxFileManager" folderId="">
               <div id="fileMgrLoaderDiv" class="loaderDiv">
-                <img src="images/loader.gif" id="fileMgrLoader" class="loaderImg"/>
+                <img src="images/loader.gif" id="fileMgrLoader" class="loaderImg" />
               </div>
               <div id="boxFileMgrHeader">
                 <span id="boxFileMgrTools"></span>
@@ -112,7 +113,7 @@
             <div class="tabContainer" id="annotationsDiv">
               <span id="nextImageMessage"></span>
               <div class="accordion" id="annotationsAccordion"></div>
-              <button type="button" class="btn btn-link" id="addAnnotationsBtn">+ Add More Annotations</button>
+              <button type="button" class="btn btn-link" id="addAnnotationsBtn" data-toggle="modal" data-target="#addAnnotationsModal">+ Add More Classifications</button>
             </div>
           </div>
           <div class="tab-pane fade" id="collaborate" role="tabpanel" aria-labelledby="collaborate-tab">
@@ -142,6 +143,82 @@
         </button>
       </div>
     </div>
+    <div class="modal fade" id="addAnnotationsModal" tabindex="-1" role="dialog">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h4 class="modal-title">Add New Annotation</h4>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <form id="createAnnotationForm">
+              <div class="form-group row">
+                <label for="datasetFolderId" class="col-form-label">Dataset Folder:<span class="required-asterisk">*</span></label>
+                <div class="col-sm-6">
+                  <input type="text" class="form-control" name="datasetFolderId" id="datasetFolderId" required>
+                </div>
+              </div>
+              <div class="form-group row">
+                <label for="annotationName" class="col-form-label">Annotation Name:<span class="required-asterisk">*</span></label>
+                <div class="col-sm-6">
+                  <input type="text" class="form-control" name="displayName" id="annotationName" required></input>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="annotationDef" class="col-form-label">Description:</label>
+                <textarea type="text" class="form-control" name="definition" id="annotationDef"></textarea>
+              </div>
+              <div class="form-group row">
+                <label for="enableDescription" class="col-form-label">Enable Comments with Annotation?</label>
+                <input type="checkbox" class="form-control" name="enableDescriptionTextField" id="enableDescription"></input>
+              </div>
+              <div class="form-group row">
+                <label for="labelType" class="col-form-label">Type of Labels:<span class="required-asterisk">*</span></label>
+                <div class="col-sm-6">
+                  <select class="form-control" name="labelType" id="labelType" required onchange="document.getElementById('addLabelsToModal').style.display='flex'">
+                    <option value="">Select Type</option>
+                    <option value="categorical">Categorical</option>
+                    <option value="continuous" disabled>Continuous</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group" id="addLabelsToModal">
+                <h5>Annotation Classes</h5>
+                <hr style="width: 100%; margin-top:0; padding:0"/>
+                <div id="modalLabelsList">
+                  <div class="row">
+                    <div class="form-group row addedLabel">
+                      <div class="col">
+                        <input type="text" class="form-control" placeholder="Display Name*" name="displayText" id="labelDisplayText_0" required></input>
+                      </div>
+                    </div>
+                    <div class="form-group row addedLabel">
+                      <div class="col">
+                        <input type="text" class="form-control" placeholder="Label Value*" name="label" id="labelValue_0" required></input>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- <div class="form-group row addedLabel">
+                    <label for="labelDesc" class="col-form-label">Short Description:</label>
+                    <div class="col-sm-6">
+                      <input type="text" class="form-control" id="labelDesc"></input>
+                    </div>
+                  </div> -->
+                </div>
+                <button type="button" class="btn btn-light" onclick="addLabelToModal()">+ Add Label</button>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            <button type="submit" class="btn btn-primary" onclick="addAnnotationToConfig()">Create Annotation</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- <div class="toast" role="alert" aria-live="assertive" aria-atomic="true">
       <div class="toast-header">
         <button type="button" class="ml-2 mb-1 close" data-dismiss="toast" aria-label="Close">
@@ -156,4 +233,5 @@
 <!-- <script src="opencv.js" async></script> -->
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl"></script>
+
 </html>
