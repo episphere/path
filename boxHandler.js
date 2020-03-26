@@ -208,21 +208,19 @@ box.updateFile = async (id, updateData) => {
   })
 }
 
-box.updateMetadata = async (id, type, path, updateData) => {
+box.updateMetadata = (id, path, updateData) => {
   const updatePatch = [{
     'op': "add",
     path,
     'value': updateData
   }]
 
-  const resp = await utils.boxRequest(`${box.endpoints['data'][type]}/${id}/${box.endpoints['subEndpoints']['metadata']}`, {
+  return utils.boxRequest(`${box.endpoints['data']["file"]}/${id}/${box.endpoints['subEndpoints']['metadata']}`, {
     'method': "PUT",
     'headers': {
       'Content-Type': "application/json-patch+json"
     },
     body: JSON.stringify(updatePatch)
   })
-
-  return resp
 
 }
