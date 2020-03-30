@@ -104,8 +104,10 @@ const path = async () => {
   loadDefaultImage()
   path.loadModules()
 
+  path.imageWorker = new Worker('processImage.js')
+
   if ("useWorker" in hashParams) {
-    path.worker = new Worker('modelPrediction.js')
+    path.predictionworker = new Worker('modelPrediction.js')
   }
 }
 
@@ -142,33 +144,14 @@ path.setupEventListeners = () => {
     document.getElementById("datasetFolderId").value = path.appConfig.datasetFolderId ? path.appConfig.datasetFolderId : "INVALID"
   })
 
-  const fileInput = document.getElementById("imgInput")
-  fileInput.onchange = ({
-    target: {
-      files
-    }
-  }) => {
-    document.getElementById("imgHeader").innerHTML = `<h5>${files[0].name}</h5>`
-    if (hashParams.image) {
-      window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, "")
-      hashParams.image = ""
-      window.localStorage.currentFolder = ""
-    }
-    path.tmaImage.setAttribute("src", "") // Unsetting src because Firefox does not update image otherwise.
-    path.tmaImage.setAttribute("src", URL.createObjectURL(files[0]))
-    path.tmaImage.setAttribute("crossorigin", "Anonymous")
-    document.getElementById("annotations").style.display = "none"
-    document.getElementById("thumbnailPicker").style.display = "none"
-  }
-
   path.tmaImage.onload = async () => {
     path.loadCanvas()
     if (path.tmaImage.src.includes("boxcloud.com")) {
       await showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
       path.appConfig.annotations.forEach(createAnnotationTables)
-      if (path.worker) {
-        path.worker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
-        path.worker.onmessage = (e) => {
+      if (path.predictionworker) {
+        path.predictionworker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
+        path.predictionworker.onmessage = (e) => {
           console.log("Message received from worker!", e.data)
         }
       } else {
@@ -196,12 +179,14 @@ const loadDefaultImage = async () => {
 
 const loadImageFromBox = async (id, url) => {
   if (await utils.boxRequest) {
+    
     const thumbnailImage = document.getElementById(`thumbnail_${id}`)
     if (thumbnailImage) {
       path.tmaImage.src = thumbnailImage.src
       highlightThumbnail(id)
       highlightInBoxFileMgr(id)
     }
+
     const imageData = await box.getData(id, "file") || {}
     if (imageData.status === 404) {
       console.log(`Can't fetch data for image ID ${id} from Box`)
@@ -218,10 +203,11 @@ const loadImageFromBox = async (id, url) => {
       metadata,
       path_collection: {
         entries: filePathInBox
-      }
+      },
+      size
     } = imageData
 
-    if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png"))) {
+    if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".tiff"))) {
       // showLoader("imgLoaderDiv", path.tmaCanvas)
       const allFilesInFolderObj = JSON.parse(window.localStorage.allFilesInFolder) || {}
       allFilesInFolderObj[parent.id] = parent.id in allFilesInFolderObj && allFilesInFolderObj[parent.id].length > 0 ? allFilesInFolderObj[parent.id] : []
@@ -230,13 +216,27 @@ const loadImageFromBox = async (id, url) => {
 
       path.tmaImage.setAttribute("alt", name)
       if (!url) {
-        const fileContent = await box.getFileContent(id)
-        url = fileContent.url
-        path.tmaImage.setAttribute("src", "")
-        path.tmaImage.setAttribute("src", url)
-        path.tmaImage.setAttribute("crossorigin", "Anonymous")
+        if (name.endsWith(".tiff")) {
+          console.time("STARTING CONVERSION")
+          path.imageWorker.postMessage({
+            'boxAccessToken': JSON.parse(window.localStorage.box)["access_token"],
+            'imageId': id,
+            size
+          })
+          path.imageWorker.onmessage = (evt) => {
+            path.tmaImage.setAttribute("src", "")
+            path.tmaImage.setAttribute("width", evt.data.width)
+            path.tmaImage.setAttribute("height", evt.data.height)
+            path.loadCanvas(evt.data)
+          }
+        } else {
+          const fileContent = await box.getFileContent(id)
+          url = fileContent.url
+          path.tmaImage.setAttribute("src", "")
+          path.tmaImage.setAttribute("src", url)
+          path.tmaImage.setAttribute("crossorigin", "Anonymous")
+        }
       }
-      path.tmaImage.setAttribute("alt", name)
 
       addImageHeader(filePathInBox, id, name)
       window.localStorage.currentImage = id
@@ -253,7 +253,7 @@ const loadImageFromBox = async (id, url) => {
         selectFolder(parent.id)
       }
     } else {
-      alert("The ID in the URL does not point to a valid image file (.jpg/.png) in Box.")
+      alert("The ID in the URL does not point to a valid image file (.jpg/.png/.tiff) in Box.")
     }
   }
 }
@@ -377,7 +377,7 @@ const loadBoxFolderTree = (folderData) => {
   const {
     id
   } = folderData
-  const loaderElementId = "fileMgrLoaderDiv"
+
   if (folderData && folderData.item_status === "active") {
     const {
       item_collection: {
@@ -404,7 +404,6 @@ const loadBoxFolderTree = (folderData) => {
       parentElement.innerText = "-- Empty Folder --"
     }
   }
-  hideLoader(loaderElementId)
 }
 
 const populateBoxfolderTree = (entries, id) => {
@@ -422,7 +421,7 @@ const populateBoxfolderTree = (entries, id) => {
     if (entry.type === "folder") {
       entryIcon.setAttribute("class", "fas fa-folder")
     } else if (entry.type === "file") {
-      if (entry.name.endsWith(".jpg") || entry.name.endsWith(".jpeg") || entry.name.endsWith(".png")) {
+      if (entry.name.endsWith(".jpg") || entry.name.endsWith(".jpeg") || entry.name.endsWith(".png") || entry.name.endsWith(".tiff")) {
         entryIcon.setAttribute("class", "fas fa-file-image")
       } else {
         entryIcon.setAttribute("class", "fas fa-file")
@@ -446,7 +445,7 @@ const populateBoxfolderTree = (entries, id) => {
     entryBtn.onclick = async () => {
       if (entry.type === "folder") {
         selectFolder(entry.id)
-      } else if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png"))) {
+      } else if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png") || entry.name.endsWith(".tiff"))) {
         if (entry.id !== hashParams.image) {
           selectImage(entry.id)
           highlightInBoxFileMgr(entry.id)
@@ -488,9 +487,9 @@ const hideLoader = (id) => {
   document.getElementById(id).style.display = "none";
 }
 
-path.loadCanvas = () => {
-
-  if (path.tmaImage.src.length > 0) {
+path.loadCanvas = (data) => {
+  // Condition checks if path.tmaImage.src is empty
+  if (path.tmaImage.src !== window.location.origin + window.location.pathname) {
     // if (path.tmaCanvas.parentElement.getBoundingClientRect().width < path.tmaImage.width * 0.4) {
     //   document.getElementById("canvasWithPickers").style.width = path.tmaImage.width*0.4
     // }
@@ -500,15 +499,33 @@ path.loadCanvas = () => {
     // path.outputCanvas.setAttribute("width", path.outputCanvas.parentElement.getBoundingClientRect().width)
     // path.outputCanvas.setAttribute("height", path.outputCanvas.width * path.tmaImage.height / path.tmaImage.width)
     // path.outputCanvas.style.border = "1px solid red"
-    const tmaContext = path.tmaCanvas.getContext('2d')
+    const tmaContext = path.tmaCanvas.getContext("2d")
     // const outputContext = path.outputCanvas.getContext('2d')
     tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
-    hideLoader("imgLoaderDiv")
+    console.timeEnd("STARTING CONVERSION")
     // outputContext.drawImage(path.tmaImage, 0, 0, path.outputCanvas.width, path.outputCanvas.height)
     document.getElementById("canvasWithPickers").style.borderRight = "1px solid lightgray"
     if (!path.options) {
       path.loadOptions()
     }
+  } else if (data) {
+    console.log(data)
+    const resizerCanvas = document.createElement("canvas")
+    resizerCanvas.width = data.width
+    resizerCanvas.height = data.height
+    const resizerCtx = resizerCanvas.getContext("2d")
+    resizerCtx.putImageData(data.image, 0, 0)
+    path.tmaImage.src = resizerCanvas.toDataURL()
+
+    // path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
+    // path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * data.height / data.width)
+
+    // const tmaContext = path.tmaCanvas.getContext("2d")
+    // tmaContext.drawImage(resizerCanvas, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
+
+    // if (!path.options) {
+    //   path.loadOptions()
+    // }
   }
 }
 
@@ -516,6 +533,7 @@ path.loadOptions = () => {
   path.options = true
   document.getElementById("toolsOuterDiv").style.visibility = "visible"
   zoomButton()
+  addLocalFileButton()
   segmentButton()
   // addAnnotationsTooltip()
 }
@@ -569,17 +587,7 @@ path.qualityAnnotate = async (annotationName, qualitySelected) => {
 
 const showNextImageButton = (metadata) => {
   metadata = metadata || JSON.parse(window.localStorage.fileMetadata)
-  const annotationTypes = path.appConfig.annotations.map(x => x.metaName)
-  const numAnnotationsCompleted = Object.keys(metadata).reduce((total, key) => {
-    if (key.includes("_annotations")) {
-      const annotationMade = JSON.parse(metadata[key])
-      if (annotationTypes.includes(key) && window.localStorage.userId in annotationMade) {
-        total += 1
-      }
-    }
-    return total
-  }, 0)
-
+  const numAnnotationsCompleted = getNumCompletedAnnotations(metadata)
   const nextImageMessage = document.getElementById("nextImageMessage")
   const nextImageText = `<b style='padding-bottom:.75rem;'><span style='color:darkorchid'>${numAnnotationsCompleted}</span> / ${path.appConfig.annotations.length} Annotations Completed!</b>`
   nextImageMessage.innerHTML = nextImageText
@@ -640,15 +648,12 @@ let clicked = false
 const segmentButton = () => {
   const segmentDiv = document.createElement("div")
   segmentDiv.setAttribute("class", "tool")
-  // segmentDiv.setAttribute("title", "Under Development!")
-  // new Tooltip(segmentDiv, {
-  //   'placement': "bottom",
-  //   'animation': "slideNfade",
-  //   'delay': 250
-  // })
+  segmentDiv.setAttribute("title", "Under Development!")
+  
   const segmentBtn = document.createElement("button")
   segmentBtn.setAttribute("class", "btn btn-outline-primary")
-  // segmentBtn.setAttribute("disabled", "")
+  segmentBtn.setAttribute("disabled", "")
+  
   const segmentIcon = document.createElement("i")
   segmentIcon.setAttribute("class", "fas fa-qrcode")
   segmentBtn.onclick = () => {
@@ -660,6 +665,12 @@ const segmentButton = () => {
   segmentBtn.appendChild(segmentIcon)
   segmentDiv.appendChild(segmentBtn)
   path.toolsDiv.appendChild(segmentDiv)
+  
+  new Tooltip(segmentDiv, {
+    'placement': "bottom",
+    'animation': "slideNfade",
+    'delay': 50
+  })
 }
 
 const zoomButton = () => {
@@ -795,6 +806,56 @@ const zoomButton = () => {
   path.toolsDiv.appendChild(zoomToolDiv)
 }
 
+const addLocalFileButton = async () => {
+  const addFileBtnDiv = document.createElement("div")
+  const addFileBtn = document.createElement("button")
+  addFileBtn.setAttribute("class", "btn btn-outline-primary")
+  addFileBtn.setAttribute("id", "localFileInputBtn")
+
+  const addFileIcon = `
+    <i  class="fas fa-file-import"></i>
+  `
+  addFileBtn.innerHTML = addFileIcon
+
+  const addFileInputElement = document.createElement("input")
+  addFileInputElement.setAttribute("type", "file")
+  addFileInputElement.setAttribute("id", "localFileInput")
+  addFileInputElement.style.display = "none"
+
+  addFileBtn.onclick = () => addFileInputElement.click()
+
+  addFileBtnDiv.appendChild(addFileBtn)
+  addFileBtnDiv.appendChild(addFileInputElement)
+
+  addFileInputElement.onchange = ({
+    target: {
+      files
+    }
+  }) => {
+    document.getElementById("imgHeader").innerHTML = `<h5>${files[0].name}</h5>`
+    if (hashParams.image) {
+      selectImage(null)
+      window.localStorage.currentImage = ""
+      window.localStorage.currentFolder = ""
+    }
+    path.tmaImage.setAttribute("src", "") // Unsetting src because Firefox does not update image otherwise.
+    path.tmaImage.setAttribute("src", URL.createObjectURL(files[0]))
+    path.tmaImage.setAttribute("crossorigin", "Anonymous")
+    document.getElementById("annotations").style.display = "none"
+    document.getElementById("thumbnailPicker").style.display = "none"
+  }
+
+  addFileBtn.setAttribute("title", "Add Local File")
+  new Tooltip(addFileBtn, {
+    'placement': "bottom",
+    'animation': "slideNfade",
+    'delay': 50
+  })
+
+  path.toolsDiv.appendChild(addFileBtnDiv)
+  
+}
+
 const createAnnotationTables = async (annotation) => {
   // return
   const annotationsAccordion = document.getElementById("annotationsAccordion")
@@ -900,11 +961,10 @@ const createAnnotationTables = async (annotation) => {
 const showQualitySelectors = async (annotation) => {
   const {
     annotationName,
-    metaName,
     labels,
   } = annotation
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
-  const fileAnnotations = fileMetadata[metaName] && JSON.parse(fileMetadata[metaName])
+  const fileAnnotations = fileMetadata[`${annotationName}_annotations`] && JSON.parse(fileMetadata[`${annotationName}_annotations`])
   const annotationDiv = document.getElementById(`${annotationName}Annotations`)
   const selectTable = document.getElementById(`${annotationName}Select`)
   const selectTableBody = selectTable.querySelector("tbody")
@@ -926,11 +986,11 @@ const showQualitySelectors = async (annotation) => {
       annotationDiv.setAttribute("class", "qualitySelectorDiv")
 
       const qualityButton = document.createElement("button")
-      let qualityButtonClass = "btn btn-outline-info"
+      let qualityButtonClass = "btn btn-outline-info labelText"
       if (containsEmojiRegex.test(displayText)) {
-        qualityButtonClass += " qualityTextEmoji"
+        qualityButtonClass += " emojiText"
       } else {
-        qualityButtonClass += " qualityTextNormal"
+        qualityButtonClass += " normalText"
       }
       qualityButton.setAttribute("class", qualityButtonClass)
       qualityButton.setAttribute("id", `${annotationName}_${label}`)
@@ -1111,20 +1171,24 @@ const activateQualitySelector = (annotationName, fileAnnotations) => {
       // if (annotationConfig.labels.find(q => q.label === )) {
       //   userAnnotation = qualityEnum.find(quality => quality.label === fileAnnotations[window.localStorage.userId].value).label
       // }
-      selectTable.querySelector(`button[value='${userAnnotation}']`).classList.add("active")
+      const newActiveButton = selectTable.querySelector(`button[value='${userAnnotation}']`)
+      if (newActiveButton) {
+        newActiveButton.classList.add("active")
+      }
     }
   }
 }
 
 const showThumbnailPicker = async (limit, offset = 0) => {
   const thumbnailPicker = document.getElementById("thumbnailPicker")
+  thumbnailPicker.style.display = "flex"
+  thumbnailPicker.style["flex-direction"] = "column"
+  thumbnailPicker.style.height = path.tmaCanvas.height
+  
   if (thumbnailPicker.childElementCount === 0 || thumbnailPicker.getAttribute("folder") !== window.localStorage.currentThumbnailsFolder || window.localStorage.currentThumbnailsOffset !== offset) {
     thumbnailPicker.setAttribute("folder", window.localStorage.currentThumbnailsFolder)
-    thumbnailPicker.style.display = "flex"
-    thumbnailPicker.style["flex-direction"] = "column"
-    thumbnailPicker.style.height = path.tmaCanvas.height
-
     window.localStorage.currentThumbnailsOffset = offset
+
     const {
       currentThumbnailsFolder
     } = window.localStorage
@@ -1148,7 +1212,7 @@ const showThumbnailPicker = async (limit, offset = 0) => {
       }
       const onlyImages = []
       entries.forEach(entry => {
-        if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png"))) {
+        if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png") || entry.name.endsWith(".tiff"))) {
           onlyImages.push(entry.id)
         }
       })
@@ -1175,7 +1239,7 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
   thumbnailsListDiv.scrollTop = 0
 
   thumbnails.forEach((thumbnail) => {
-    if (thumbnail.type === "file" && (thumbnail.name.endsWith(".jpg") || thumbnail.name.endsWith(".png"))) {
+    if (thumbnail.type === "file" && (thumbnail.name.endsWith(".jpg") || thumbnail.name.endsWith(".png") || thumbnail.name.endsWith(".tiff"))) {
       const {
         id: thumbnailId,
         name
@@ -1295,15 +1359,18 @@ const getAnnotationsForBorder = (thumbnailId) => {
   })
 }
 
-const borderByAnnotations = (thumbnailId, metadata) => {
-  let numAnnotationsCompleted = 0
-  path.appConfig.annotations.forEach(({
-    metaName
-  }) => {
-    if (metaName in metadata && window.localStorage.userId in JSON.parse(metadata[metaName])) {
-      numAnnotationsCompleted += 1
+const getNumCompletedAnnotations = (metadata) => {
+  const numAnnotationsCompleted = path.appConfig.annotations.reduce((total, { annotationName }) => {
+    if (metadata[`${annotationName}_annotations`] && window.localStorage.userId in JSON.parse(metadata[`${annotationName}_annotations`])) {
+      total += 1
     }
-  })
+    return total
+  },0)
+  return numAnnotationsCompleted
+}
+
+const borderByAnnotations = (thumbnailId, metadata=JSON.parse(window.localStorage.fileMetadata)) => {
+  const numAnnotationsCompleted = getNumCompletedAnnotations(metadata)
   const thumbnailImg = document.getElementById(`thumbnail_${thumbnailId}`)
   if (numAnnotationsCompleted === path.appConfig.annotations.length) {
     thumbnailImg.classList.add("annotationsCompletedThumbnail")
@@ -1341,13 +1408,24 @@ const checkAndDisableButtons = (pageNum, totalPages) => {
 const selectImage = (imageId) => {
   if (imageId && imageId !== hashParams.image) {
     if (hashParams.image) {
-      window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, `image=${imageId}`)
+      window.location.hash = decodeURIComponent(window.location.hash).replace(`image=${hashParams.image}`, `image=${imageId}`)
     } else {
       window.location.hash += window.location.hash.length > 0 ? "&" : ""
       window.location.hash += `image=${imageId}`
     }
   } else if (!imageId) {
-    window.location.hash = window.location.hash.replace(`image=${hashParams.image}`, "")
+    let hash = decodeURIComponent(window.location.hash)
+    const imageParam = `image=${hashParams.image}`
+    const imageParamIndex = hash.indexOf(imageParam)
+    
+    if (hash[imageParamIndex-1] === "&") {  // if hash is of the form "...&image=abc...", remove preceding & also.
+      hash = hash.replace(`&${imageParam}`, "")
+    } else if (hash[imageParamIndex + imageParam.length] === "&") { // if hash is of the form "#image=abc&...", remove following & also.
+      hash = hash.replace(`${imageParam}&`, "")
+    } else { // if hash is just #image=abc, remove just the param.
+      hash = hash.replace(imageParam, "")
+    }
+    window.location.hash = hash
   }
 }
 
@@ -1363,9 +1441,19 @@ const selectFolder = (folderId) => {
       window.location.hash += `folder=${folderId}`
     }
   } else if (!folderId) {
-    window.location.hash = window.location.hash.replace(`folder=${hashParams.folder}`, "")
+    let hash = decodeURIComponent(window.location.hash)
+    const folderParam = `folderParam=${hashParams.image}`
+    const folderParamIndex = hash.indexOf(folderParam)
+    
+    if (hash[folderParamIndex-1] === "&") {  // if hash is of the form "...&folder=abc...", remove preceding & also.
+      hash = hash.replace(`&${folderParam}`, "")
+    } else if (hash[folderParamIndex + folderParam.length] === "&") { // if hash is of the form "#folder=abc&...", remove following & also.
+      hash = hash.replace(`${folderParam}&`, "")
+    } else { // if hash is just #folder=abc, remove just the param.
+      hash = hash.replace(folderParam, "")
+    }
+    window.location.hash = hash
   }
-  hideLoader(loaderElementId)
 }
 
 const highlightThumbnail = (id) => {
@@ -1410,9 +1498,9 @@ const addAnnotationToConfig = () => {
   const modalCloseBtn = document.getElementsByClassName("modal-footer")[0].querySelector("button[data-dismiss=modal]")
   modalCloseBtn.click()
   const newAnnotation = {
+    "annotationId": Math.floor(1000000 + Math.random()*9000000), //random 7 digit annotation ID
     "displayName": "",
     "annotationName": "",
-    "metaName": "",
     "definition": "",
     "enableComments": false,
     "labelType": "",
@@ -1421,6 +1509,7 @@ const addAnnotationToConfig = () => {
     "createdAt": "",
     "private": false,
   }
+
   const annotationForm = document.getElementById("createAnnotationForm")
   annotationForm.querySelectorAll(".form-control").forEach(element => {
     if (element.name) {
@@ -1434,7 +1523,9 @@ const addAnnotationToConfig = () => {
             alert("Annotation Name Missing!")
             return
           }
+          
           newAnnotation["displayName"] = element.value
+          
           newAnnotation["annotationName"] = element.value.split(" ").map((word, ind) => {
             if (ind === 0) {
               return word.toLowerCase()
@@ -1442,7 +1533,8 @@ const addAnnotationToConfig = () => {
               return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
             }
           }).join("")
-          newAnnotation["metaName"] = `${newAnnotation["annotationName"]}_annotations`
+          newAnnotation["annotationName"] += `_${newAnnotation["annotationId"]}`
+          
           break
 
         case "displayText":
@@ -1478,8 +1570,10 @@ const addAnnotationToConfig = () => {
       }
     }
   })
+
   newAnnotation["createdAt"] = Date.now()
   newAnnotation["createdBy"] = window.localStorage.userId
+  
   updateConfigInBox("annotations", "append", newAnnotation)
 }
 
@@ -1524,6 +1618,13 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
       showToast("New Annotation Added Successfully!")
       path.appConfig = appConfig
       path.appConfig.annotations.forEach(createAnnotationTables)
+      const reBorderThumbnails = () => {
+        const allThumbnails = document.querySelectorAll("img.imagePickerThumbnail")
+        const allThumbnailIDs = []
+        allThumbnails.forEach(thumbnail => allThumbnailIDs.push(thumbnail.id.split("_")[1]))
+        allThumbnailIDs.map(borderByAnnotations)
+      }
+      reBorderThumbnails()
     } catch (e) {
       console.log("Couldn't upload new config to Box!", e)
       showToast("Some error occurred while adding the annotation. Please try again!")

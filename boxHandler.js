@@ -8,6 +8,8 @@ const box = async () => {
   box.appBasePath = "https://nih.app.box.com"
   box.basePath = "https://api.box.com/2.0"
   box.uploadBasePath = "https://upload.box.com/api/2.0/"
+  box.downloadBasePath = "https://dl.boxcloud.com/api/2.0/internal_files/"
+  
   box.endpoints = {
     'user': `${box.basePath}/users/me`,
     'data': {
@@ -81,9 +83,6 @@ const box = async () => {
       await box.isLoggedIn()
       const boxHeaders = {}
       boxHeaders['Authorization'] = `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`
-      if (opts.method === "PUT"){
-        boxHeaders['Content-Type'] = "application/json-patch+json"
-      }
       opts['headers'] = opts['headers'] ? Object.assign(boxHeaders, opts['headers']) : boxHeaders   // Using Object.assign instead of spread operator for Edge compatibility
       return utils.request(url, opts, returnJson)
     }
@@ -151,7 +150,7 @@ box.getUserProfile = async () => {
 
 
 box.getData = async (id, type, fields=[]) => {
-  const defaultFields = ["id","type","name","metadata.global.properties","parent","path_collection"]
+  const defaultFields = ["id", "type", "name", "metadata.global.properties", "parent", "path_collection", "size", "representations"]
   const fieldsToRequest = defaultFields.concat(fields).join(",")
   const fieldsParam = `fields=${fieldsToRequest}`
   let dataEndpoint = type in box.endpoints['data'] && `${box.endpoints['data'][type]}/${id}`
@@ -197,7 +196,13 @@ box.getMetadata = async (id, type) => {
 
 box.createMetadata = async (id, type) => {
   const metadataAPI = `${box.endpoints['data'][type]}/${id}/${box.endpoints['subEndpoints']['metadata']}`
-  return utils.boxRequest(metadataAPI, { 'method': "POST", 'body': JSON.stringify({}) })
+  return utils.boxRequest(metadataAPI, {
+    'method': "POST",
+    'headers': {
+      'Content-Type': "application/json"
+    },
+    'body': JSON.stringify({})
+  })
 }
 
 box.updateFile = async (id, updateData) => {
@@ -220,7 +225,7 @@ box.updateMetadata = (id, path, updateData) => {
     'headers': {
       'Content-Type': "application/json-patch+json"
     },
-    body: JSON.stringify(updatePatch)
+    'body': JSON.stringify(updatePatch)
   })
 
 }
