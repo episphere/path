@@ -72,14 +72,13 @@ canvas {
 }
 
 #toolsOuterDiv {
-  border-right: 1px solid lightgray;
   visibility: hidden;
 }
 
 #toolsDiv {
   display: flex;
   flex-direction: column;
-  margin-right: 1rem;
+  margin-right: 0.5rem;
 }
 
 #toolsDiv>div:first-child {
@@ -418,6 +417,7 @@ canvas {
     flex-direction: column;
   }
 
+  
   #canvasDiv {
     width: 80%
   }

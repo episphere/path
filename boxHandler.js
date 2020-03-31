@@ -7,8 +7,8 @@ const box = async () => {
   const boxAccessTokenEndpoint = "https://api.box.com/oauth2/token"
   box.appBasePath = "https://nih.app.box.com"
   box.basePath = "https://api.box.com/2.0"
-  box.uploadBasePath = "https://upload.box.com/api/2.0/"
-  box.downloadBasePath = "https://dl.boxcloud.com/api/2.0/internal_files/"
+  box.uploadBasePath = "https://upload.box.com/api/2.0"
+  box.downloadBasePath = "https://dl.boxcloud.com/api/2.0/internal_files"
   
   box.endpoints = {
     'user': `${box.basePath}/users/me`,
@@ -205,9 +205,10 @@ box.createMetadata = async (id, type) => {
   })
 }
 
-box.updateFile = async (id, updateData) => {
-  const contentEndpoint = `${box.endpoints['upload']}/${id}/${box.endpoints['subEndpoints']['content']}`
-  return await utils.boxRequest(contentEndpoint, {
+box.uploadFile = (id, updateData) => {
+  // If id is present, the file needs to be updated, otherwise create a new file.
+  const uploadEndpoint = id ? `${box.endpoints['upload']}/${id}/${box.endpoints['subEndpoints']['content']}` : `${box.endpoints['upload']}/${box.endpoints['subEndpoints']['content']}`
+  return utils.boxRequest(uploadEndpoint, {
     'method': "POST",
     'body': updateData
   })
@@ -228,4 +229,11 @@ box.updateMetadata = (id, path, updateData) => {
     'body': JSON.stringify(updatePatch)
   })
 
+}
+
+box.getRepresentation = async (url) => {
+  const isFileJSON = false
+  const resp = await utils.boxRequest(url, {}, isFileJSON)
+  const imageBlob = await resp.blob()
+  return URL.createObjectURL(imageBlob)
 }

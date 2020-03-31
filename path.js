@@ -58,9 +58,6 @@ const utils = {
   request: (url, opts, returnJson = true) =>
     fetch(url, opts)
     .then(res => res.ok ? (returnJson ? res.json() : res) : res)
-    .catch(e => {
-      throw new Error("HTTP Request failed!", e)
-    })
 }
 
 const annotationTypes = ["tissueAdequacy", "stainingAdequacy"]
@@ -97,6 +94,7 @@ const path = async () => {
   path.toolsDiv = document.getElementById("toolsDiv")
   path.tmaImage = new Image()
   path.setupEventListeners()
+  path.loadOptions()
 
 
   await box()
@@ -105,6 +103,7 @@ const path = async () => {
   path.loadModules()
 
   path.imageWorker = new Worker('processImage.js')
+  path.tiffUnsupportedAlertShown = false
 
   if ("useWorker" in hashParams) {
     path.predictionworker = new Worker('modelPrediction.js')
@@ -146,7 +145,7 @@ path.setupEventListeners = () => {
 
   path.tmaImage.onload = async () => {
     path.loadCanvas()
-    if (path.tmaImage.src.includes("boxcloud.com")) {
+    if (path.isImageFromBox) {
       await showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
       path.appConfig.annotations.forEach(createAnnotationTables)
       if (path.predictionworker) {
@@ -173,11 +172,13 @@ path.getAppConfig = async () => {
 const loadDefaultImage = async () => {
   if (!hashParams.image || !await box.isLoggedIn()) {
     path.tmaImage.src = defaultImg
+    path.isImageFromBox = false
     document.getElementById("imgHeader").innerHTML = `<h5>Test Image</h5>`
   }
 }
 
 const loadImageFromBox = async (id, url) => {
+  path.isImageFromBox = false
   if (await utils.boxRequest) {
     
     const thumbnailImage = document.getElementById(`thumbnail_${id}`)
@@ -204,37 +205,71 @@ const loadImageFromBox = async (id, url) => {
       path_collection: {
         entries: filePathInBox
       },
-      size
+      size,
+      representations
     } = imageData
 
     if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".tiff"))) {
-      // showLoader("imgLoaderDiv", path.tmaCanvas)
+
       const allFilesInFolderObj = JSON.parse(window.localStorage.allFilesInFolder) || {}
       allFilesInFolderObj[parent.id] = parent.id in allFilesInFolderObj && allFilesInFolderObj[parent.id].length > 0 ? allFilesInFolderObj[parent.id] : []
       window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
       window.localStorage.currentThumbnailsFolder = parent.id
 
       path.tmaImage.setAttribute("alt", name)
+      
       if (!url) {
+      
         if (name.endsWith(".tiff")) {
-          console.time("STARTING CONVERSION")
-          path.imageWorker.postMessage({
-            'boxAccessToken': JSON.parse(window.localStorage.box)["access_token"],
-            'imageId': id,
-            size
-          })
-          path.imageWorker.onmessage = (evt) => {
-            path.tmaImage.setAttribute("src", "")
-            path.tmaImage.setAttribute("width", evt.data.width)
-            path.tmaImage.setAttribute("height", evt.data.height)
-            path.loadCanvas(evt.data)
+          if (!path.tiffUnsupportedAlertShown && typeof OffscreenCanvas !== "function") { // Alert for browsers without OffscreenCanvas support.
+            alert("TIFF files might not work well in this browser. Please use the Google Chrome browser for the best experience!")
+            path.tiffUnsupportedAlertShown = true
           }
+
+          const fileMetadata = metadata ? metadata.global.properties : {}
+          if (!fileMetadata["jpegRepresentation"]) { // Get a temporary png from Box, send to web worker for tiff to png conversion.
+            const maxResolutionRep = representations.entries.reduce((maxRep, rep) => {
+              const resolution = Math.max(...rep.properties.dimensions.split("x").map(Number))
+              if (resolution > maxRep.resolution) {
+                return {
+                  resolution,
+                  url: rep.info.url.replace("api.box.com", "dl.boxcloud.com/api") + `/content/1.${rep.representation}`
+                }
+              } else {
+                return maxRep
+              }
+            }, { resolution: 0, url: "" })
+            
+            console.log("Representation not found, loading Box's.", new Date())
+            url = await box.getRepresentation(maxResolutionRep.url)
+            await loadImgFromBoxFile(null, url)
+
+            if (typeof OffscreenCanvas === "function") {
+              path.imageWorker.postMessage({
+                'boxAccessToken': JSON.parse(window.localStorage.box)["access_token"],
+                'imageId': id,
+                name,
+                size
+              })
+              
+              path.imageWorker.onmessage = (evt) => {
+                const { originalImageId, metadataWithRepresentation: newMetadata } = evt.data
+                if (originalImageId === hashParams.image) {
+                  const { representationFileId } = JSON.parse(newMetadata["jpegRepresentation"])
+                  console.log("Conversion completion message received from worker, loading new image", new Date())
+                  loadImgFromBoxFile(representationFileId)
+                }
+              }
+            }
+
+          } else { // Just use the representation created before.
+            const { representationFileId} = JSON.parse(fileMetadata["jpegRepresentation"])
+            console.log("Using the JPEG representation created already", new Date())
+            await loadImgFromBoxFile(representationFileId)
+          }
+        
         } else {
-          const fileContent = await box.getFileContent(id)
-          url = fileContent.url
-          path.tmaImage.setAttribute("src", "")
-          path.tmaImage.setAttribute("src", url)
-          path.tmaImage.setAttribute("crossorigin", "Anonymous")
+          await loadImgFromBoxFile(id)
         }
       }
 
@@ -256,6 +291,17 @@ const loadImageFromBox = async (id, url) => {
       alert("The ID in the URL does not point to a valid image file (.jpg/.png/.tiff) in Box.")
     }
   }
+}
+
+const loadImgFromBoxFile = async (id, url) => {
+  if (id && !url) {
+    const fileContent = await box.getFileContent(id)
+    url = fileContent.url
+  }
+  path.isImageFromBox = true
+  path.tmaImage.setAttribute("src", "")
+  path.tmaImage.setAttribute("src", url)
+  path.tmaImage.setAttribute("crossorigin", "Anonymous")
 }
 
 const addImageHeader = (filePathInBox, id, name) => {
@@ -388,7 +434,7 @@ const loadBoxFolderTree = (folderData) => {
     if (entries.length !== 0) {
       if (parentElement.childElementCount > 0) {
         const overlayOn = document.getElementById("boxFolderTree")
-        showLoader(loaderElementId, overlayOn)
+        // showLoader(loaderElementId, overlayOn)
       }
       parentElement.firstChild && parentElement.removeChild(parentElement.firstChild)
       const folderSubDiv = populateBoxfolderTree(entries, id)
@@ -502,14 +548,13 @@ path.loadCanvas = (data) => {
     const tmaContext = path.tmaCanvas.getContext("2d")
     // const outputContext = path.outputCanvas.getContext('2d')
     tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
-    console.timeEnd("STARTING CONVERSION")
     // outputContext.drawImage(path.tmaImage, 0, 0, path.outputCanvas.width, path.outputCanvas.height)
+    document.getElementById("canvasWithPickers").style.borderLeft = "1px solid lightgray"
     document.getElementById("canvasWithPickers").style.borderRight = "1px solid lightgray"
-    if (!path.options) {
-      path.loadOptions()
-    }
+    // if (!path.options) {
+    //   path.loadOptions()
+    // }
   } else if (data) {
-    console.log(data)
     const resizerCanvas = document.createElement("canvas")
     resizerCanvas.width = data.width
     resizerCanvas.height = data.height
@@ -517,15 +562,15 @@ path.loadCanvas = (data) => {
     resizerCtx.putImageData(data.image, 0, 0)
     path.tmaImage.src = resizerCanvas.toDataURL()
 
-    // path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
-    // path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * data.height / data.width)
+    path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
+    path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * data.height / data.width)
 
-    // const tmaContext = path.tmaCanvas.getContext("2d")
-    // tmaContext.drawImage(resizerCanvas, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
+    const tmaContext = path.tmaCanvas.getContext("2d")
+    tmaContext.drawImage(resizerCanvas, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
 
-    // if (!path.options) {
-    //   path.loadOptions()
-    // }
+    if (!path.options) {
+      path.loadOptions()
+    }
   }
 }
 
@@ -838,6 +883,7 @@ const addLocalFileButton = async () => {
       window.localStorage.currentImage = ""
       window.localStorage.currentFolder = ""
     }
+    path.isImageFromBox = false
     path.tmaImage.setAttribute("src", "") // Unsetting src because Firefox does not update image otherwise.
     path.tmaImage.setAttribute("src", URL.createObjectURL(files[0]))
     path.tmaImage.setAttribute("crossorigin", "Anonymous")
@@ -1433,7 +1479,7 @@ const selectFolder = (folderId) => {
   const loaderElementId = "fileMgrLoaderDiv"
   const overlayOn = document.getElementById("boxFolderTree")
   if (folderId && folderId !== hashParams.folder) {
-    showLoader(loaderElementId, overlayOn)
+    // showLoader(loaderElementId, overlayOn)
     if (hashParams.folder) {
       window.location.hash = window.location.hash.replace(`folder=${hashParams.folder}`, `folder=${folderId}`)
     } else {
@@ -1614,7 +1660,7 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
     newConfigFormData.append("file", newConfigBlob)
 
     try {
-      await box.updateFile(configFileId, newConfigFormData)
+      await box.uploadFile(configFileId, newConfigFormData)
       showToast("New Annotation Added Successfully!")
       path.appConfig = appConfig
       path.appConfig.annotations.forEach(createAnnotationTables)

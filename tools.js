@@ -89,6 +89,8 @@ const zoomHandler = (canvas, image, magnification=2, scrollToZoom=true, lensSize
   let scaleFactor = magnification * minMagnification
   const zoomStepSize = 0.02
   const zoomCtx = zoomLens.getContext("2d")
+  zoomCtx.fillStyle = "white"
+  
   let lensPosition = {
     x: parseInt(zoomLens.style.left),
     y: parseInt(zoomLens.style.top)
@@ -130,6 +132,7 @@ const zoomHandler = (canvas, image, magnification=2, scrollToZoom=true, lensSize
   const renderZoomedImage = (lensPosition) => {
     const { xInImage, yInImage } = getLensPositionInImage(canvas, image, lensPosition)
     const zoomFactor = 1/scaleFactor
+    zoomCtx.fillRect(0, 0, zoomLens.width, zoomLens.height)
     zoomCtx.drawImage(path.tmaImage, xInImage-(lensSize[0]*zoomFactor/2), yInImage-(lensSize[1]*zoomFactor/2), lensSize[0]*zoomFactor, lensSize[1]*zoomFactor, 0, 0, zoomLens.width, zoomLens.height)
   }
 
