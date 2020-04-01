@@ -198,6 +198,14 @@ canvas {
   margin-left: 1.5rem;
 }
 
+.tabContainerWithMargin {
+  margin-top: 0.7rem;
+}
+
+.card-header {
+  padding: 0.6rem 1.25rem;
+}
+
 #boxFileManager {
   display: flex;
   flex-direction: column;
@@ -408,7 +416,7 @@ canvas {
   }
 
   #tabsContainer {
-    width: 40%;
+    width: 45%;
   }
 }
 
@@ -417,9 +425,8 @@ canvas {
     flex-direction: column;
   }
 
-  
   #canvasDiv {
-    width: 80%
+    width: 80%;
   }
 
   #tabsContainer {

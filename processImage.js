@@ -38,6 +38,11 @@ const updateMetadata = (token, id, path, updateData) => {
 	})
 }
 
+onerror = (err) => {
+  console.log("Error occurred converting TIFF in worker", err)
+  err.preventDefault()
+}
+
 onmessage = async (evt) => {
   importScripts("external/tiff.min.js")
   const { boxAccessToken, imageId, name, size } = evt.data
@@ -52,8 +57,12 @@ onmessage = async (evt) => {
   console.time("TIFF Image Conversion and Storage in Box via Worker")
   const resp = await getFileContentsFromBox(boxAccessToken, imageId)
   const fileContent = await resp.arrayBuffer()
-  const tiff = new Tiff({buffer:fileContent})
-
+  try {
+    const tiff = new Tiff({buffer:fileContent})
+  } catch (e) {
+    return
+  }
+  
   const canvas = tiff.toCanvas()
   const imgBlob = await canvas.convertToBlob({
     type: "image/jpeg",

@@ -90,11 +90,10 @@ const path = async () => {
   path.root = document.getElementById("tmaPath")
   path.imageDiv = document.getElementById("imageDiv")
   path.tmaCanvas = document.getElementById("tmaCanvas")
-  // path.outputCanvas = document.getElementById("outputCanvas")
+  path.tmaCanvasLoaded = false
   path.toolsDiv = document.getElementById("toolsDiv")
   path.tmaImage = new Image()
   path.setupEventListeners()
-  path.loadOptions()
 
 
   await box()
@@ -102,7 +101,7 @@ const path = async () => {
   loadDefaultImage()
   path.loadModules()
 
-  path.imageWorker = new Worker('processImage.js')
+  path.tiffWorker = new Worker('processImage.js')
   path.tiffUnsupportedAlertShown = false
 
   if ("useWorker" in hashParams) {
@@ -245,20 +244,24 @@ const loadImageFromBox = async (id, url) => {
             await loadImgFromBoxFile(null, url)
 
             if (typeof OffscreenCanvas === "function") {
-              path.imageWorker.postMessage({
+              path.tiffWorker.postMessage({
                 'boxAccessToken': JSON.parse(window.localStorage.box)["access_token"],
                 'imageId': id,
                 name,
                 size
               })
               
-              path.imageWorker.onmessage = (evt) => {
-                const { originalImageId, metadataWithRepresentation: newMetadata } = evt.data
+              path.tiffWorker.onmessage = (evt) => {
+                const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
                 if (originalImageId === hashParams.image) {
-                  const { representationFileId } = JSON.parse(newMetadata["jpegRepresentation"])
                   console.log("Conversion completion message received from worker, loading new image", new Date())
                   loadImgFromBoxFile(representationFileId)
+                  window.localStorage.fileMetadata = JSON.stringify(newMetadata)
                 }
+              }
+
+              path.tiffWorker.onerror = (err) => {
+                console.log("Error converting TIFF from worker", err)
               }
             }
 
@@ -430,21 +433,28 @@ const loadBoxFolderTree = (folderData) => {
         entries
       }
     } = folderData
+    
     const parentElement = document.getElementById("boxFolderTree")
+
     if (entries.length !== 0) {
+      const loaderElementId = "fileMgrLoaderDiv"
       if (parentElement.childElementCount > 0) {
-        const overlayOn = document.getElementById("boxFolderTree")
-        // showLoader(loaderElementId, overlayOn)
+        showLoader(loaderElementId, parentElement)
       }
-      parentElement.firstChild && parentElement.removeChild(parentElement.firstChild)
-      const folderSubDiv = populateBoxfolderTree(entries, id)
-      parentElement.style.height = path.tmaCanvas.height > window.innerHeight - parentElement.getBoundingClientRect().y - (16 * 4) ? path.tmaCanvas.height - (16 * 4) : window.innerHeight - parentElement.getBoundingClientRect().y - (16 * 4)
-      // folderSubDiv.style.border = "1px solid lightgray"
-      // folderSubDiv.style.backgroundColor = "rgba(200, 200, 200, 0.1)"
+      
+      parentElement.firstChild && parentElement.removeChild(parentElement.firstChild) // Removes Empty Directory element (I think :P) 
+      const folderSubDiv = populateBoxFolderTree(entries, id)
+      hideLoader(loaderElementId)
+
+      const boxFileMgrHeader = document.getElementById("boxFileMgrHeader")
+      parentElement.style.height = path.tmaCanvasLoaded ? path.tmaCanvas.height - boxFileMgrHeader.getBoundingClientRect().height : window.innerHeight - parentElement.getBoundingClientRect().y - 40 // 40 seems to be the initial width of the canvas
+
       folderSubDiv.style.height = "100%"
       folderSubDiv.style.width = "100%"
       folderSubDiv.style.overflowY = "scroll"
+
       parentElement.appendChild(folderSubDiv)
+
     } else if (entries.length === 0) {
       parentElement.style.textAlign = "center"
       parentElement.innerText = "-- Empty Folder --"
@@ -452,7 +462,7 @@ const loadBoxFolderTree = (folderData) => {
   }
 }
 
-const populateBoxfolderTree = (entries, id) => {
+const populateBoxFolderTree = (entries, id) => {
   const currentFolderDiv = document.createElement("div")
   currentFolderDiv.setAttribute("class", `boxFileMgr_folderTree`)
   currentFolderDiv.setAttribute("id", `boxFileMgr_folderTree_${id}`)
@@ -533,40 +543,18 @@ const hideLoader = (id) => {
   document.getElementById(id).style.display = "none";
 }
 
-path.loadCanvas = (data) => {
+path.loadCanvas = () => {
   // Condition checks if path.tmaImage.src is empty
   if (path.tmaImage.src !== window.location.origin + window.location.pathname) {
-    // if (path.tmaCanvas.parentElement.getBoundingClientRect().width < path.tmaImage.width * 0.4) {
-    //   document.getElementById("canvasWithPickers").style.width = path.tmaImage.width*0.4
-    // }
     path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
     path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
-    // showLoader()
-    // path.outputCanvas.setAttribute("width", path.outputCanvas.parentElement.getBoundingClientRect().width)
-    // path.outputCanvas.setAttribute("height", path.outputCanvas.width * path.tmaImage.height / path.tmaImage.width)
-    // path.outputCanvas.style.border = "1px solid red"
+
     const tmaContext = path.tmaCanvas.getContext("2d")
-    // const outputContext = path.outputCanvas.getContext('2d')
     tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
-    // outputContext.drawImage(path.tmaImage, 0, 0, path.outputCanvas.width, path.outputCanvas.height)
+    path.tmaCanvasLoaded = true
+
     document.getElementById("canvasWithPickers").style.borderLeft = "1px solid lightgray"
     document.getElementById("canvasWithPickers").style.borderRight = "1px solid lightgray"
-    // if (!path.options) {
-    //   path.loadOptions()
-    // }
-  } else if (data) {
-    const resizerCanvas = document.createElement("canvas")
-    resizerCanvas.width = data.width
-    resizerCanvas.height = data.height
-    const resizerCtx = resizerCanvas.getContext("2d")
-    resizerCtx.putImageData(data.image, 0, 0)
-    path.tmaImage.src = resizerCanvas.toDataURL()
-
-    path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
-    path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * data.height / data.width)
-
-    const tmaContext = path.tmaCanvas.getContext("2d")
-    tmaContext.drawImage(resizerCanvas, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
 
     if (!path.options) {
       path.loadOptions()
@@ -577,10 +565,9 @@ path.loadCanvas = (data) => {
 path.loadOptions = () => {
   path.options = true
   document.getElementById("toolsOuterDiv").style.visibility = "visible"
-  zoomButton()
   addLocalFileButton()
+  zoomButton()
   segmentButton()
-  // addAnnotationsTooltip()
 }
 
 path.qualityAnnotate = async (annotationName, qualitySelected) => {
@@ -1202,25 +1189,21 @@ const populateComments = (annotationName) => {
 }
 
 const activateQualitySelector = (annotationName, fileAnnotations) => {
-  const annotationConfig = path.appConfig.annotations.find(annotation => annotation.annotationName === annotationName)
-  if (annotationConfig) {
-    const annotationLabelsConfig = annotationConfig.labels
-    const selectTable = document.getElementById(`${annotationName}Select`)
-    const currentlyActiveButton = selectTable.querySelector("button.active")
-    if (currentlyActiveButton) {
-      currentlyActiveButton.classList.remove("active")
-    }
-    if (fileAnnotations && fileAnnotations[window.localStorage.userId]) {
-      let userAnnotation = fileAnnotations[window.localStorage.userId].value
-      // Temporary fix for problem of label mismatch due to AutoML (they were 0, 0.5, 1 before, had to be changed to 
-      // O, M, S for AutoML training). Need to change the metadata of all annotated files to solve the problem properly. 
-      // if (annotationConfig.labels.find(q => q.label === )) {
-      //   userAnnotation = qualityEnum.find(quality => quality.label === fileAnnotations[window.localStorage.userId].value).label
-      // }
-      const newActiveButton = selectTable.querySelector(`button[value='${userAnnotation}']`)
-      if (newActiveButton) {
-        newActiveButton.classList.add("active")
-      }
+  const selectTable = document.getElementById(`${annotationName}Select`)
+  const currentlyActiveButton = selectTable.querySelector("button.active")
+  if (currentlyActiveButton) {
+    currentlyActiveButton.classList.remove("active")
+  }
+  if (fileAnnotations && fileAnnotations[window.localStorage.userId]) {
+    let userAnnotation = fileAnnotations[window.localStorage.userId].value
+    // Temporary fix for problem of label mismatch due to AutoML (they were 0, 0.5, 1 before, had to be changed to 
+    // O, M, S for AutoML training). Need to change the metadata of all annotated files to solve the problem properly. 
+    // if (annotationConfig.labels.find(q => q.label === )) {
+    //   userAnnotation = qualityEnum.find(quality => quality.label === fileAnnotations[window.localStorage.userId].value).label
+    // }
+    const newActiveButton = selectTable.querySelector(`button[value='${userAnnotation}']`)
+    if (newActiveButton) {
+      newActiveButton.classList.add("active")
     }
   }
 }
@@ -1476,10 +1459,7 @@ const selectImage = (imageId) => {
 }
 
 const selectFolder = (folderId) => {
-  const loaderElementId = "fileMgrLoaderDiv"
-  const overlayOn = document.getElementById("boxFolderTree")
   if (folderId && folderId !== hashParams.folder) {
-    // showLoader(loaderElementId, overlayOn)
     if (hashParams.folder) {
       window.location.hash = window.location.hash.replace(`folder=${hashParams.folder}`, `folder=${folderId}`)
     } else {
@@ -1541,8 +1521,9 @@ const addAnnotationsTooltip = () => {
 }
 
 const addAnnotationToConfig = () => {
-  const modalCloseBtn = document.getElementsByClassName("modal-footer")[0].querySelector("button[data-dismiss=modal]")
-  modalCloseBtn.click()
+  let formIsValid = true
+  let alertMessage = ""
+
   const newAnnotation = {
     "annotationId": Math.floor(1000000 + Math.random()*9000000), //random 7 digit annotation ID
     "displayName": "",
@@ -1566,8 +1547,19 @@ const addAnnotationToConfig = () => {
 
         case "displayName":
           if (!element.value) {
-            alert("Annotation Name Missing!")
-            return
+            formIsValid = false
+            alertMessage = "Please enter values for the missing fields!"
+
+            element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+            element.oninput = element.oninput ? element.oninput : () => {
+              if (element.value) {
+                element.style.boxShadow = "none"
+              } else {
+                element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              }
+            }
+            
+            break
           }
           
           newAnnotation["displayName"] = element.value
@@ -1583,44 +1575,113 @@ const addAnnotationToConfig = () => {
           
           break
 
-        case "displayText":
+        case "labelDisplayText":
           if (!element.value) {
-            alert("Label Name Missing!")
-            return
+            formIsValid = false
+            alertMessage = "Please enter values for the missing fields!"
+
+            element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+            element.oninput = element.oninput ? element.oninput : () => {
+              if (element.value) {
+                element.style.boxShadow = "none"
+              } else {
+                element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              }
+            }
           }
-          const labelIndex = parseInt(element.id.split("_")[1])
-          newAnnotation.labels[labelIndex] = newAnnotation.labels[labelIndex] ? {
-            "displayText": element.value,
-            ...newAnnotation.labels[labelIndex]
-          } : {
-            "displayText": element.value
+          else {
+            const alreadyDefinedLabels = newAnnotation.labels.map(label => label.displayText)
+            if (alreadyDefinedLabels.indexOf(element.value) != -1 ) {
+              formIsValid = false
+              alertMessage = alertMessage || "Labels must have unique values!"
+              element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              document.getElementById(`labelDisplayText_${alreadyDefinedLabels.indexOf(element.value)}`).style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)"
+              break
+            }
+
+            const labelTextIndex = parseInt(element.id.split("_")[1])
+            newAnnotation.labels[labelTextIndex] = newAnnotation.labels[labelTextIndex] ? {
+              "displayText": element.value,
+              ...newAnnotation.labels[labelTextIndex]
+            } : {
+              "displayText": element.value
+            }
           }
+          
           break
 
-        case "label":
+        case "labelValue":
           if (!element.value) {
-            alert("Label Name Missing!")
-            return
+            formIsValid = false
+            alertMessage = "Please enter values for the missing fields!"
+
+            element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+            element.oninput = element.oninput ? element.oninput : () => {
+              if (element.value) {
+                element.style.boxShadow = "none"
+              } else {
+                element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              }
+            }
+
+          } else {
+            const alreadyDefinedLabels = newAnnotation.labels.map(label => label.label)
+            if (alreadyDefinedLabels.indexOf(element.value) != -1 ) {
+              formIsValid = false
+              alertMessage = alertMessage || "Labels must have unique values!"
+              element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              document.getElementById(`labelValue_${alreadyDefinedLabels.indexOf(element.value)}`).style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)"
+              break
+            }
+            
+            const labelValueIndex = parseInt(element.id.split("_")[1])
+            newAnnotation.labels[labelValueIndex] = newAnnotation.labels[labelValueIndex] ? {
+              "label": element.value,
+              ...newAnnotation.labels[labelValueIndex]
+            } : {
+              "displayText": element.value
+            }
           }
-          const labelIdx = parseInt(element.id.split("_")[1])
-          newAnnotation.labels[labelIdx] = newAnnotation.labels[labelIdx] ? {
-            "label": element.value,
-            ...newAnnotation.labels[labelIdx]
-          } : {
-            "displayText": element.value
-          }
+
           break
 
         default:
-          newAnnotation[element.name] = element.type === "checkbox" ? element.checked : element.value
+          if (element.type === "checkbox") {
+            newAnnotation[element.name] = element.checked
+          } else {
+            if (element.name === "labelType" && !element.value) {
+              formIsValid = false
+              alertMessage = "Please enter values for the missing fields!"
+
+              element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              element.oninput = element.oninput ? element.oninput : () => {
+                if (element.value) {
+                  element.style.boxShadow = "none"
+                } else {
+                  element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+                }
+              }
+              
+              break
+            }
+            newAnnotation[element.name] = element.value
+          }
       }
     }
   })
 
+  if (!formIsValid) {
+    alert(alertMessage)
+    return
+  }
+  
   newAnnotation["createdAt"] = Date.now()
   newAnnotation["createdBy"] = window.localStorage.userId
   
   updateConfigInBox("annotations", "append", newAnnotation)
+  const modalCloseBtn = document.getElementsByClassName("modal-footer")[0].querySelector("button[data-dismiss=modal]")
+  modalCloseBtn.click()
+  resetAddAnnotationsModal()
 }
 
 const updateConfigInBox = async (changedProperty = "annotations", operation, deltaData) => {
@@ -1686,12 +1747,12 @@ const addLabelToModal = () => {
   newLabelRow.innerHTML = `
     <div class="form-group row addedLabel">
       <div class="col">
-        <input type="text" class="form-control" placeholder="Display Name*" name="displayText" id="labelDisplayText_${numLabelsAdded}" required="true"></input>
+        <input type="text" class="form-control" placeholder="Display Name*" name="labelDisplayText" id="labelDisplayText_${numLabelsAdded}" oninput="prefillLabelValueInModal(${numLabelsAdded})" required="true"></input>
       </div>
     </div>
     <div class="form-group row addedLabel">
       <div class="col">
-        <input type="text" class="form-control" placeholder="Label Value*" name="label" id="labelValue_${numLabelsAdded}" required="true"></input>
+        <input type="text" class="form-control" placeholder="Label Value*" name="labelValue" id="labelValue_${numLabelsAdded}" required="true"></input>
       </div>
     </div>
     <div class="col-sm-1">
@@ -1703,9 +1764,33 @@ const addLabelToModal = () => {
   modalLabelsList.appendChild(newLabelRow)
 }
 
+const prefillLabelValueInModal = (labelInputIndex) => {
+  const elementToPrefillFrom = document.getElementById(`labelDisplayText_${labelInputIndex}`)
+  const elementToPrefillInto = document.getElementById(`labelValue_${labelInputIndex}`)
+  if (elementToPrefillFrom && elementToPrefillInto) {
+    elementToPrefillInto.value = elementToPrefillFrom.value
+  }
+}
+
 const removeLabelFromModal = (target) => {
   const modalLabelsList = document.getElementById("modalLabelsList")
   modalLabelsList.removeChild(target.parentElement.parentElement)
+}
+
+const resetAddAnnotationsModal = () => {
+  const annotationForm = document.getElementById("createAnnotationForm")
+  annotationForm.querySelectorAll(".form-control").forEach(element => {
+    if (element.type === "checkbox") {
+      element.checked = false
+    } else {
+      element.value = ""
+    }
+  })
+
+  const modalLabelsList = document.getElementById("modalLabelsList")
+  while(modalLabelsList.firstElementChild !== modalLabelsList.lastElementChild) {
+    modalLabelsList.removeChild(modalLabelsList.lastElementChild)
+  }
 }
 
 const getModelPrediction = async (annotationType) => {

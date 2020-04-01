@@ -98,16 +98,14 @@
             </div>
           </div>
           <div class="tab-pane fade" id="annotations" role="tabpanel" aria-labelledby="annotations-tab">
-            <br />
-            <div class="tabContainer" id="annotationsDiv">
+            <div class="tabContainer tabContainerWithMargin" id="annotationsDiv">
               <span id="nextImageMessage"></span>
               <div class="accordion" id="annotationsAccordion"></div>
               <button type="button" class="btn btn-link" id="addAnnotationsBtn" data-toggle="modal" data-target="#addAnnotationsModal">+ Add More Classifications</button>
             </div>
           </div>
           <div class="tab-pane fade" id="collaborate" role="tabpanel" aria-labelledby="collaborate-tab">
-            <br />
-            <div class="tabContainer jumbotron">
+            <div class="tabContainer tabContainerWithMargin jumbotron">
               <p>You can collaborate with others in real-time just by clicking the button below and sending them the
                 link you are shown.<br /><br />Once they enter the link in their browser, you will be able to see each
                 others'
@@ -181,12 +179,12 @@
                   <div class="row">
                     <div class="form-group row addedLabel">
                       <div class="col">
-                        <input type="text" class="form-control" placeholder="Display Name*" name="displayText" id="labelDisplayText_0" required></input>
+                        <input type="text" class="form-control" placeholder="Display Name*" name="labelDisplayText" id="labelDisplayText_0" oninput="prefillLabelValueInModal(0)"required></input>
                       </div>
                     </div>
                     <div class="form-group row addedLabel">
                       <div class="col">
-                        <input type="text" class="form-control" placeholder="Label Value*" name="label" id="labelValue_0" required></input>
+                        <input type="text" class="form-control" placeholder="Label Value*" name="labelValue" id="labelValue_0" required></input>
                       </div>
                     </div>
                   </div>
