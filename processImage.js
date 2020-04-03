@@ -49,7 +49,7 @@ onmessage = async (evt) => {
 
   if (size) {
     Tiff.initialize({
-      'TOTAL_MEMORY': size
+      'TOTAL_MEMORY': size * 2
     })
   }
 
@@ -57,8 +57,9 @@ onmessage = async (evt) => {
   console.time("TIFF Image Conversion and Storage in Box via Worker")
   const resp = await getFileContentsFromBox(boxAccessToken, imageId)
   const fileContent = await resp.arrayBuffer()
+  let tiff 
   try {
-    const tiff = new Tiff({buffer:fileContent})
+    tiff = new Tiff({buffer:fileContent})
   } catch (e) {
     return
   }

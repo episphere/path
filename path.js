@@ -1,7 +1,9 @@
 const boxRootFolderId = "0"
+// let configFileId = window.location.hash.includes("covid") ? 644912149213 : 627997326641
 const configFileId = 627997326641
 var currentThumbnailsList = []
 const containsEmojiRegex = new RegExp("(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])")
+const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff"]
 
 const urlParams = {}
 const loadURLParams = () => {
@@ -57,7 +59,19 @@ const defaultThumbnailsListLength = 20
 const utils = {
   request: (url, opts, returnJson = true) =>
     fetch(url, opts)
-    .then(res => res.ok ? (returnJson ? res.json() : res) : res)
+    .then(res => res.ok ? (returnJson ? res.json() : res) : res),
+  
+  isValidImage: (name) => {
+    let isValid = false
+    
+    validFileTypes.forEach(fileType => {
+      if (name.endsWith(fileType)) {
+        isValid = true
+      }
+    })
+    
+    return isValid
+  }
 }
 
 const annotationTypes = ["tissueAdequacy", "stainingAdequacy"]
@@ -104,7 +118,7 @@ const path = async () => {
   path.tiffWorker = new Worker('processImage.js')
   path.tiffUnsupportedAlertShown = false
 
-  if ("useWorker" in hashParams) {
+  if (hashParams.useWorker) {
     path.predictionworker = new Worker('modelPrediction.js')
   }
 }
@@ -134,7 +148,9 @@ path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
     path.getAppConfig()
     box.getUserProfile()
-    loadLocalModel()
+    if (window.location.host.includes("localhost")) {
+      loadLocalModel()
+    }
   })
 
   const addAnnotationsModal = document.getElementById("addAnnotationsModal")
@@ -144,13 +160,18 @@ path.setupEventListeners = () => {
 
   path.tmaImage.onload = async () => {
     path.loadCanvas()
+    
     if (path.isImageFromBox) {
+      
       await showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
       path.appConfig.annotations.forEach(createAnnotationTables)
       if (path.predictionworker) {
         path.predictionworker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
         path.predictionworker.onmessage = (e) => {
           console.log("Message received from worker!", e.data)
+          // console.log("Prediction: ", e.data.reduce((maxLabel, pred) => {
+          //   maxLabel.prob > pred.prob ? maxLabel : pred
+          // }, 0))
         }
       } else {
         // setTimeout(() => {
@@ -178,7 +199,10 @@ const loadDefaultImage = async () => {
 
 const loadImageFromBox = async (id, url) => {
   path.isImageFromBox = false
+  
   if (await utils.boxRequest) {
+    //Disable clicking on anything else while new image is loading.
+    path.imageDiv.style["pointer-events"] = "none"
     
     const thumbnailImage = document.getElementById(`thumbnail_${id}`)
     if (thumbnailImage) {
@@ -208,8 +232,17 @@ const loadImageFromBox = async (id, url) => {
       representations
     } = imageData
 
-    if (type === "file" && (name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".tiff"))) {
+    if (type === "file" && utils.isValidImage(name)) {
 
+      const fileMetadata = metadata && metadata.global.properties
+      if (fileMetadata) {
+        window.localStorage.fileMetadata = JSON.stringify(fileMetadata)
+      } else {
+        box.createMetadata(id, "file").then(res => {
+          window.localStorage.fileMetadata = JSON.stringify(res)
+        })
+      }
+      
       const allFilesInFolderObj = JSON.parse(window.localStorage.allFilesInFolder) || {}
       allFilesInFolderObj[parent.id] = parent.id in allFilesInFolderObj && allFilesInFolderObj[parent.id].length > 0 ? allFilesInFolderObj[parent.id] : []
       window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
@@ -225,7 +258,6 @@ const loadImageFromBox = async (id, url) => {
             path.tiffUnsupportedAlertShown = true
           }
 
-          const fileMetadata = metadata ? metadata.global.properties : {}
           if (!fileMetadata["jpegRepresentation"]) { // Get a temporary png from Box, send to web worker for tiff to png conversion.
             const maxResolutionRep = representations.entries.reduce((maxRep, rep) => {
               const resolution = Math.max(...rep.properties.dimensions.split("x").map(Number))
@@ -276,23 +308,18 @@ const loadImageFromBox = async (id, url) => {
         }
       }
 
+      
       addImageHeader(filePathInBox, id, name)
       window.localStorage.currentImage = id
-
-      if (metadata) {
-        window.localStorage.fileMetadata = metadata && JSON.stringify(metadata.global.properties)
-      } else {
-        box.createMetadata(id, "file").then(res => {
-          window.localStorage.fileMetadata = JSON.stringify(res)
-        })
-      }
-
+      
       if (!hashParams.folder) {
         selectFolder(parent.id)
       }
     } else {
       alert("The ID in the URL does not point to a valid image file (.jpg/.png/.tiff) in Box.")
     }
+    // Re-enable click events once image has been loaded.
+    path.imageDiv.style["pointer-events"] = "auto"
   }
 }
 
@@ -309,15 +336,13 @@ const loadImgFromBoxFile = async (id, url) => {
 
 const addImageHeader = (filePathInBox, id, name) => {
   const imgHeader = document.getElementById("imgHeader")
+  imgHeader.style.display = "inline-block"
   imgHeader.innerHTML = ""
   const folderStructure = document.createElement("ol")
   folderStructure.setAttribute("class", "breadcrumb")
   folderStructure.style.background = "none"
   folderStructure.style.margin = "0 0 0.5rem 0"
   folderStructure.style.padding = 0
-  folderStructure.style.whiteSpace = "nowrap"
-  folderStructure.style.textOverflow = "ellipsis"
-  folderStructure.style.overflow = "hidden"
   filePathInBox.forEach(folder => {
     if (folder.id !== "0") {
       const folderItem = document.createElement("li")
@@ -325,7 +350,7 @@ const addImageHeader = (filePathInBox, id, name) => {
       const folderLink = document.createElement("a")
       folderLink.setAttribute("href", `${box.appBasePath}/${folder.type}/${folder.id}`)
       folderLink.setAttribute("target", "_blank")
-      folderLink.innerText = path.tmaCanvas.parentElement.offsetWidth < 550 ? folder.name.trim().slice(0, 7) + "..." : folder.name.trim()
+      folderLink.innerText = path.tmaCanvas.getBoundingClientRect().width < 550 ? folder.name.trim().slice(0, 7) + "..." : folder.name.trim()
       folderLink.title = folder.name
       folderItem.appendChild(folderLink)
       folderStructure.appendChild(folderItem)
@@ -336,9 +361,12 @@ const addImageHeader = (filePathInBox, id, name) => {
   const fileLink = document.createElement("a")
   fileLink.setAttribute("href", `${box.appBasePath}/file/${id}`)
   fileLink.setAttribute("target", "_blank")
-  fileLink.innerText = name
+  fileLink.style.whiteSpace = "nowrap"
+  fileLink.style.textOverflow = "ellipsis"
+  fileLink.style.overflow = "hidden"
+  fileLink.innerText = name.length > 20 ? name.trim().slice(0,20) + "..." : name.trim()
   fileItem.appendChild(fileLink)
-
+  
   folderStructure.appendChild(fileItem)
   imgHeader.appendChild(folderStructure)
 }
@@ -477,7 +505,7 @@ const populateBoxFolderTree = (entries, id) => {
     if (entry.type === "folder") {
       entryIcon.setAttribute("class", "fas fa-folder")
     } else if (entry.type === "file") {
-      if (entry.name.endsWith(".jpg") || entry.name.endsWith(".jpeg") || entry.name.endsWith(".png") || entry.name.endsWith(".tiff")) {
+      if (utils.isValidImage(entry.name)) {
         entryIcon.setAttribute("class", "fas fa-file-image")
       } else {
         entryIcon.setAttribute("class", "fas fa-file")
@@ -501,7 +529,7 @@ const populateBoxFolderTree = (entries, id) => {
     entryBtn.onclick = async () => {
       if (entry.type === "folder") {
         selectFolder(entry.id)
-      } else if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png") || entry.name.endsWith(".tiff"))) {
+      } else if (entry.type === "file" && utils.isValidImage(entry.name)) {
         if (entry.id !== hashParams.image) {
           selectImage(entry.id)
           highlightInBoxFileMgr(entry.id)
@@ -572,6 +600,7 @@ path.loadOptions = () => {
 
 path.qualityAnnotate = async (annotationName, qualitySelected) => {
   if (await box.isLoggedIn()) {
+    const imageId = hashParams.image
     const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
     const annotations = fileMetadata[`${annotationName}_annotations`] ? JSON.parse(fileMetadata[`${annotationName}_annotations`]) : {}
 
@@ -603,14 +632,16 @@ path.qualityAnnotate = async (annotationName, qualitySelected) => {
       annotations[window.localStorage.userId] = newAnnotation
     }
     const boxMetadataPath = `/${annotationName}_annotations`
-    const newMetadata = await box.updateMetadata(hashParams.image, boxMetadataPath, JSON.stringify(annotations))
+    const newMetadata = await box.updateMetadata(imageId, boxMetadataPath, JSON.stringify(annotations))
 
     if (!newMetadata.status) { // status is returned only on error, check for errors properly later
       window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-      activateQualitySelector(annotationName, annotations)
       showToast(`Annotation Successful!`)
       borderByAnnotations(hashParams.image, newMetadata)
-      showNextImageButton(newMetadata)
+      if (imageId === hashParams.image) {
+        activateQualitySelector(annotationName, annotations)
+        showNextImageButton(newMetadata)
+      }
     } else {
       showToast("Error occurred during annotation, please try again later!")
     }
@@ -963,8 +994,8 @@ const createAnnotationTables = async (annotation) => {
     annotationCardDiv.innerHTML += annotationCard
     annotationsAccordion.appendChild(annotationCardDiv)
     new Collapse(document.getElementById(`${annotationName}Toggle`))
+
     if (enableComments) {
-      populateComments(annotationName)
       
       const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
       new Collapse(toggleCommentsButton)
@@ -974,7 +1005,7 @@ const createAnnotationTables = async (annotation) => {
       toggleCommentsButton.addEventListener("hidden.bs.collapse", (evt) => {
         toggleCommentsButton.innerHTML = "+ Show All Comments"
       })
-
+      
       const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
       const commentsSubmitButton = document.getElementById(`${annotationName}_submitComments`)
       commentsTextField.oninput = (evt) => {
@@ -988,6 +1019,7 @@ const createAnnotationTables = async (annotation) => {
   }
   showQualitySelectors(annotation)
   showNextImageButton()
+  populateComments(annotationName)
   annotationsAccordion.parentElement.style.display = "block"
 }
 
@@ -1107,7 +1139,8 @@ const getOthersAnnotations = (annotationName, fileAnnotations) => {
 }
 
 const submitAnnotationComments = async (annotationName) => {
-  const commentText = document.getElementById(`${annotationName}_commentsTextField`).value
+  const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
+  const commentText = commentsTextField.value
   if(commentText.length === 0) {
     return
   }
@@ -1134,6 +1167,7 @@ const submitAnnotationComments = async (annotationName) => {
       toggleCommentsButton.click()
     }
     document.getElementById(`${annotationName}_allCommentsCard`).scrollTop = document.getElementById(`${annotationName}_allCommentsCard`).scrollHeight
+    commentsTextField.value = ""
   } catch (e) {
     showToast("Some error occurred adding your comment. Please try later!")
     console.log(e)
@@ -1143,8 +1177,10 @@ const submitAnnotationComments = async (annotationName) => {
 }
 
 const populateComments = (annotationName) => {
-  const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
+  
+  const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
+  const commentsCard = document.getElementById(`${annotationName}_allCommentsCard`)
  
   if (fileMetadata[`${annotationName}_comments`]) {
     const annotationComments = JSON.parse(fileMetadata[`${annotationName}_comments`])
@@ -1153,7 +1189,6 @@ const populateComments = (annotationName) => {
       const visibleComments = annotationComments.filter(comment => comment.userId === window.localStorage.userId || !comment.isPrivate)
       
       if (visibleComments) {
-        const commentsCard = document.getElementById(`${annotationName}_allCommentsCard`)
         const commentsSortedByTime = visibleComments.sort((prevComment, currentComment) => prevComment.createdAt - currentComment.createdAt )
         
         const commentsHTML = commentsSortedByTime.map((comment,index) => {
@@ -1167,7 +1202,7 @@ const populateComments = (annotationName) => {
               </b>
               <strong style="color: rgb(85, 85, 85);">
                 ${comment.text}
-              </stroong>
+              </strong>
             </span>
           `
           commentElement += (index !== commentsSortedByTime.length - 1) ? "<hr/>" : ""
@@ -1180,12 +1215,17 @@ const populateComments = (annotationName) => {
         toggleCommentsButton.parentElement.style["text-align"] = "left"
         toggleCommentsButton.removeAttribute("disabled")
 
-        return
       }
     }
+  } else {
+    commentsCard.innerHTML = ""
+    if ( !(toggleCommentsButton.classList.contains("collapsed")) ) {
+      toggleCommentsButton.Collapse.hide()
+    }
+    toggleCommentsButton.parentElement.style["text-align"] = "center"
+    toggleCommentsButton.setAttribute("disabled", "true")
+    toggleCommentsButton.innerHTML = "-- No Comments To Show --"
   }
-  toggleCommentsButton.parentElement.style["text-align"] = "center"
-  toggleCommentsButton.innerHTML = "-- No Comments To Show --"
 }
 
 const activateQualitySelector = (annotationName, fileAnnotations) => {
@@ -1212,7 +1252,7 @@ const showThumbnailPicker = async (limit, offset = 0) => {
   const thumbnailPicker = document.getElementById("thumbnailPicker")
   thumbnailPicker.style.display = "flex"
   thumbnailPicker.style["flex-direction"] = "column"
-  thumbnailPicker.style.height = path.tmaCanvas.height
+  thumbnailPicker.style.height = window.innerHeight - thumbnailPicker.parentElement.getBoundingClientRect().y - 50
   
   if (thumbnailPicker.childElementCount === 0 || thumbnailPicker.getAttribute("folder") !== window.localStorage.currentThumbnailsFolder || window.localStorage.currentThumbnailsOffset !== offset) {
     thumbnailPicker.setAttribute("folder", window.localStorage.currentThumbnailsFolder)
@@ -1241,7 +1281,7 @@ const showThumbnailPicker = async (limit, offset = 0) => {
       }
       const onlyImages = []
       entries.forEach(entry => {
-        if (entry.type === "file" && (entry.name.endsWith(".jpg") || entry.name.endsWith(".png") || entry.name.endsWith(".tiff"))) {
+        if (entry.type === "file" && utils.isValidImage(entry.name)) {
           onlyImages.push(entry.id)
         }
       })
@@ -1268,7 +1308,7 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
   thumbnailsListDiv.scrollTop = 0
 
   thumbnails.forEach((thumbnail) => {
-    if (thumbnail.type === "file" && (thumbnail.name.endsWith(".jpg") || thumbnail.name.endsWith(".png") || thumbnail.name.endsWith(".tiff"))) {
+    if (thumbnail.type === "file" && utils.isValidImage(thumbnail.name)) {
       const {
         id: thumbnailId,
         name
@@ -1282,16 +1322,25 @@ const addThumbnails = (thumbnailPicker, thumbnails) => {
         thumbnailImg.classList.add("selectedThumbnail")
       }
       thumbnailImg.setAttribute("loading", "lazy")
-
+      
+      thumbnailDiv.appendChild(thumbnailImg)
       const thumbnailNameText = document.createElement("span")
       thumbnailNameText.setAttribute("class", "imagePickerThumbnailText")
-      const thumbnailName = name.trim().split(".")[0]
-      thumbnailNameText.innerText = thumbnailName
-      thumbnailDiv.appendChild(thumbnailImg)
+      const thumbnailNameWithoutExtension = name.trim().split(".")
+      thumbnailNameWithoutExtension.pop()
+      const thumbnailName = thumbnailNameWithoutExtension.join("")
       thumbnailDiv.appendChild(thumbnailNameText)
       thumbnailsListDiv.appendChild(thumbnailDiv)
       thumbnailDiv.onclick = () => selectImage(thumbnailId)
-      box.getThumbnail(thumbnailId).then(res => thumbnailImg.setAttribute("src", res))
+
+      box.getThumbnail(thumbnailId).then(res => {
+        thumbnailImg.setAttribute("src", res)
+        thumbnailNameText.innerText = thumbnailName
+        thumbnailNameText.style.width = thumbnailImg.getBoundingClientRect().width
+        thumbnailNameText.style["text-overflow"] = "ellipsis"
+        thumbnailNameText.style["white-space"] = "nowrap"
+        thumbnailNameText.style["overflow"] = "hidden"
+      })
       getAnnotationsForBorder(thumbnailId)
     }
   })
@@ -1435,15 +1484,18 @@ const checkAndDisableButtons = (pageNum, totalPages) => {
 }
 
 const selectImage = (imageId) => {
+  let hash = decodeURIComponent(window.location.hash)
   if (imageId && imageId !== hashParams.image) {
+   
     if (hashParams.image) {
-      window.location.hash = decodeURIComponent(window.location.hash).replace(`image=${hashParams.image}`, `image=${imageId}`)
+      hash = hash.replace(`image=${hashParams.image}`, `image=${imageId}`)
     } else {
-      window.location.hash += window.location.hash.length > 0 ? "&" : ""
-      window.location.hash += `image=${imageId}`
+      hash += hash.length > 0 ? "&" : ""
+      hash += `image=${imageId}`
     }
+    window.location.hash = hash
+
   } else if (!imageId) {
-    let hash = decodeURIComponent(window.location.hash)
     const imageParam = `image=${hashParams.image}`
     const imageParamIndex = hash.indexOf(imageParam)
     
@@ -1454,6 +1506,7 @@ const selectImage = (imageId) => {
     } else { // if hash is just #image=abc, remove just the param.
       hash = hash.replace(imageParam, "")
     }
+  
     window.location.hash = hash
   }
 }
@@ -1834,7 +1887,8 @@ const getModelPrediction = async (annotationType) => {
 }
 
 const loadLocalModel = async () => {
-  path.model = await tf.automl.loadImageClassification("./model/model.json")
+  // path.model = await tf.automl.loadImageClassification("./model/model.json")
+  path.model = await tf.automl.loadImageClassification("./model/covidModel/model.json")
   console.log("LOADED", path.model)
 }
 

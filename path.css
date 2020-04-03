@@ -179,11 +179,11 @@ canvas {
 }
 
 .annotationsPartlyCompletedThumbnail {
-  border-color: #a4d100
+  border: 3px solid #a4d100;
 }
 
 .annotationsCompletedThumbnail {
-  border-color: rgb(0, 99, 0);
+  border: 3px solid rgb(0, 99, 0);
 }
 
 .selectedThumbnail {
