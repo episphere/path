@@ -199,11 +199,11 @@ const loadDefaultImage = async () => {
 
 const loadImageFromBox = async (id, url) => {
   path.isImageFromBox = false
-  
+
   if (await utils.boxRequest) {
     //Disable clicking on anything else while new image is loading.
     path.imageDiv.style["pointer-events"] = "none"
-    
+
     const thumbnailImage = document.getElementById(`thumbnail_${id}`)
     if (thumbnailImage) {
       path.tmaImage.src = thumbnailImage.src
@@ -233,6 +233,7 @@ const loadImageFromBox = async (id, url) => {
     } = imageData
 
     if (type === "file" && utils.isValidImage(name)) {
+      deactivateQualitySelectors()
 
       const fileMetadata = metadata && metadata.global.properties
       if (fileMetadata) {
@@ -1246,6 +1247,11 @@ const activateQualitySelector = (annotationName, fileAnnotations) => {
       newActiveButton.classList.add("active")
     }
   }
+}
+
+const deactivateQualitySelectors = () => {
+  const activeQualitySelector = document.querySelectorAll("button.labelText.active")
+  activeQualitySelector.forEach(element => element.classList.remove("active"))
 }
 
 const showThumbnailPicker = async (limit, offset = 0) => {
