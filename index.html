@@ -103,7 +103,7 @@
             <div class="tabContainer tabContainerWithMargin" id="annotationsDiv">
               <span id="nextImageMessage"></span>
               <div class="accordion" id="annotationsAccordion"></div>
-              <button type="button" class="btn btn-link" id="addAnnotationsBtn" data-toggle="modal" data-target="#addAnnotationsModal">+ Add More Classifications</button>
+              <button type="button" class="btn btn-link" id="addClassificationBtn" data-toggle="modal" data-target="#addClassificationModal">+ Add More Classifications</button>
             </div>
           </div>
           <div class="tab-pane fade" id="collaborate" role="tabpanel" aria-labelledby="collaborate-tab">
@@ -132,7 +132,7 @@
         </button>
       </div>
     </div>
-    <div class="modal fade" id="addAnnotationsModal" tabindex="-1" role="dialog">
+    <div class="modal fade" id="addClassificationModal" tabindex="-1" role="dialog">
       <div class="modal-dialog" role="document">
         <div class="modal-content">
           <div class="modal-header">
@@ -142,7 +142,7 @@
             </button>
           </div>
           <div class="modal-body">
-            <form id="createAnnotationForm">
+            <form id="createClassificationForm">
               <div class="form-group row">
                 <label for="datasetFolderId" class="col-form-label">Dataset Folder:<span class="required-asterisk">*</span></label>
                 <div class="col-sm-6">
@@ -166,7 +166,7 @@
               <div class="form-group row">
                 <label for="labelType" class="col-form-label">Type of Labels:<span class="required-asterisk">*</span></label>
                 <div class="col-sm-6">
-                  <select class="form-control" name="labelType" id="labelType" required onchange="document.getElementById('addLabelsToModal').style.display='flex'">
+                  <select class="form-control" name="labelType" id="labelType" required onchange="displayLabelsSectionInModal(this)">
                     <option value="">Select Type</option>
                     <option value="categorical">Categorical</option>
                     <option value="continuous" disabled>Continuous</option>
@@ -175,18 +175,18 @@
               </div>
 
               <div class="form-group" id="addLabelsToModal">
-                <h5>Annotation Classes</h5>
+                <h5>Class Labels</h5>
                 <hr style="width: 100%; margin-top:0; padding:0"/>
                 <div id="modalLabelsList">
                   <div class="row">
                     <div class="form-group row addedLabel">
                       <div class="col">
-                        <input type="text" class="form-control" placeholder="Display Name*" name="labelDisplayText" id="labelDisplayText_0" oninput="prefillLabelValueInModal(0)"required></input>
+                        <input type="text" class="form-control classLabelField" placeholder="Display Name*" name="labelDisplayText" id="labelDisplayText_0" oninput="prefillLabelValueInModal(0)" required></input>
                       </div>
                     </div>
                     <div class="form-group row addedLabel">
                       <div class="col">
-                        <input type="text" class="form-control" placeholder="Label Value*" name="labelValue" id="labelValue_0" required></input>
+                        <input type="text" class="form-control classLabelField" placeholder="Label Value*" name="labelValue" id="labelValue_0" oninput="this.setAttribute('userInput', true)" required></input>
                       </div>
                     </div>
                   </div>
@@ -203,7 +203,7 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-            <button type="submit" class="btn btn-primary" onclick="addAnnotationToConfig()">Create Annotation</button>
+            <button type="submit" class="btn btn-primary" onclick="addClassificationToConfig()">Create Class</button>
           </div>
         </div>
       </div>

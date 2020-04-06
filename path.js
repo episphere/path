@@ -153,9 +153,12 @@ path.setupEventListeners = () => {
     }
   })
 
-  const addAnnotationsModal = document.getElementById("addAnnotationsModal")
-  addAnnotationsModal.addEventListener("show.bs.modal", (evt) => {
+  const addClassificationModal = document.getElementById("addClassificationModal")
+  addClassificationModal.addEventListener("show.bs.modal", (evt) => {
     document.getElementById("datasetFolderId").value = path.appConfig.datasetFolderId ? path.appConfig.datasetFolderId : "INVALID"
+  })
+  addClassificationModal.addEventListener("hidden.bs.modal", (evt) => {
+    resetaddClassificationModal()
   })
 
   path.tmaImage.onload = async () => {
@@ -921,27 +924,72 @@ const addLocalFileButton = async () => {
   
 }
 
-const createAnnotationTables = async (annotation) => {
-  // return
-  const annotationsAccordion = document.getElementById("annotationsAccordion")
+const createAnnotationTables = async (annotation, forceRedraw=false) => {
+  
   const {
+    annotationId,
     displayName,
     annotationName,
     definition,
     enableComments
   } = annotation
-  if (!annotationsAccordion.querySelector(`#${annotationName}Card`)) {
+  
+  const annotationsAccordion = document.getElementById("annotationsAccordion")
+  if (annotationsAccordion.childElementCount > path.appConfig.annotations.length) {
+    annotationsAccordion.innerHTML = ""
+  }
+
+  let annotationCard = annotationsAccordion.querySelector(`#annotation_${annotationId}Card`)
+
+  if (annotationCard && forceRedraw) {
+    annotationCard.parentElement.removeChild(annotationCard)
+    annotationCard = undefined
+  }
+
+  if (!annotationCard || annotationCard.childElementCount === 0) {
     const annotationCardDiv = document.createElement("div")
     annotationCardDiv.setAttribute("class", "card annotationsCard")
-    annotationCardDiv.setAttribute("id", `${annotationName}Card`)
+    annotationCardDiv.setAttribute("id", `annotation_${annotationId}Card`)
+    annotationCardDiv.style.overflow = "visible"
     let annotationCard = `
       <div class="card-header">
-        <h2 class="mb-0">
-          <button class="btn btn-link" type="button" data-toggle="collapse"
-            data-target="#${annotationName}Annotations" id="${annotationName}Toggle">
-            ${displayName}
-          </button>
-        </h2>
+        <div class="annotationWithMenuHeader">
+          <div class="classWithDefinition">
+            <h2 class="mb-0">
+              <button class="btn btn-link classCardHeader" type="button" data-toggle="collapse"
+                data-target="#${annotationName}Annotations" id="${annotationName}Toggle">
+                ${displayName}
+              </button>
+            </h2>
+    `
+
+    if (definition) {
+      annotationCard += `
+            <button class="btn btn-light classDefinitionPopup" id="${annotationName}_definitionPopup" type="button" data-toggle="popover">
+              <i class="fas fa-info-circle"></i>
+            </button>
+      `
+    }
+
+    annotationCard += `
+          </div>
+          <div class="btn-group dropdown classificationMenu" id="${annotationName}_classificationMenu">
+            <button class="btn btn-light dropdown-toggle classificationMenuToggle" role="button" id="${annotationName}_classificationMenuToggle" data-toggle=dropdown aria-haspopup="true" aria-expanded="false">
+              <i class="fas fa-ellipsis-v"></i>
+            </button>
+            <div class="dropdown-menu dropdown-menu-right classificationMenuDropdown">
+              <div class="classificationMenuButtons">
+                <button class="btn btn-light classificationMenuOption" role="button" id="${annotationName}_editClassification" title="Edit" onclick="editClassificationConfig(${annotationId})"  aria-haspopup="true" aria-expanded="false">
+                  <i class="fas fa-pencil-alt"></i> &nbsp;Edit Config
+                </button>
+                <hr/>
+                <button class="btn btn-light classificationMenuOption" role="button" id="${annotationName}_deleteClassification" title="Delete" onclick="deleteClassificationConfig(${annotationId})" aria-haspopup="true" aria-expanded="false">
+                  <i class="fas fa-trash-alt"></i> &nbsp;Delete Class
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
   
       <div id="${annotationName}Annotations" class="collapse qualityAnnotations" data-parent="#annotationsAccordion">
@@ -971,7 +1019,7 @@ const createAnnotationTables = async (annotation) => {
             <div class="allCommentsCard card card-body" id="${annotationName}_allCommentsCard">
             </div>
           </div>
-          <div id="${annotationName}_comments" class="quality_comments form-group">
+          <div id="${annotationName}_comments" class="quality_addComment form-group">
             <textarea class="form-control" id="${annotationName}_commentsTextField" rows="2" placeholder="Add your comments here..."></textarea>
             <div style="display: flex; flex-direction: row; justify-content: space-between; margin-top: 0.5rem; margin-left: 0.1rem;">
               <div style="display: flex; flex-direction: row; style="margin: auto 0;">
@@ -982,7 +1030,8 @@ const createAnnotationTables = async (annotation) => {
                 </div>
               </div>
               <div>
-                <button type="submit" onclick=submitAnnotationComments("${annotationName}") id="${annotationName}_submitComments" class="btn btn-info" disabled>Submit</button>
+                <button type="button" onclick=cancelEditComment("${annotationName}") id="${annotationName}_cancelEditComment" class="btn btn-link">Cancel</button>
+                <button type="submit" onclick=submitAnnotationComment("${annotationName}") id="${annotationName}_submitComment" class="btn btn-info" disabled>Submit</button>
               </div>
             </div>
           </div>
@@ -995,6 +1044,18 @@ const createAnnotationTables = async (annotation) => {
     annotationCardDiv.innerHTML += annotationCard
     annotationsAccordion.appendChild(annotationCardDiv)
     new Collapse(document.getElementById(`${annotationName}Toggle`))
+    new Dropdown(document.getElementById(`${annotationName}_classificationMenu`))
+
+    if (definition) {
+      new Popover(document.getElementById(`${annotationName}_definitionPopup`), {
+        placement: "right",
+        animation: "slidenfade",
+        delay: 100,
+        dismissible: false,
+        trigger: "hover",
+        content: definition
+      })
+    }
 
     if (enableComments) {
       
@@ -1008,12 +1069,18 @@ const createAnnotationTables = async (annotation) => {
       })
       
       const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
-      const commentsSubmitButton = document.getElementById(`${annotationName}_submitComments`)
+      const commentsSubmitButton = document.getElementById(`${annotationName}_submitComment`)
       commentsTextField.oninput = (evt) => {
         if (commentsTextField.value.length > 0) {
           commentsSubmitButton.removeAttribute("disabled")
         } else {
           commentsSubmitButton.setAttribute("disabled", "true")
+        }
+      }
+      commentsTextField.onkeydown = (evt) => {
+        if (evt.shiftKey && evt.keyCode === 13) {
+          evt.preventDefault()
+          commentsSubmitButton.click()
         }
       }
     }
@@ -1084,6 +1151,7 @@ const showQualitySelectors = async (annotation) => {
       predictionTableData.setAttribute("align", "center")
       predictionTableData.style.verticalAlign = "middle"
       predictionTableData.style.borderLeft = "none"
+      predictionTableData.innerHTML = "--"
       tableRow.appendChild(predictionTableData)
       selectTableBody.appendChild(tableRow)
     })
@@ -1139,42 +1207,55 @@ const getOthersAnnotations = (annotationName, fileAnnotations) => {
   othersAnnotationsDiv.innerHTML = othersAnnotationsText
 }
 
-const submitAnnotationComments = async (annotationName) => {
+const submitAnnotationComment = (annotationName) => {
   const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
-  const commentText = commentsTextField.value
+  const commentText = commentsTextField.value.trim()
   if(commentText.length === 0) {
     return
   }
+  
   const newCommentMetadata = {
     "userId": window.localStorage.userId,
     "createdBy": window.localStorage.username,
-    "createdAt": Date.now(),
     "text": commentText,
     "isPrivate": !(document.getElementById(`${annotationName}_commentsPublic`).checked)
   }
   
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
   const annotationComments = fileMetadata[`${annotationName}_comments`] ? JSON.parse(fileMetadata[`${annotationName}_comments`]) : []
-  annotationComments.push(newCommentMetadata)
+  const editedCommentIndex = commentsTextField.getAttribute("commentIndex")
+  // If comment is an edit of a previously submitted comment, replace it, otherwise add a new one.
+  if (editedCommentIndex) {
+    newCommentMetadata["modifiedAt"] = Date.now()
+    annotationComments[editedCommentIndex] = newCommentMetadata
+  } else {
+    newCommentMetadata["createdAt"] = Date.now()
+    annotationComments.push(newCommentMetadata)
+  }
+  console.log(annotationComments)
+  updateCommentInBox(annotationName, annotationComments)
+}
 
+const updateCommentInBox = async (annotationName, annotationComments) => {
   const boxMetadataPath = `/${annotationName}_comments`
   try {
     const newMetadata = await box.updateMetadata(hashParams.image, boxMetadataPath, JSON.stringify(annotationComments))
     window.localStorage.fileMetadata = JSON.stringify(newMetadata)
     showToast("Comment added successfully!")
     populateComments(annotationName)
+    
     const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
     if (toggleCommentsButton.classList.contains("collapsed")) {
       toggleCommentsButton.click()
     }
     document.getElementById(`${annotationName}_allCommentsCard`).scrollTop = document.getElementById(`${annotationName}_allCommentsCard`).scrollHeight
-    commentsTextField.value = ""
+    
+    cancelEditComment(annotationName)
+
   } catch (e) {
     showToast("Some error occurred adding your comment. Please try later!")
     console.log(e)
   }
-
-
 }
 
 const populateComments = (annotationName) => {
@@ -1187,31 +1268,83 @@ const populateComments = (annotationName) => {
     const annotationComments = JSON.parse(fileMetadata[`${annotationName}_comments`])
     
     if (annotationComments.length > 0) {
-      const visibleComments = annotationComments.filter(comment => comment.userId === window.localStorage.userId || !comment.isPrivate)
+      const commentsSortedByTime = annotationComments.sort((prevComment, currentComment) => prevComment.createdAt - currentComment.createdAt )
+      fileMetadata[`${annotationName}_comments`] = JSON.stringify(commentsSortedByTime)
+      window.localStorage.fileMetadata = JSON.stringify(fileMetadata)
+
+      const visibleComments = commentsSortedByTime.filter(comment => comment.userId === window.localStorage.userId || !comment.isPrivate)
       
       if (visibleComments) {
-        const commentsSortedByTime = visibleComments.sort((prevComment, currentComment) => prevComment.createdAt - currentComment.createdAt )
+        const userCommentIndices = []
         
         const commentsHTML = commentsSortedByTime.map((comment,index) => {
           let commentElement = `
-            <span class="annotationComment">
-              <b>
-                <u style="color: dodgerblue;">
-                  ${comment.createdBy}
-                </u>
-                :
-              </b>
-              <strong style="color: rgb(85, 85, 85);">
-                ${comment.text}
-              </strong>
-            </span>
+            <span class="annotationComment" id="${annotationName}_comment_${index}">
+              <span class="annotationCommentText">
+                <b>
+                  <u style="color: dodgerblue;">${comment.createdBy.trim()}</u> :
+                </b>
+                <strong style="color: rgb(85, 85, 85);">
+                  ${comment.text}
+                </strong>
+              </span>
           `
+
+          if (comment.userId === window.localStorage.userId) {
+            const commentDropdownMenu = `
+              <div class="btn-group dropleft dropdown commentMenu" id="${annotationName}_commentMenu_${index}">
+                <button class="btn btn-light dropdown-toggle commentMenuToggle" role="button" id="${annotationName}_commentMenuToggle_${index}" data-toggle=dropdown aria-haspopup="true" aria-expanded="false">
+                  <i class="fas fa-ellipsis-v"></i>
+                </button>
+                <div class="dropdown-menu commentMenuDropdown" style="top: -10px;">
+                  <div class="commentMenuButtons">
+                    <button class="btn btn-light commentMenuOption" role="button" id="${annotationName}_editComment_${index}" title="Edit" onclick="editAnnotationComment('${annotationName}', ${index})"  aria-haspopup="true" aria-expanded="false">
+                      <i class="fas fa-pencil-alt"></i>
+                    </button>
+                    <div style="border-left: 1px solid lightgray; height: auto;"></div>
+                    <button class="btn btn-light commentMenuOption" role="button" id="${annotationName}_deleteComment_${index}" title="Delete" onclick="deleteAnnotationComment('${annotationName}', ${index})" aria-haspopup="true" aria-expanded="false">
+                      <i class="fas fa-trash-alt"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `
+            commentElement += commentDropdownMenu
+            userCommentIndices.push(index)
+          }
+
+          commentElement += "</span>"
           commentElement += (index !== commentsSortedByTime.length - 1) ? "<hr/>" : ""
           return commentElement
         }).join("")
 
-        commentsCard.innerHTML = commentsHTML
-
+        commentsCard.innerHTML = commentsHTML        
+        
+        userCommentIndices.forEach(commentIndex => {
+          const commentMenu = document.getElementById(`${annotationName}_commentMenu_${commentIndex}`)
+          const commentMenuDropdown = new Dropdown(commentMenu)
+          new Tooltip(document.getElementById(`${annotationName}_editComment_${commentIndex}`), {
+            'placement': "bottom",
+            'animation': "slideNfade",
+            'delay': 50
+          })
+          new Tooltip(document.getElementById(`${annotationName}_deleteComment_${commentIndex}`), {
+            'placement': "bottom",
+            'animation': "slideNfade",
+            'delay': 50
+          })
+          const commentSpan = document.getElementById(`${annotationName}_comment_${commentIndex}`)
+          commentSpan.onmouseover = () => {
+            document.getElementById(`${annotationName}_commentMenu_${commentIndex}`).style.display = "block"
+          }
+          commentSpan.onmouseleave = () => {
+            const commentMenuIsOpen = commentMenu.querySelector("div.commentMenuDropdown").classList.contains("show")
+            if (!commentMenuIsOpen) {
+              document.getElementById(`${annotationName}_commentMenu_${commentIndex}`).style.display = "none"
+            }
+          }
+        })
+        
         toggleCommentsButton.innerHTML = "+ Show All Comments"
         toggleCommentsButton.parentElement.style["text-align"] = "left"
         toggleCommentsButton.removeAttribute("disabled")
@@ -1227,6 +1360,46 @@ const populateComments = (annotationName) => {
     toggleCommentsButton.setAttribute("disabled", "true")
     toggleCommentsButton.innerHTML = "-- No Comments To Show --"
   }
+}
+
+const editAnnotationComment = async (annotationName, commentIndex) => {
+  const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
+  if (fileMetadata[`${annotationName}_comments`]) {
+    const annotationComments = JSON.parse(fileMetadata[`${annotationName}_comments`])
+    if (annotationComments && annotationComments[commentIndex]) {
+      const { userId, text, isPrivate } = annotationComments[commentIndex]
+      if (userId === window.localStorage.userId) {
+        const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
+        commentsTextField.setAttribute("commentIndex", commentIndex)
+        commentsTextField.value = text
+        document.getElementById(`${annotationName}_commentsPublic`).checked = !isPrivate
+        commentsTextField.focus()
+        if (text.trim().length > 0) {
+          document.getElementById(`${annotationName}_submitComment`).removeAttribute("disabled")
+        }
+      }
+    }
+  }
+}
+
+const deleteAnnotationComment = async (annotationName, commentIndex) => {
+  const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
+  if (fileMetadata[`${annotationName}_comments`]) {
+    const annotationComments = JSON.parse(fileMetadata[`${annotationName}_comments`])
+    if (annotationComments && annotationComments[commentIndex]) {
+      const { userId, text, isPrivate } = annotationComments[commentIndex]
+      if (userId === window.localStorage.userId) {
+
+      }
+    }
+  }
+}
+
+const cancelEditComment = async (annotationName) => {
+  document.getElementById(`${annotationName}_commentsTextField`).value = ""
+  document.getElementById(`${annotationName}_commentsTextField`).removeAttribute("commentIndex")
+  document.getElementById(`${annotationName}_commentsPublic`).checked = false
+  document.getElementById(`${annotationName}_submitComment`).setAttribute("disabled", "true")
 }
 
 const activateQualitySelector = (annotationName, fileAnnotations) => {
@@ -1569,22 +1742,69 @@ const startCollaboration = () => {
   return false
 }
 
-const addAnnotationsTooltip = () => {
-  const addAnnotationsBtn = document.getElementById("addAnnotationsBtn")
-  addAnnotationsBtn.setAttribute("title", "Under Development!")
-  new Tooltip(addAnnotationsBtn, {
-    'placement': "bottom",
-    'animation': "slideNfade",
-    'delay': 150
-  })
+const editClassificationConfig = (annotationId) => {
+  const annotationForm = document.getElementById("createClassificationForm")
+  annotationForm.setAttribute("annotationId", annotationId)
+  
+  const annotationToEdit = path.appConfig.annotations.filter(annotation => annotation["annotationId"] === annotationId)[0]
+  if (annotationToEdit) {
+    document.getElementById("addClassificationBtn").Modal.show()
+    document.getElementById("addClassificationModal").querySelector("button[type=submit]").innerHTML = "Update Class"
+   
+    annotationForm.querySelectorAll(".form-control").forEach(element => {
+    
+      if (element.name && !element.classList.contains("classLabelField")) {
+     
+        switch(element.name) {
+          case "datasetFolderId":
+            break
+
+            case "displayName":
+            case "definition":
+              element.value = annotationToEdit[element.name]
+            break
+            
+            case "labelType":
+              element.value = annotationToEdit[element.name]
+              displayLabelsSectionInModal(element)
+          
+          case "enableComments":
+            element.checked = annotationToEdit.enableComments
+            break
+          
+          default:
+        }
+      }
+    })
+
+    annotationForm.querySelector("div#modalLabelsList").innerHTML = ""
+    annotationToEdit.labels.forEach(label => {
+      const newLabelRow = addLabelToModal()
+      newLabelRow.querySelector("input[name=labelDisplayText]").value = label.displayText
+      newLabelRow.querySelector("input[name=labelValue]").value = label.label
+    })
+    
+  }
 }
 
-const addAnnotationToConfig = () => {
+const deleteClassificationConfig = async (annotationId) => {
+  if (confirm("This will delete this classification for everyone with access to this dataset. Are you sure you want to continue?")) {
+    const annotationToDelete = path.appConfig.annotations.filter(annotation => annotation["annotationId"] === annotationId)[0]
+    if (annotationToDelete) {
+      updateConfigInBox("annotations", "remove", annotationToDelete, "annotationId")
+    }
+  }
+}
+
+const addClassificationToConfig = () => {
   let formIsValid = true
   let alertMessage = ""
+  const annotationForm = document.getElementById("createClassificationForm")
+
+  const annotationIdToEdit = parseInt(annotationForm.getAttribute("annotationId"))
 
   const newAnnotation = {
-    "annotationId": Math.floor(1000000 + Math.random()*9000000), //random 7 digit annotation ID
+    "annotationId": annotationIdToEdit || Math.floor(1000000 + Math.random()*9000000), //random 7 digit annotation ID
     "displayName": "",
     "annotationName": "",
     "definition": "",
@@ -1592,11 +1812,9 @@ const addAnnotationToConfig = () => {
     "labelType": "",
     "labels": [],
     "createdBy": "",
-    "createdAt": "",
     "private": false,
   }
 
-  const annotationForm = document.getElementById("createAnnotationForm")
   annotationForm.querySelectorAll(".form-control").forEach(element => {
     if (element.name) {
       switch (element.name) {
@@ -1734,21 +1952,32 @@ const addAnnotationToConfig = () => {
     return
   }
   
-  newAnnotation["createdAt"] = Date.now()
-  newAnnotation["createdBy"] = window.localStorage.userId
+  if(annotationIdToEdit) {
+    newAnnotation["modifiedAt"] = Date.now()
+    newAnnotation["lastModifiedByUserId"] = window.localStorage.userId
+    newAnnotation["lastModifiedByUsername"] = window.localStorage.username
+    updateConfigInBox("annotations", "modify", newAnnotation, "annotationId")
+  } else {
+    newAnnotation["createdAt"] = Date.now()
+    newAnnotation["createdByUserId"] = window.localStorage.userId
+    newAnnotation["createdByUsername"] = window.localStorage.userId
+    updateConfigInBox("annotations", "append", newAnnotation)
+  }
   
-  updateConfigInBox("annotations", "append", newAnnotation)
   const modalCloseBtn = document.getElementsByClassName("modal-footer")[0].querySelector("button[data-dismiss=modal]")
   modalCloseBtn.click()
-  resetAddAnnotationsModal()
+  resetaddClassificationModal()
 }
 
-const updateConfigInBox = async (changedProperty = "annotations", operation, deltaData) => {
+const updateConfigInBox = async (changedProperty = "annotations", operation, deltaData, identifier) => {
+  let toastMessage = ""
   if (deltaData) {
     const isFileJSON = true
     const appConfig = await box.getFileContent(configFileId, isFileJSON)
     if (appConfig) {
+      
       if (operation === "append") {
+      
         if (Array.isArray(appConfig[changedProperty])) {
           appConfig[changedProperty].push(deltaData)
         } else if (typeof (appConfig[changedProperty]) === "object") {
@@ -1757,16 +1986,49 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
             ...appConfig[changedProperty]
           }
         }
+      
+        toastMessage = "New Class Added Successfully!"
+      
       } else if (operation === "remove") {
+     
         if (Array.isArray(appConfig[changedProperty])) {
-          appConfig[changedProperty] = appConfig[changedProperty].filter(obj => obj !== deltaData)
+          appConfig[changedProperty] = appConfig[changedProperty].filter(val => {
+            if (typeof(val) === "object" && val[identifier]) {
+              return val[identifier] !== deltaData[identifier]
+            } else {
+              return val !== deltaData
+            }
+          })
         } else if (typeof (appConfig[changedProperty]) === "object" && appConfig[changedProperty][deltaData]) {
           delete appConfig[changedProperty][deltaData]
-        } else {
-          console.log("UPDATE CONFIG OPERATION FAILED!")
-          return
         }
+    
+        toastMessage = "Class Removed From Config!"
+     
+      } else if (operation === "modify") {
+  
+        if (Array.isArray(appConfig[changedProperty])) {
+ 
+          const indexToChangeAt = appConfig[changedProperty].findIndex(val => {
+            if (typeof(val) === "object" && val[identifier]) {
+              return val[identifier] === deltaData[identifier]
+            } else {
+              return val === deltaData
+            }
+          })
+  
+          if (indexToChangeAt !== -1) {
+            appConfig[changedProperty][indexToChangeAt] = deltaData
+          }
+  
+        } else if (typeof(appConfig[changedProperty]) === "object") {
+          appConfig[changedProperty] = deltaData
+        }
+        toastMessage = "Class Updated Successfully!"
       }
+    } else {
+      console.log("UPDATE CONFIG OPERATION FAILED!")
+      return
     }
 
     const newConfigFormData = new FormData()
@@ -1781,14 +2043,14 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
 
     try {
       await box.uploadFile(configFileId, newConfigFormData)
-      showToast("New Annotation Added Successfully!")
+      showToast(toastMessage)
       path.appConfig = appConfig
-      path.appConfig.annotations.forEach(createAnnotationTables)
+      path.appConfig.annotations.forEach(annotation => createAnnotationTables(annotation, annotation[identifier] === deltaData[identifier]))
       const reBorderThumbnails = () => {
         const allThumbnails = document.querySelectorAll("img.imagePickerThumbnail")
         const allThumbnailIDs = []
         allThumbnails.forEach(thumbnail => allThumbnailIDs.push(thumbnail.id.split("_")[1]))
-        allThumbnailIDs.map(borderByAnnotations)
+        allThumbnailIDs.map(getAnnotationsForBorder)
       }
       reBorderThumbnails()
     } catch (e) {
@@ -1811,7 +2073,7 @@ const addLabelToModal = () => {
     </div>
     <div class="form-group row addedLabel">
       <div class="col">
-        <input type="text" class="form-control" placeholder="Label Value*" name="labelValue" id="labelValue_${numLabelsAdded}" required="true"></input>
+        <input type="text" class="form-control" placeholder="Label Value*" name="labelValue" id="labelValue_${numLabelsAdded}" oninput="this.setAttribute('userInput', true)" required="true"></input>
       </div>
     </div>
     <div class="col-sm-1">
@@ -1821,12 +2083,13 @@ const addLabelToModal = () => {
     </div>
   `
   modalLabelsList.appendChild(newLabelRow)
+  return newLabelRow
 }
 
 const prefillLabelValueInModal = (labelInputIndex) => {
   const elementToPrefillFrom = document.getElementById(`labelDisplayText_${labelInputIndex}`)
   const elementToPrefillInto = document.getElementById(`labelValue_${labelInputIndex}`)
-  if (elementToPrefillFrom && elementToPrefillInto) {
+  if (elementToPrefillFrom && elementToPrefillInto && !elementToPrefillInto.getAttribute("userInput")) {
     elementToPrefillInto.value = elementToPrefillFrom.value
   }
 }
@@ -1836,8 +2099,16 @@ const removeLabelFromModal = (target) => {
   modalLabelsList.removeChild(target.parentElement.parentElement)
 }
 
-const resetAddAnnotationsModal = () => {
-  const annotationForm = document.getElementById("createAnnotationForm")
+const displayLabelsSectionInModal = (selectElement) => {
+  if (selectElement.value) {
+    document.getElementById("addLabelsToModal").style.display = "flex"
+  } else {
+    document.getElementById("addLabelsToModal").style.display = "none"
+  }
+}
+
+const resetaddClassificationModal = () => {
+  const annotationForm = document.getElementById("createClassificationForm")
   annotationForm.querySelectorAll(".form-control").forEach(element => {
     if (element.type === "checkbox") {
       element.checked = false
@@ -1850,6 +2121,9 @@ const resetAddAnnotationsModal = () => {
   while(modalLabelsList.firstElementChild !== modalLabelsList.lastElementChild) {
     modalLabelsList.removeChild(modalLabelsList.lastElementChild)
   }
+  modalLabelsList.parentElement.style.display = "none"
+
+  document.getElementById("addClassificationModal").querySelector("button[type=submit]").innerHTML = "Create Class"
 }
 
 const getModelPrediction = async (annotationType) => {

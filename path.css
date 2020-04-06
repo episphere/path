@@ -264,8 +264,45 @@ canvas {
   flex-direction: column;
 }
 
+
+.annotationWithMenuHeader {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.classCardHeader {
+  padding-right: 0rem;
+}
+
+.classDefinitionPopup {
+  width: fit-content;
+  height: 100%;
+  vertical-align: middle;
+  padding: 0;
+  margin: 0;
+}
+
+.classificationMenuDropdown {
+  z-index: 3;
+  padding: 0.3rem 0;
+}
+
+.classificationMenuButtons>hr {
+  margin: 0;
+  padding: 0;
+}
+
+.classificationMenuOption {
+  width: 100%;
+  height: fit-content;
+  background-color: unset;
+  border: none;
+}
+
 .annotationsCard {
   width: 100%;
+  overflow: visible;
 }
 
 .annotationsCardBody {
@@ -308,24 +345,115 @@ canvas {
 }
 
 .allCommentsCard {
+  width: 100%;
   padding-top: 0.4rem;
   padding-bottom: 0.4rem;
+  padding-left: 0;
+  padding-right: 0;
   background-color: azure;
   height: auto;
   max-height: 10rem;
-  overflow-y: scroll
+  overflow-y: scroll;
+  scrollbar-width: none;
+}
+
+.allCommentsCard::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .allCommentsCard>hr {
-  margin-bottom: 1rem;
+  margin:0;
 }
 
-.annotationComment:first-child {
-  margin-top: 1rem;
+.annotationComment {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  vertical-align: middle;
+  padding: 1rem 0.5rem;
+}
+
+.annotationComment:hover {
+  background-color: rgba(225, 235, 255);
+}
+
+/* .annotationComment:first-child {
+  padding-top: 1rem;
 }
 
 .annotationComment:last-child {
-  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+} */
+
+.annotationCommentText {
+  margin: auto 1rem;
+  width: 90%;
+  hyphens: auto;
+}
+
+.commentMenu {
+  display: none;
+}
+
+.commentMenuToggle {
+  width: 5%;
+  height: fit-content;
+  padding: 0;
+  margin: 0.2rem;
+  background-color: unset;
+  border: none;
+  flex: 0 1 auto;
+}
+
+.commentMenuOption {
+  width: fit-content;
+  height: fit-content;
+  padding: 0.4rem;
+  margin: 0.2rem 0.2rem 0.2rem;
+  background-color: unset;
+  border: none;
+}
+
+.commentMenuDropdown {
+  z-index: 4;
+  padding: 0.3rem;
+  min-width: 1rem;
+  height: fit-content;
+  text-align: right;
+}
+
+.commentMenuButtons {
+  display: flex;
+  flex-direction: row;
+}
+
+.fa-info-circle {
+  color: lightseagreen;
+}
+
+.fa-ellipsis-v {
+  color: lightslategray;
+}
+
+.fa-trash-alt {
+  color: lightslategray;
+}
+
+.fa-pencil-alt {
+  color: lightslategray;
+}
+
+.dropdown-toggle.commentMenuToggle::before {
+  display: none;
+}
+
+.dropdown-toggle::after {
+  display: none;
+}
+
+.quality_addComment {
+  margin-top: 2px;
 }
 
 #addAnnotationsBtn {
