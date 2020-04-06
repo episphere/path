@@ -1210,11 +1210,13 @@ const getOthersAnnotations = (annotationName, fileAnnotations) => {
 const submitAnnotationComment = (annotationName) => {
   const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
   const commentText = commentsTextField.value.trim()
+
   if(commentText.length === 0) {
     return
   }
   
   const newCommentMetadata = {
+    "commentId": Math.floor(1000000 + Math.random()*9000000),
     "userId": window.localStorage.userId,
     "createdBy": window.localStorage.username,
     "text": commentText,
@@ -1223,25 +1225,32 @@ const submitAnnotationComment = (annotationName) => {
   
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
   const annotationComments = fileMetadata[`${annotationName}_comments`] ? JSON.parse(fileMetadata[`${annotationName}_comments`]) : []
-  const editedCommentIndex = commentsTextField.getAttribute("commentIndex")
+  const editingCommentId = parseInt(commentsTextField.getAttribute("editingCommentId"))
   // If comment is an edit of a previously submitted comment, replace it, otherwise add a new one.
-  if (editedCommentIndex) {
+  if (editingCommentId) {
     newCommentMetadata["modifiedAt"] = Date.now()
-    annotationComments[editedCommentIndex] = newCommentMetadata
+    const editingCommentIndex = annotationComments.findIndex(comment => comment["commentId"] === editingCommentId)
+    annotationComments[editingCommentIndex] = newCommentMetadata
   } else {
     newCommentMetadata["createdAt"] = Date.now()
     annotationComments.push(newCommentMetadata)
   }
-  console.log(annotationComments)
-  updateCommentInBox(annotationName, annotationComments)
+
+  updateCommentsInBox(annotationName, annotationComments)
 }
 
-const updateCommentInBox = async (annotationName, annotationComments) => {
+const updateCommentsInBox = async (annotationName, annotationComments) => {
   const boxMetadataPath = `/${annotationName}_comments`
   try {
     const newMetadata = await box.updateMetadata(hashParams.image, boxMetadataPath, JSON.stringify(annotationComments))
+    
+    if (JSON.parse(newMetadata[`${annotationName}_comments`]).length < JSON.parse(JSON.parse(window.localStorage.fileMetadata)[`${annotationName}_comments`]).length) {
+      showToast("Comment Deleted Successfully!")
+    } else {
+      showToast("Comment Added Successfully!")
+    }
+    
     window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-    showToast("Comment added successfully!")
     populateComments(annotationName)
     
     const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
@@ -1251,7 +1260,7 @@ const updateCommentInBox = async (annotationName, annotationComments) => {
     document.getElementById(`${annotationName}_allCommentsCard`).scrollTop = document.getElementById(`${annotationName}_allCommentsCard`).scrollHeight
     
     cancelEditComment(annotationName)
-
+    return newMetadata
   } catch (e) {
     showToast("Some error occurred adding your comment. Please try later!")
     console.log(e)
@@ -1260,26 +1269,34 @@ const updateCommentInBox = async (annotationName, annotationComments) => {
 
 const populateComments = (annotationName) => {
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
-  
   const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
   const commentsCard = document.getElementById(`${annotationName}_allCommentsCard`)
  
   if (fileMetadata[`${annotationName}_comments`]) {
     const annotationComments = JSON.parse(fileMetadata[`${annotationName}_comments`])
-    
     if (annotationComments.length > 0) {
-      const commentsSortedByTime = annotationComments.sort((prevComment, currentComment) => prevComment.createdAt - currentComment.createdAt )
-      fileMetadata[`${annotationName}_comments`] = JSON.stringify(commentsSortedByTime)
-      window.localStorage.fileMetadata = JSON.stringify(fileMetadata)
+      let commentsSortedByTime = annotationComments.sort((prevComment, currentComment) => prevComment.createdAt - currentComment.createdAt )
+      // To resolve breaking change of comments not having the ID field before. Assign old comments IDs and store them back in Box.
+      commentsSortedByTime = commentsSortedByTime.map(comment => {
+        const commentWithId = { ...comment }
+        if (!commentWithId["commentId"]) {
+          commentWithId["commentId"] = Math.floor(1000000 + Math.random()*9000000)
+        }
+        return commentWithId
+      })
+      if (JSON.stringify(annotationComments) !== JSON.stringify(commentsSortedByTime)) {
+        updateCommentsInBox(annotationName, commentsSortedByTime)
+      }
 
       const visibleComments = commentsSortedByTime.filter(comment => comment.userId === window.localStorage.userId || !comment.isPrivate)
       
       if (visibleComments) {
-        const userCommentIndices = []
+        const userCommentIds = []
         
-        const commentsHTML = commentsSortedByTime.map((comment,index) => {
+        const commentsHTML = visibleComments.map((comment, index) => {
+          const {commentId} = comment
           let commentElement = `
-            <span class="annotationComment" id="${annotationName}_comment_${index}">
+            <span class="annotationComment" id="${annotationName}_comment_${commentId}">
               <span class="annotationCommentText">
                 <b>
                   <u style="color: dodgerblue;">${comment.createdBy.trim()}</u> :
@@ -1292,17 +1309,17 @@ const populateComments = (annotationName) => {
 
           if (comment.userId === window.localStorage.userId) {
             const commentDropdownMenu = `
-              <div class="btn-group dropleft dropdown commentMenu" id="${annotationName}_commentMenu_${index}">
-                <button class="btn btn-light dropdown-toggle commentMenuToggle" role="button" id="${annotationName}_commentMenuToggle_${index}" data-toggle=dropdown aria-haspopup="true" aria-expanded="false">
+              <div class="btn-group dropleft dropdown commentMenu" id="${annotationName}_commentMenu_${commentId}">
+                <button class="btn btn-light dropdown-toggle commentMenuToggle" role="button" id="${annotationName}_commentMenuToggle_${commentId}" data-toggle=dropdown aria-haspopup="true" aria-expanded="false">
                   <i class="fas fa-ellipsis-v"></i>
                 </button>
                 <div class="dropdown-menu commentMenuDropdown" style="top: -10px;">
                   <div class="commentMenuButtons">
-                    <button class="btn btn-light commentMenuOption" role="button" id="${annotationName}_editComment_${index}" title="Edit" onclick="editAnnotationComment('${annotationName}', ${index})"  aria-haspopup="true" aria-expanded="false">
+                    <button class="btn btn-light commentMenuOption" role="button" id="${annotationName}_editComment_${commentId}" title="Edit" onclick="editAnnotationComment('${annotationName}', ${commentId})"  aria-haspopup="true" aria-expanded="false">
                       <i class="fas fa-pencil-alt"></i>
                     </button>
                     <div style="border-left: 1px solid lightgray; height: auto;"></div>
-                    <button class="btn btn-light commentMenuOption" role="button" id="${annotationName}_deleteComment_${index}" title="Delete" onclick="deleteAnnotationComment('${annotationName}', ${index})" aria-haspopup="true" aria-expanded="false">
+                    <button class="btn btn-light commentMenuOption" role="button" id="${annotationName}_deleteComment_${commentId}" title="Delete" onclick="deleteAnnotationComment('${annotationName}', ${commentId})" aria-haspopup="true" aria-expanded="false">
                       <i class="fas fa-trash-alt"></i>
                     </button>
                   </div>
@@ -1310,7 +1327,7 @@ const populateComments = (annotationName) => {
               </div>
             `
             commentElement += commentDropdownMenu
-            userCommentIndices.push(index)
+            userCommentIds.push(commentId)
           }
 
           commentElement += "</span>"
@@ -1320,27 +1337,27 @@ const populateComments = (annotationName) => {
 
         commentsCard.innerHTML = commentsHTML        
         
-        userCommentIndices.forEach(commentIndex => {
-          const commentMenu = document.getElementById(`${annotationName}_commentMenu_${commentIndex}`)
+        userCommentIds.forEach(commentId => {
+          const commentMenu = document.getElementById(`${annotationName}_commentMenu_${commentId}`)
           const commentMenuDropdown = new Dropdown(commentMenu)
-          new Tooltip(document.getElementById(`${annotationName}_editComment_${commentIndex}`), {
+          new Tooltip(document.getElementById(`${annotationName}_editComment_${commentId}`), {
             'placement': "bottom",
             'animation': "slideNfade",
             'delay': 50
           })
-          new Tooltip(document.getElementById(`${annotationName}_deleteComment_${commentIndex}`), {
+          new Tooltip(document.getElementById(`${annotationName}_deleteComment_${commentId}`), {
             'placement': "bottom",
             'animation': "slideNfade",
             'delay': 50
           })
-          const commentSpan = document.getElementById(`${annotationName}_comment_${commentIndex}`)
+          const commentSpan = document.getElementById(`${annotationName}_comment_${commentId}`)
           commentSpan.onmouseover = () => {
-            document.getElementById(`${annotationName}_commentMenu_${commentIndex}`).style.display = "block"
+            document.getElementById(`${annotationName}_commentMenu_${commentId}`).style.display = "block"
           }
           commentSpan.onmouseleave = () => {
             const commentMenuIsOpen = commentMenu.querySelector("div.commentMenuDropdown").classList.contains("show")
             if (!commentMenuIsOpen) {
-              document.getElementById(`${annotationName}_commentMenu_${commentIndex}`).style.display = "none"
+              document.getElementById(`${annotationName}_commentMenu_${commentId}`).style.display = "none"
             }
           }
         })
@@ -1349,47 +1366,52 @@ const populateComments = (annotationName) => {
         toggleCommentsButton.parentElement.style["text-align"] = "left"
         toggleCommentsButton.removeAttribute("disabled")
 
+        return
       }
     }
-  } else {
-    commentsCard.innerHTML = ""
-    if ( !(toggleCommentsButton.classList.contains("collapsed")) ) {
-      toggleCommentsButton.Collapse.hide()
-    }
-    toggleCommentsButton.parentElement.style["text-align"] = "center"
-    toggleCommentsButton.setAttribute("disabled", "true")
-    toggleCommentsButton.innerHTML = "-- No Comments To Show --"
   }
+  
+  commentsCard.innerHTML = ""
+  if ( !(toggleCommentsButton.classList.contains("collapsed")) ) {
+    toggleCommentsButton.Collapse.hide()
+  }
+  toggleCommentsButton.parentElement.style["text-align"] = "center"
+  toggleCommentsButton.setAttribute("disabled", "true")
+  toggleCommentsButton.innerHTML = "-- No Comments To Show --"
+
 }
 
-const editAnnotationComment = async (annotationName, commentIndex) => {
+const editAnnotationComment = async (annotationName, commentId) => {
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
   if (fileMetadata[`${annotationName}_comments`]) {
     const annotationComments = JSON.parse(fileMetadata[`${annotationName}_comments`])
-    if (annotationComments && annotationComments[commentIndex]) {
-      const { userId, text, isPrivate } = annotationComments[commentIndex]
-      if (userId === window.localStorage.userId) {
-        const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
-        commentsTextField.setAttribute("commentIndex", commentIndex)
-        commentsTextField.value = text
-        document.getElementById(`${annotationName}_commentsPublic`).checked = !isPrivate
-        commentsTextField.focus()
-        if (text.trim().length > 0) {
-          document.getElementById(`${annotationName}_submitComment`).removeAttribute("disabled")
+    if (annotationComments){
+      const commentToEdit = annotationComments.find(comment => comment["commentId"] === commentId)
+      if (commentToEdit) {
+        const { userId, text, isPrivate } = commentToEdit
+        if (userId === window.localStorage.userId) {
+          const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
+          commentsTextField.setAttribute("editingCommentId", commentId)
+          commentsTextField.value = text
+          document.getElementById(`${annotationName}_commentsPublic`).checked = !isPrivate
+          commentsTextField.focus()
+          if (text.trim().length > 0) {
+            document.getElementById(`${annotationName}_submitComment`).removeAttribute("disabled")
+          }
         }
       }
     }
   }
 }
 
-const deleteAnnotationComment = async (annotationName, commentIndex) => {
+const deleteAnnotationComment = async (annotationName, commentId) => {
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
   if (fileMetadata[`${annotationName}_comments`]) {
     const annotationComments = JSON.parse(fileMetadata[`${annotationName}_comments`])
-    if (annotationComments && annotationComments[commentIndex]) {
-      const { userId, text, isPrivate } = annotationComments[commentIndex]
-      if (userId === window.localStorage.userId) {
-
+    if (annotationComments) {
+      const commentsAfterDelete = annotationComments.filter(comment => comment["commentId"] !== commentId)
+      if (commentsAfterDelete.length !== annotationComments.length) {
+        updateCommentsInBox(annotationName, commentsAfterDelete)
       }
     }
   }
@@ -1397,7 +1419,7 @@ const deleteAnnotationComment = async (annotationName, commentIndex) => {
 
 const cancelEditComment = async (annotationName) => {
   document.getElementById(`${annotationName}_commentsTextField`).value = ""
-  document.getElementById(`${annotationName}_commentsTextField`).removeAttribute("commentIndex")
+  document.getElementById(`${annotationName}_commentsTextField`).removeAttribute("editingCommentId")
   document.getElementById(`${annotationName}_commentsPublic`).checked = false
   document.getElementById(`${annotationName}_submitComment`).setAttribute("disabled", "true")
 }
