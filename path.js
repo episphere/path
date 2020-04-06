@@ -167,7 +167,7 @@ path.setupEventListeners = () => {
     if (path.isImageFromBox) {
       
       await showThumbnailPicker(defaultThumbnailsListLength, window.localStorage.currentThumbnailsOffset)
-      path.appConfig.annotations.forEach(createAnnotationTables)
+      path.appConfig.annotations.forEach((classType) => createAnnotationTables(classType))
       if (path.predictionworker) {
         path.predictionworker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
         path.predictionworker.onmessage = (e) => {
@@ -925,7 +925,6 @@ const addLocalFileButton = async () => {
 }
 
 const createAnnotationTables = async (annotation, forceRedraw=false) => {
-  
   const {
     annotationId,
     displayName,
@@ -936,6 +935,7 @@ const createAnnotationTables = async (annotation, forceRedraw=false) => {
   
   const annotationsAccordion = document.getElementById("annotationsAccordion")
   if (annotationsAccordion.childElementCount > path.appConfig.annotations.length) {
+    
     annotationsAccordion.innerHTML = ""
   }
 
@@ -1299,8 +1299,17 @@ const populateComments = (annotationName) => {
             <span class="annotationComment" id="${annotationName}_comment_${commentId}">
               <span class="annotationCommentText">
                 <b>
-                  <u style="color: dodgerblue;">${comment.createdBy.trim()}</u> :
+                <u style="color: dodgerblue;">${comment.createdBy.trim()}</u>
                 </b>
+          `
+          if (!comment.isPrivate) {
+            commentElement += `
+                <i class="fas fa-globe" title="This comment is public"></i>
+            `
+          }
+
+          commentElement += `
+          :
                 <strong style="color: rgb(85, 85, 85);">
                   ${comment.text}
                 </strong>
@@ -2067,7 +2076,7 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
       await box.uploadFile(configFileId, newConfigFormData)
       showToast(toastMessage)
       path.appConfig = appConfig
-      path.appConfig.annotations.forEach(annotation => createAnnotationTables(annotation, annotation[identifier] === deltaData[identifier]))
+      path.appConfig.annotations.forEach(annotation => (annotation) => createAnnotationTables(annotation, annotation[identifier] === deltaData[identifier]))
       const reBorderThumbnails = () => {
         const allThumbnails = document.querySelectorAll("img.imagePickerThumbnail")
         const allThumbnailIDs = []
