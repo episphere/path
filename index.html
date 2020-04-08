@@ -10,9 +10,12 @@
   <!-- <script src="bsn_temp.js "></script> -->
   <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.8.2/css/all.min.css">
-  <script src="path.js"></script>
-  <script src="boxHandler.js"></script>
-  <script src="tools.js"></script>
+  <script src="scripts/path.js"></script>
+  <script src="scripts/boxHandler.js"></script>
+  <script src="scripts/myBox.js"></script>
+  <script src="scripts/annotations.js"></script>
+  <script src="scripts/thumbnails.js"></script>
+  <script src="scripts/tools.js"></script>
   <link rel="stylesheet" href="path.css">
   <script type="text/javascript" src="https://app.box.com/js/static/select.js" async></script>
   <script src="https://togetherjs.com/togetherjs-min.js" async></script>
@@ -101,7 +104,7 @@
           </div>
           <div class="tab-pane fade" id="annotations" role="tabpanel" aria-labelledby="annotations-tab">
             <div class="tabContainer tabContainerWithMargin" id="annotationsDiv">
-              <span id="nextImageMessage"></span>
+              <div id="nextImageMessage"></div>
               <div class="accordion" id="annotationsAccordion"></div>
               <button type="button" class="btn btn-link" id="addClassificationBtn" data-toggle="modal" data-target="#addClassificationModal">+ Add More Classifications</button>
             </div>

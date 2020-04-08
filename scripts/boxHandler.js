@@ -36,7 +36,7 @@ const box = async () => {
           try {
             await getAccessToken('refresh_token', boxCreds["refresh_token"])
           } catch (err) {
-            showToast("Some error occurred while logging in to Box. Please try again!")
+            utils.showToast("Some error occurred while logging in to Box. Please try again!")
             console.log(err)
             return false
           }
@@ -104,7 +104,7 @@ const box = async () => {
       await getAccessToken("authorization_code", urlParams["code"])
       triggerLoginEvent()
     } catch (err) {
-      showToast("Some error occurred while logging in to Box. Please try again!")
+      utils.showToast("Some error occurred while logging in to Box. Please try again!")
       document.getElementById("boxLoginBtn").style = "display: block"
       console.log("ERROR LOGGING IN TO BOX!", err)
       return
