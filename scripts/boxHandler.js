@@ -234,6 +234,8 @@ box.updateMetadata = (id, path, updateData) => {
 box.getRepresentation = async (url) => {
   const isFileJSON = false
   const resp = await utils.boxRequest(url, {}, isFileJSON)
-  const imageBlob = await resp.blob()
-  return URL.createObjectURL(imageBlob)
+  if (resp.status === 200) {
+    const imageBlob = await resp.blob()
+    return URL.createObjectURL(imageBlob)
+  }
 }

@@ -299,7 +299,9 @@ const loadImageFromBox = async (id, url) => {
               
               console.log("Representation not found, loading Box's.", new Date())
               url = await box.getRepresentation(maxResolutionRep.url)
-              await loadImgFromBoxFile(null, url)
+              if (url) {
+                await loadImgFromBoxFile(null, url)
+              }
   
               if (typeof OffscreenCanvas === "function") {
                 path.tiffWorker.postMessage({
