@@ -33,14 +33,19 @@ const loadHashParams = async () => {
       }
     })
   }
+  
   window.localStorage.hashParams = JSON.stringify(hashParams)
+  
   if (hashParams["extModules"]) {
     path.loadModules()
   }
+  
   if (await box.isLoggedIn()) {
+ 
     if (hashParams.image && hashParams.image !== window.localStorage.currentImage) {
       await loadImageFromBox(hashParams.image)
     }
+  
     if (hashParams.folder) {
       window.localStorage.currentFolder = hashParams.folder
       window.localStorage.allFilesInFolder[hashParams.folder] = {}
@@ -48,6 +53,11 @@ const loadHashParams = async () => {
     } else {
       selectFolder(boxRootFolderId)
     }
+ 
+    if (!hashParams.sort) {
+      window.location.hash += "&sort=name"
+    }
+ 
   }
 }
 
@@ -164,12 +174,12 @@ path.setupEventListeners = () => {
     document.getElementById("datasetFolderId").value = path.appConfig.datasetFolderId ? path.appConfig.datasetFolderId : "INVALID"
   })
   addClassificationModal.addEventListener("hidden.bs.modal", (evt) => {
-    resetAddClassificationModal()
+    annotations.resetAddClassificationModal()
   })
 
   path.tmaImage.onload = async () => {
     path.loadCanvas()
-    
+    hideLoader("imgLoaderDiv")
     if (path.isImageFromBox) {
       
       await thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
@@ -217,118 +227,128 @@ const loadImageFromBox = async (id, url) => {
     const thumbnailImage = document.getElementById(`thumbnail_${id}`)
     if (thumbnailImage) {
       path.tmaImage.src = thumbnailImage.src
-      thumbnails.highlightThumbnail(id)
-      myBox.highlightImage(id)
+    } else if (path.tmaCanvasLoaded) {
+      const loaderElementId = "imgLoaderDiv"
+      showLoader(loaderElementId, path.tmaCanvas)
     }
-
-    const imageData = await box.getData(id, "file") || {}
-    if (imageData.status === 404) {
-      console.log(`Can't fetch data for image ID ${id} from Box`)
-      alert("The image ID in the URL does not point to a file in Box!")
-      selectImage()
-      loadDefaultImage()
-      return
-    }
-
-    const {
-      type,
-      name,
-      parent,
-      metadata,
-      path_collection: {
-        entries: filePathInBox
-      },
-      size,
-      representations
-    } = imageData
-
-    if (type === "file" && utils.isValidImage(name)) {
-      annotations.deactivateQualitySelectors()
-
-      const fileMetadata = metadata && metadata.global.properties
-      if (fileMetadata) {
-        window.localStorage.fileMetadata = JSON.stringify(fileMetadata)
-      } else {
-        box.createMetadata(id, "file").then(res => {
-          window.localStorage.fileMetadata = JSON.stringify(res)
-        })
+    thumbnails.highlightThumbnail(id)
+    myBox.highlightImage(id)
+   
+    try {
+      
+      const imageData = await box.getData(id, "file") || {}
+      if (imageData.status === 404) {
+        console.log(`Can't fetch data for image ID ${id} from Box`)
+        alert("The image ID in the URL does not point to a file in Box!")
+        selectImage()
+        loadDefaultImage()
+        return
       }
-      
-      const allFilesInFolderObj = JSON.parse(window.localStorage.allFilesInFolder) || {}
-      allFilesInFolderObj[parent.id] = parent.id in allFilesInFolderObj && allFilesInFolderObj[parent.id].length > 0 ? allFilesInFolderObj[parent.id] : []
-      window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
-      window.localStorage.currentThumbnailsFolder = parent.id
-
-      path.tmaImage.setAttribute("alt", name)
-      
-      if (!url) {
-      
-        if (name.endsWith(".tiff")) {
-          if (!path.tiffUnsupportedAlertShown && typeof OffscreenCanvas !== "function") { // Alert for browsers without OffscreenCanvas support.
-            alert("TIFF files might not work well in this browser. Please use the Google Chrome browser for the best experience!")
-            path.tiffUnsupportedAlertShown = true
-          }
-
-          if (!fileMetadata["jpegRepresentation"]) { // Get a temporary png from Box, send to web worker for tiff to png conversion.
-            const maxResolutionRep = representations.entries.reduce((maxRep, rep) => {
-              const resolution = Math.max(...rep.properties.dimensions.split("x").map(Number))
-              if (resolution > maxRep.resolution) {
-                return {
-                  resolution,
-                  url: rep.info.url.replace("api.box.com", "dl.boxcloud.com/api") + `/content/1.${rep.representation}`
-                }
-              } else {
-                return maxRep
-              }
-            }, { resolution: 0, url: "" })
-            
-            console.log("Representation not found, loading Box's.", new Date())
-            url = await box.getRepresentation(maxResolutionRep.url)
-            await loadImgFromBoxFile(null, url)
-
-            if (typeof OffscreenCanvas === "function") {
-              path.tiffWorker.postMessage({
-                'boxAccessToken': JSON.parse(window.localStorage.box)["access_token"],
-                'imageId': id,
-                name,
-                size
-              })
-              
-              path.tiffWorker.onmessage = (evt) => {
-                const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
-                if (originalImageId === hashParams.image) {
-                  console.log("Conversion completion message received from worker, loading new image", new Date())
-                  loadImgFromBoxFile(representationFileId)
-                  window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-                }
-              }
-
-              path.tiffWorker.onerror = (err) => {
-                console.log("Error converting TIFF from worker", err)
-              }
-            }
-
-          } else { // Just use the representation created before.
-            const { representationFileId} = JSON.parse(fileMetadata["jpegRepresentation"])
-            console.log("Using the JPEG representation created already", new Date())
-            await loadImgFromBoxFile(representationFileId)
-          }
-        
+  
+      const {
+        type,
+        name,
+        parent,
+        metadata,
+        path_collection: {
+          entries: filePathInBox
+        },
+        size,
+        representations
+      } = imageData
+  
+      if (type === "file" && utils.isValidImage(name)) {
+        annotations.deactivateQualitySelectors()
+  
+        const fileMetadata = metadata ? metadata.global.properties : {}
+        if (Object.keys(fileMetadata).length > 0) {
+          window.localStorage.fileMetadata = JSON.stringify(fileMetadata)
         } else {
-          await loadImgFromBoxFile(id)
+          box.createMetadata(id, "file").then(res => {
+            window.localStorage.fileMetadata = JSON.stringify(res)
+          })
         }
+        
+        const allFilesInFolderObj = JSON.parse(window.localStorage.allFilesInFolder) || {}
+        allFilesInFolderObj[parent.id] = parent.id in allFilesInFolderObj && allFilesInFolderObj[parent.id].length > 0 ? allFilesInFolderObj[parent.id] : []
+        window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
+        window.localStorage.currentThumbnailsFolder = parent.id
+  
+        path.tmaImage.setAttribute("alt", name)
+        
+        if (!url) {
+        
+          if (name.endsWith(".tiff")) {
+            if (!path.tiffUnsupportedAlertShown && typeof OffscreenCanvas !== "function") { // Alert for browsers without OffscreenCanvas support.
+              alert("TIFF files might not work well in this browser. Please use the Google Chrome browser for the best experience!")
+              path.tiffUnsupportedAlertShown = true
+            }
+  
+            if (!fileMetadata["jpegRepresentation"]) { // Get a temporary png from Box, send to web worker for tiff to png conversion.
+              const maxResolutionRep = representations.entries.reduce((maxRep, rep) => {
+                const resolution = Math.max(...rep.properties.dimensions.split("x").map(Number))
+                if (resolution > maxRep.resolution) {
+                  return {
+                    resolution,
+                    url: rep.info.url.replace("api.box.com", "dl.boxcloud.com/api") + `/content/1.${rep.representation}`
+                  }
+                } else {
+                  return maxRep
+                }
+              }, { resolution: 0, url: "" })
+              
+              console.log("Representation not found, loading Box's.", new Date())
+              url = await box.getRepresentation(maxResolutionRep.url)
+              await loadImgFromBoxFile(null, url)
+  
+              if (typeof OffscreenCanvas === "function") {
+                path.tiffWorker.postMessage({
+                  'boxAccessToken': JSON.parse(window.localStorage.box)["access_token"],
+                  'imageId': id,
+                  name,
+                  size
+                })
+                
+                path.tiffWorker.onmessage = (evt) => {
+                  const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
+                  if (originalImageId === hashParams.image) {
+                    console.log("Conversion completion message received from worker, loading new image", new Date())
+                    loadImgFromBoxFile(representationFileId)
+                    window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+                  }
+                }
+  
+                path.tiffWorker.onerror = (err) => {
+                  console.log("Error converting TIFF from worker", err)
+                }
+              }
+  
+            } else { // Just use the representation created before.
+              const { representationFileId} = JSON.parse(fileMetadata["jpegRepresentation"])
+              console.log("Using the JPEG representation created already", new Date())
+              await loadImgFromBoxFile(representationFileId)
+            }
+          
+          } else {
+            await loadImgFromBoxFile(id)
+          }
+        }
+  
+        
+        addImageHeader(filePathInBox, id, name)
+        window.localStorage.currentImage = id
+        
+        if (!hashParams.folder) {
+          selectFolder(parent.id)
+        }
+      } else {
+        alert("The ID in the URL does not point to a valid image file (.jpg/.png/.tiff) in Box.")
       }
-
-      
-      addImageHeader(filePathInBox, id, name)
-      window.localStorage.currentImage = id
-      
-      if (!hashParams.folder) {
-        selectFolder(parent.id)
-      }
-    } else {
-      alert("The ID in the URL does not point to a valid image file (.jpg/.png/.tiff) in Box.")
+    
+    } catch (e) {
+      console.log("Error occurred loading image", e)
     }
+  
     // Re-enable click events once image has been loaded.
     path.imageDiv.style["pointer-events"] = "auto"
   }
@@ -361,7 +381,7 @@ const addImageHeader = (filePathInBox, id, name) => {
       const folderLink = document.createElement("a")
       folderLink.setAttribute("href", `${box.appBasePath}/${folder.type}/${folder.id}`)
       folderLink.setAttribute("target", "_blank")
-      folderLink.innerText = path.tmaCanvas.getBoundingClientRect().width < 550 ? folder.name.trim().slice(0, 7) + "..." : folder.name.trim()
+      folderLink.innerText = path.tmaCanvas.getBoundingClientRect().width < 550 ? folder.name.slice(0, 7).trim() + "..." : folder.name.trim()
       folderLink.title = folder.name
       folderItem.appendChild(folderLink)
       folderStructure.appendChild(folderItem)
@@ -375,7 +395,7 @@ const addImageHeader = (filePathInBox, id, name) => {
   fileLink.style.whiteSpace = "nowrap"
   fileLink.style.textOverflow = "ellipsis"
   fileLink.style.overflow = "hidden"
-  fileLink.innerText = name.length > 20 ? name.trim().slice(0,20) + "..." : name.trim()
+  fileLink.innerText = name.length > 20 ? name.slice(0,20).trim() + "..." : name.trim()
   fileItem.appendChild(fileLink)
   
   folderStructure.appendChild(fileItem)
@@ -491,386 +511,6 @@ const startCollaboration = () => {
   }
   TogetherJS(this)
   return false
-}
-
-const editClassificationConfig = (annotationId) => {
-  const annotationForm = document.getElementById("createClassificationForm")
-  annotationForm.setAttribute("annotationId", annotationId) // Used after submit to know if the form was used to add a new class or update an old one.
-  
-  const annotationToEdit = path.appConfig.annotations.filter(annotation => annotation["annotationId"] === annotationId)[0]
-  if (annotationToEdit) {
-    document.getElementById("addClassificationBtn").Modal.show()
-    document.getElementById("addClassificationModal").querySelector("button[type=submit]").innerHTML = "Update Class"
-   
-    annotationForm.querySelectorAll(".form-control").forEach(element => {
-    
-      if (element.name && !element.classList.contains("classLabelField")) {
-     
-        switch(element.name) {
-          case "datasetFolderId":
-            break
-
-            case "displayName":
-            case "definition":
-              element.value = annotationToEdit[element.name]
-            break
-            
-            case "labelType":
-              element.value = annotationToEdit[element.name]
-              displayLabelsSectionInModal(element)
-          
-          case "enableComments":
-            element.checked = annotationToEdit.enableComments
-            break
-          
-          default:
-        }
-      }
-    })
-
-    annotationForm.querySelector("div#modalLabelsList").innerHTML = ""
-    annotationToEdit.labels.forEach(label => {
-      const newLabelRow = addLabelToModal()
-      newLabelRow.querySelector("input[name=labelDisplayText]").value = label.displayText
-      newLabelRow.querySelector("input[name=labelValue]").value = label.label
-    })
-    
-  }
-}
-
-const deleteClassificationConfig = async (annotationId) => {
-  if (confirm("This will delete this classification for everyone with access to this dataset. Are you sure you want to continue?")) {
-    const annotationToDelete = path.appConfig.annotations.filter(annotation => annotation["annotationId"] === annotationId)[0]
-    if (annotationToDelete) {
-      updateConfigInBox("annotations", "remove", annotationToDelete, "annotationId")
-    }
-  }
-}
-
-const addClassificationToConfig = () => {
-  let formIsValid = true
-  let alertMessage = ""
-  const annotationForm = document.getElementById("createClassificationForm")
-
-  const annotationIdToEdit = parseInt(annotationForm.getAttribute("annotationId"))
-
-  const newAnnotation = {
-    "annotationId": annotationIdToEdit || Math.floor(1000000 + Math.random()*9000000), //random 7 digit annotation ID
-    "displayName": "",
-    "annotationName": "",
-    "definition": "",
-    "enableComments": false,
-    "labelType": "",
-    "labels": [],
-    "createdBy": "",
-    "private": false,
-  }
-
-  annotationForm.querySelectorAll(".form-control").forEach(element => {
-    if (element.name) {
-      switch (element.name) {
-        case "datasetFolderId":
-          // Check if dataset folder exists in Box and if it has a config. Fetch it if it does.
-          break
-
-        case "displayName":
-          if (!element.value) {
-            formIsValid = false
-            alertMessage = "Please enter values for the missing fields!"
-
-            element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
-            element.oninput = element.oninput ? element.oninput : () => {
-              if (element.value) {
-                element.style.boxShadow = "none"
-              } else {
-                element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
-              }
-            }
-            
-            break
-          }
-          
-          newAnnotation["displayName"] = element.value
-          
-          newAnnotation["annotationName"] = element.value.split(" ").map((word, ind) => {
-            if (ind === 0) {
-              return word.toLowerCase()
-            } else {
-              return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-            }
-          }).join("")
-          newAnnotation["annotationName"] += `_${newAnnotation["annotationId"]}`
-          
-          break
-
-        case "labelDisplayText":
-          if (!element.value) {
-            formIsValid = false
-            alertMessage = "Please enter values for the missing fields!"
-
-            element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
-            element.oninput = element.oninput ? element.oninput : () => {
-              if (element.value) {
-                element.style.boxShadow = "none"
-              } else {
-                element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
-              }
-            }
-          }
-          else {
-            const alreadyDefinedLabels = newAnnotation.labels.map(label => label.displayText)
-            if (alreadyDefinedLabels.indexOf(element.value) != -1 ) {
-              formIsValid = false
-              alertMessage = alertMessage || "Labels must have unique values!"
-              element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
-              document.getElementById(`labelDisplayText_${alreadyDefinedLabels.indexOf(element.value)}`).style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)"
-              break
-            }
-
-            const labelTextIndex = parseInt(element.id.split("_")[1])
-            newAnnotation.labels[labelTextIndex] = newAnnotation.labels[labelTextIndex] ? {
-              "displayText": element.value,
-              ...newAnnotation.labels[labelTextIndex]
-            } : {
-              "displayText": element.value
-            }
-          }
-          
-          break
-
-        case "labelValue":
-          if (!element.value) {
-            formIsValid = false
-            alertMessage = "Please enter values for the missing fields!"
-
-            element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
-            element.oninput = element.oninput ? element.oninput : () => {
-              if (element.value) {
-                element.style.boxShadow = "none"
-              } else {
-                element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
-              }
-            }
-
-          } else {
-            const alreadyDefinedLabels = newAnnotation.labels.map(label => label.label)
-            if (alreadyDefinedLabels.indexOf(element.value) != -1 ) {
-              formIsValid = false
-              alertMessage = alertMessage || "Labels must have unique values!"
-              element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
-              document.getElementById(`labelValue_${alreadyDefinedLabels.indexOf(element.value)}`).style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)"
-              break
-            }
-            
-            const labelValueIndex = parseInt(element.id.split("_")[1])
-            newAnnotation.labels[labelValueIndex] = newAnnotation.labels[labelValueIndex] ? {
-              "label": element.value,
-              ...newAnnotation.labels[labelValueIndex]
-            } : {
-              "displayText": element.value
-            }
-          }
-
-          break
-
-        default:
-          if (element.type === "checkbox") {
-            newAnnotation[element.name] = element.checked
-          } else {
-            if (element.name === "labelType" && !element.value) {
-              formIsValid = false
-              alertMessage = "Please enter values for the missing fields!"
-
-              element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
-              element.oninput = element.oninput ? element.oninput : () => {
-                if (element.value) {
-                  element.style.boxShadow = "none"
-                } else {
-                  element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
-                }
-              }
-              
-              break
-            }
-            newAnnotation[element.name] = element.value
-          }
-      }
-    }
-  })
-
-  if (!formIsValid) {
-    alert(alertMessage)
-    return
-  }
-  
-  if(annotationIdToEdit) {
-    newAnnotation["modifiedAt"] = Date.now()
-    newAnnotation["lastModifiedByUserId"] = window.localStorage.userId
-    newAnnotation["lastModifiedByUsername"] = window.localStorage.username
-    updateConfigInBox("annotations", "modify", newAnnotation, "annotationId")
-  } else {
-    newAnnotation["createdAt"] = Date.now()
-    newAnnotation["createdByUserId"] = window.localStorage.userId
-    newAnnotation["createdByUsername"] = window.localStorage.userId
-    updateConfigInBox("annotations", "append", newAnnotation)
-  }
-  
-  const modalCloseBtn = document.getElementsByClassName("modal-footer")[0].querySelector("button[data-dismiss=modal]")
-  modalCloseBtn.click()
-}
-
-const updateConfigInBox = async (changedProperty = "annotations", operation, deltaData, identifier) => {
-  let toastMessage = ""
-  if (deltaData) {
-    const isFileJSON = true
-    const appConfig = await box.getFileContent(configFileId, isFileJSON)
-    if (appConfig) {
-      
-      if (operation === "append") {
-      
-        if (Array.isArray(appConfig[changedProperty])) {
-          appConfig[changedProperty].push(deltaData)
-        } else if (typeof (appConfig[changedProperty]) === "object") {
-          appConfig[changedProperty] = {
-            ...deltaData,
-            ...appConfig[changedProperty]
-          }
-        }
-      
-        toastMessage = "New Class Added Successfully!"
-      
-      } else if (operation === "remove") {
-     
-        if (Array.isArray(appConfig[changedProperty])) {
-          appConfig[changedProperty] = appConfig[changedProperty].filter(val => {
-            if (typeof(val) === "object" && val[identifier]) {
-              return val[identifier] !== deltaData[identifier]
-            } else {
-              return val !== deltaData
-            }
-          })
-        } else if (typeof (appConfig[changedProperty]) === "object" && appConfig[changedProperty][deltaData]) {
-          delete appConfig[changedProperty][deltaData]
-        }
-    
-        toastMessage = "Class Removed From Config!"
-     
-      } else if (operation === "modify") {
-  
-        if (Array.isArray(appConfig[changedProperty])) {
- 
-          const indexToChangeAt = appConfig[changedProperty].findIndex(val => {
-            if (typeof(val) === "object" && val[identifier]) {
-              return val[identifier] === deltaData[identifier]
-            } else {
-              return val === deltaData
-            }
-          })
-  
-          if (indexToChangeAt !== -1) {
-            appConfig[changedProperty][indexToChangeAt] = deltaData
-          }
-  
-        } else if (typeof(appConfig[changedProperty]) === "object") {
-          appConfig[changedProperty] = deltaData
-        }
-        toastMessage = "Class Updated Successfully!"
-      }
-    } else {
-      console.log("UPDATE CONFIG OPERATION FAILED!")
-      return
-    }
-
-    const newConfigFormData = new FormData()
-    const configFileAttributes = {
-      "name": "appConfig.json"
-    }
-    const newConfigBlob = new Blob([JSON.stringify(appConfig)], {
-      type: "application/json"
-    })
-    newConfigFormData.append("attributes", JSON.stringify(configFileAttributes))
-    newConfigFormData.append("file", newConfigBlob)
-
-    try {
-      await box.uploadFile(configFileId, newConfigFormData)
-      utils.showToast(toastMessage)
-      path.appConfig = appConfig
-      path.appConfig.annotations.forEach(annotation => (annotation) => annotations.createTables(annotation, annotation[identifier] === deltaData[identifier]))
-    
-      thumbnails.reBorderThumbnails()
-    
-    } catch (e) {
-      console.log("Couldn't upload new config to Box!", e)
-      utils.showToast("Some error occurred while adding the annotation. Please try again!")
-    }
-  }
-}
-
-const addLabelToModal = () => {
-  const modalLabelsList = document.getElementById("modalLabelsList")
-  const numLabelsAdded = modalLabelsList.childElementCount
-  const newLabelRow = document.createElement("div")
-  newLabelRow.setAttribute("class", "row")
-  newLabelRow.innerHTML = `
-    <div class="form-group row addedLabel">
-      <div class="col">
-        <input type="text" class="form-control" placeholder="Display Name*" name="labelDisplayText" id="labelDisplayText_${numLabelsAdded}" oninput="prefillLabelValueInModal(${numLabelsAdded})" required="true"></input>
-      </div>
-    </div>
-    <div class="form-group row addedLabel">
-      <div class="col">
-        <input type="text" class="form-control" placeholder="Label Value*" name="labelValue" id="labelValue_${numLabelsAdded}" oninput="this.setAttribute('userInput', true)" required="true"></input>
-      </div>
-    </div>
-    <div class="col-sm-1">
-    <button type="button" class="close" aria-label="Close" style="margin-top: 50%" onclick="removeLabelFromModal(this);">
-      <span aria-hidden="true">&times;</span>
-    </button>
-    </div>
-  `
-  modalLabelsList.appendChild(newLabelRow)
-  return newLabelRow
-}
-
-const prefillLabelValueInModal = (labelInputIndex) => {
-  const elementToPrefillFrom = document.getElementById(`labelDisplayText_${labelInputIndex}`)
-  const elementToPrefillInto = document.getElementById(`labelValue_${labelInputIndex}`)
-  if (elementToPrefillFrom && elementToPrefillInto && !elementToPrefillInto.getAttribute("userInput")) {
-    elementToPrefillInto.value = elementToPrefillFrom.value
-  }
-}
-
-const removeLabelFromModal = (target) => {
-  const modalLabelsList = document.getElementById("modalLabelsList")
-  modalLabelsList.removeChild(target.parentElement.parentElement)
-}
-
-const displayLabelsSectionInModal = (selectElement) => {
-  if (selectElement.value) {
-    document.getElementById("addLabelsToModal").style.display = "flex"
-  } else {
-    document.getElementById("addLabelsToModal").style.display = "none"
-  }
-}
-
-const resetAddClassificationModal = () => {
-  const annotationForm = document.getElementById("createClassificationForm")
-  annotationForm.removeAttribute("annotationId")
-  annotationForm.querySelectorAll(".form-control").forEach(element => {
-    if (element.type === "checkbox") {
-      element.checked = false
-    } else {
-      element.value = ""
-    }
-  })
-
-  const modalLabelsList = document.getElementById("modalLabelsList")
-  while(modalLabelsList.firstElementChild !== modalLabelsList.lastElementChild) {
-    modalLabelsList.removeChild(modalLabelsList.lastElementChild)
-  }
-  modalLabelsList.parentElement.style.display = "none"
-
-  document.getElementById("addClassificationModal").querySelector("button[type=submit]").innerHTML = "Create Class"
 }
 
 const getModelPrediction = async (annotationType) => {

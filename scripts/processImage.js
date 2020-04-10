@@ -44,7 +44,7 @@ onerror = (err) => {
 }
 
 onmessage = async (evt) => {
-  importScripts("external/tiff.min.js")
+  importScripts("../external/tiff.min.js")
   const { boxAccessToken, imageId, name, size } = evt.data
 
   if (size) {

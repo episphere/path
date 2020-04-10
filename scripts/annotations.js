@@ -49,8 +49,8 @@ annotations.createTables = async (annotation, forceRedraw = false) => {
 
     annotationCard += `
           </div>
-          <div class="btn-group dropdown classificationMenu" id="${annotationName}_classificationMenu">
-            <button class="btn btn-light dropdown-toggle classificationMenuToggle" role="button" id="${annotationName}_classificationMenuToggle" data-toggle=dropdown aria-haspopup="true" aria-expanded="false">
+          <div class="dropdown classificationMenu" id="${annotationName}_classificationMenu">
+            <button class="btn btn-light dropdown-toggle classificationMenuToggle" role="button" id="${annotationName}_classificationMenuToggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
               <i class="fas fa-ellipsis-v"></i>
             </button>
             <div class="dropdown-menu dropdown-menu-right classificationMenuDropdown">
@@ -423,8 +423,9 @@ const updateCommentsInBox = async (annotationName, annotationComments) => {
   const boxMetadataPath = `/${annotationName}_comments`
   try {
     const newMetadata = await box.updateMetadata(hashParams.image, boxMetadataPath, JSON.stringify(annotationComments))
-
-    if (JSON.parse(newMetadata[`${annotationName}_comments`]).length < JSON.parse(JSON.parse(window.localStorage.fileMetadata)[`${annotationName}_comments`]).length) {
+    const localFileMetadata = JSON.parse(window.localStorage.fileMetadata)
+    
+    if (localFileMetadata[`${annotationName}_comments`] && JSON.parse(newMetadata[`${annotationName}_comments`]).length < JSON.parse(localFileMetadata[`${annotationName}_comments`]).length ) {
       utils.showToast("Comment Deleted Successfully!")
     } else {
       utils.showToast("Comment Added Successfully!")
@@ -502,8 +503,8 @@ const populateComments = (annotationName) => {
 
           if (comment.userId === window.localStorage.userId) {
             const commentDropdownMenu = `
-              <div class="btn-group dropleft dropdown commentMenu" id="${annotationName}_commentMenu_${commentId}">
-                <button class="btn btn-light dropdown-toggle commentMenuToggle" role="button" id="${annotationName}_commentMenuToggle_${commentId}" data-toggle=dropdown aria-haspopup="true" aria-expanded="false">
+              <div class="dropleft dropdown commentMenu" id="${annotationName}_commentMenu_${commentId}">
+                <button class="btn btn-light dropdown-toggle commentMenuToggle" role="button" id="${annotationName}_commentMenuToggle_${commentId}" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                   <i class="fas fa-ellipsis-v"></i>
                 </button>
                 <div class="dropdown-menu commentMenuDropdown" style="top: -10px;">
@@ -644,4 +645,385 @@ const activateQualitySelector = (annotationName, fileAnnotations) => {
 annotations.deactivateQualitySelectors = () => {
   const activeQualitySelector = document.querySelectorAll("button.labelText.active")
   activeQualitySelector.forEach(element => element.classList.remove("active"))
+}
+
+
+const addClassificationToConfig = () => {
+  let formIsValid = true
+  let alertMessage = ""
+  const annotationForm = document.getElementById("createClassificationForm")
+
+  const annotationIdToEdit = parseInt(annotationForm.getAttribute("annotationId"))
+
+  const newAnnotation = {
+    "annotationId": annotationIdToEdit || Math.floor(1000000 + Math.random() * 9000000), //random 7 digit annotation ID
+    "displayName": "",
+    "annotationName": "",
+    "definition": "",
+    "enableComments": false,
+    "labelType": "",
+    "labels": [],
+    "createdBy": "",
+    "private": false,
+  }
+
+  annotationForm.querySelectorAll(".form-control").forEach(element => {
+    if (element.name) {
+      switch (element.name) {
+        case "datasetFolderId":
+          // Check if dataset folder exists in Box and if it has a config. Fetch it if it does.
+          break
+
+        case "displayName":
+          if (!element.value) {
+            formIsValid = false
+            alertMessage = "Please enter values for the missing fields!"
+
+            element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+            element.oninput = element.oninput ? element.oninput : () => {
+              if (element.value) {
+                element.style.boxShadow = "none"
+              } else {
+                element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              }
+            }
+
+            break
+          }
+
+          newAnnotation["displayName"] = element.value
+
+          newAnnotation["annotationName"] = element.value.split(" ").map((word, ind) => {
+            if (ind === 0) {
+              return word.toLowerCase()
+            } else {
+              return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            }
+          }).join("")
+          newAnnotation["annotationName"] += `_${newAnnotation["annotationId"]}`
+
+          break
+
+        case "labelDisplayText":
+          if (!element.value) {
+            formIsValid = false
+            alertMessage = "Please enter values for the missing fields!"
+
+            element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+            element.oninput = element.oninput ? element.oninput : () => {
+              if (element.value) {
+                element.style.boxShadow = "none"
+              } else {
+                element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              }
+            }
+          } else {
+            const alreadyDefinedLabels = newAnnotation.labels.map(label => label.displayText)
+            if (alreadyDefinedLabels.indexOf(element.value) != -1) {
+              formIsValid = false
+              alertMessage = alertMessage || "Labels must have unique values!"
+              element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              document.getElementById(`labelDisplayText_${alreadyDefinedLabels.indexOf(element.value)}`).style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)"
+              break
+            }
+
+            const labelTextIndex = parseInt(element.id.split("_")[1])
+            newAnnotation.labels[labelTextIndex] = newAnnotation.labels[labelTextIndex] ? {
+              "displayText": element.value,
+              ...newAnnotation.labels[labelTextIndex]
+            } : {
+              "displayText": element.value
+            }
+          }
+
+          break
+
+        case "labelValue":
+          if (!element.value) {
+            formIsValid = false
+            alertMessage = "Please enter values for the missing fields!"
+
+            element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+            element.oninput = element.oninput ? element.oninput : () => {
+              if (element.value) {
+                element.style.boxShadow = "none"
+              } else {
+                element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              }
+            }
+
+          } else {
+            const alreadyDefinedLabels = newAnnotation.labels.map(label => label.label)
+            if (alreadyDefinedLabels.indexOf(element.value) != -1) {
+              formIsValid = false
+              alertMessage = alertMessage || "Labels must have unique values!"
+              element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              document.getElementById(`labelValue_${alreadyDefinedLabels.indexOf(element.value)}`).style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)"
+              break
+            }
+
+            const labelValueIndex = parseInt(element.id.split("_")[1])
+            newAnnotation.labels[labelValueIndex] = newAnnotation.labels[labelValueIndex] ? {
+              "label": element.value,
+              ...newAnnotation.labels[labelValueIndex]
+            } : {
+              "displayText": element.value
+            }
+          }
+
+          break
+
+        default:
+          if (element.type === "checkbox") {
+            newAnnotation[element.name] = element.checked
+          } else {
+            if (element.name === "labelType" && !element.value) {
+              formIsValid = false
+              alertMessage = "Please enter values for the missing fields!"
+
+              element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+              element.oninput = element.oninput ? element.oninput : () => {
+                if (element.value) {
+                  element.style.boxShadow = "none"
+                } else {
+                  element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
+                }
+              }
+
+              break
+            }
+            newAnnotation[element.name] = element.value
+          }
+      }
+    }
+  })
+
+  if (!formIsValid) {
+    alert(alertMessage)
+    return
+  }
+
+  if (annotationIdToEdit) {
+    newAnnotation["modifiedAt"] = Date.now()
+    newAnnotation["lastModifiedByUserId"] = window.localStorage.userId
+    newAnnotation["lastModifiedByUsername"] = window.localStorage.username
+    updateConfigInBox("annotations", "modify", newAnnotation, "annotationId")
+  } else {
+    newAnnotation["createdAt"] = Date.now()
+    newAnnotation["createdByUserId"] = window.localStorage.userId
+    newAnnotation["createdByUsername"] = window.localStorage.userId
+    updateConfigInBox("annotations", "append", newAnnotation)
+  }
+
+  const modalCloseBtn = document.getElementsByClassName("modal-footer")[0].querySelector("button[data-dismiss=modal]")
+  modalCloseBtn.click()
+}
+
+const editClassificationConfig = (annotationId) => {
+  const annotationForm = document.getElementById("createClassificationForm")
+  annotationForm.setAttribute("annotationId", annotationId) // Used after submit to know if the form was used to add a new class or update an old one.
+
+  const annotationToEdit = path.appConfig.annotations.filter(annotation => annotation["annotationId"] === annotationId)[0]
+  if (annotationToEdit) {
+    document.getElementById("addClassificationBtn").Modal.show()
+    document.getElementById("addClassificationModal").querySelector("button[type=submit]").innerHTML = "Update Class"
+
+    annotationForm.querySelectorAll(".form-control").forEach(element => {
+
+      if (element.name && !element.classList.contains("classLabelField")) {
+
+        switch (element.name) {
+          case "datasetFolderId":
+            break
+
+          case "displayName":
+          case "definition":
+            element.value = annotationToEdit[element.name]
+            break
+
+          case "labelType":
+            element.value = annotationToEdit[element.name]
+            displayLabelsSectionInModal(element)
+
+          case "enableComments":
+            element.checked = annotationToEdit.enableComments
+            break
+
+          default:
+        }
+      }
+    })
+
+    annotationForm.querySelector("div#modalLabelsList").innerHTML = ""
+    annotationToEdit.labels.forEach(label => {
+      const newLabelRow = annotations.addLabelToModal()
+      newLabelRow.querySelector("input[name=labelDisplayText]").value = label.displayText
+      newLabelRow.querySelector("input[name=labelValue]").value = label.label
+    })
+
+  }
+}
+
+const deleteClassificationConfig = async (annotationId) => {
+  if (confirm("This will delete this classification for everyone with access to this dataset. Are you sure you want to continue?")) {
+    const annotationToDelete = path.appConfig.annotations.filter(annotation => annotation["annotationId"] === annotationId)[0]
+    if (annotationToDelete) {
+      updateConfigInBox("annotations", "remove", annotationToDelete, "annotationId")
+    }
+  }
+}
+
+const updateConfigInBox = async (changedProperty = "annotations", operation, deltaData, identifier) => {
+  let toastMessage = ""
+  if (deltaData) {
+    const isFileJSON = true
+    const appConfig = await box.getFileContent(configFileId, isFileJSON)
+    if (appConfig) {
+
+      if (operation === "append") {
+
+        if (Array.isArray(appConfig[changedProperty])) {
+          appConfig[changedProperty].push(deltaData)
+        } else if (typeof (appConfig[changedProperty]) === "object") {
+          appConfig[changedProperty] = {
+            ...deltaData,
+            ...appConfig[changedProperty]
+          }
+        }
+
+        toastMessage = "New Class Added Successfully!"
+
+      } else if (operation === "remove") {
+
+        if (Array.isArray(appConfig[changedProperty])) {
+          appConfig[changedProperty] = appConfig[changedProperty].filter(val => {
+            if (typeof (val) === "object" && val[identifier]) {
+              return val[identifier] !== deltaData[identifier]
+            } else {
+              return val !== deltaData
+            }
+          })
+        } else if (typeof (appConfig[changedProperty]) === "object" && appConfig[changedProperty][deltaData]) {
+          delete appConfig[changedProperty][deltaData]
+        }
+
+        toastMessage = "Class Removed From Config!"
+
+      } else if (operation === "modify") {
+
+        if (Array.isArray(appConfig[changedProperty])) {
+
+          const indexToChangeAt = appConfig[changedProperty].findIndex(val => {
+            if (typeof (val) === "object" && val[identifier]) {
+              return val[identifier] === deltaData[identifier]
+            } else {
+              return val === deltaData
+            }
+          })
+
+          if (indexToChangeAt !== -1) {
+            appConfig[changedProperty][indexToChangeAt] = deltaData
+          }
+
+        } else if (typeof (appConfig[changedProperty]) === "object") {
+          appConfig[changedProperty] = deltaData
+        }
+        toastMessage = "Class Updated Successfully!"
+      }
+    } else {
+      console.log("UPDATE CONFIG OPERATION FAILED!")
+      return
+    }
+
+    const newConfigFormData = new FormData()
+    const configFileAttributes = {
+      "name": "appConfig.json"
+    }
+    const newConfigBlob = new Blob([JSON.stringify(appConfig)], {
+      type: "application/json"
+    })
+    newConfigFormData.append("attributes", JSON.stringify(configFileAttributes))
+    newConfigFormData.append("file", newConfigBlob)
+
+    try {
+      await box.uploadFile(configFileId, newConfigFormData)
+      utils.showToast(toastMessage)
+      
+      path.appConfig = appConfig
+      path.appConfig.annotations.forEach((annotationConfig) => annotations.createTables(annotationConfig, annotationConfig[identifier] === deltaData[identifier]))
+
+      thumbnails.reBorderThumbnails()
+
+    } catch (e) {
+      console.log("Couldn't upload new config to Box!", e)
+      utils.showToast("Some error occurred while adding the annotation. Please try again!")
+    }
+  }
+}
+
+annotations.addLabelToModal = () => {
+  const modalLabelsList = document.getElementById("modalLabelsList")
+  const numLabelsAdded = modalLabelsList.childElementCount
+  const newLabelRow = document.createElement("div")
+  newLabelRow.setAttribute("class", "row")
+  newLabelRow.innerHTML = `
+    <div class="form-group row addedLabel">
+      <div class="col">
+        <input type="text" class="form-control" placeholder="Display Name*" name="labelDisplayText" id="labelDisplayText_${numLabelsAdded}" oninput="annotations.prefillLabelValueInModal(${numLabelsAdded})" required="true"></input>
+      </div>
+    </div>
+    <div class="form-group row addedLabel">
+      <div class="col">
+        <input type="text" class="form-control" placeholder="Label Value*" name="labelValue" id="labelValue_${numLabelsAdded}" oninput="this.setAttribute('userInput', true)" required="true"></input>
+      </div>
+    </div>
+    <div class="col-sm-1">
+    <button type="button" class="close" aria-label="Close" style="margin-top: 50%" onclick="removeLabelFromModal(this);">
+      <span aria-hidden="true">&times;</span>
+    </button>
+    </div>
+  `
+  modalLabelsList.appendChild(newLabelRow)
+  return newLabelRow
+}
+
+annotations.prefillLabelValueInModal = (labelInputIndex) => {
+  const elementToPrefillFrom = document.getElementById(`labelDisplayText_${labelInputIndex}`)
+  const elementToPrefillInto = document.getElementById(`labelValue_${labelInputIndex}`)
+  if (elementToPrefillFrom && elementToPrefillInto && !elementToPrefillInto.getAttribute("userInput")) {
+    elementToPrefillInto.value = elementToPrefillFrom.value
+  }
+}
+
+const removeLabelFromModal = (target) => {
+  const modalLabelsList = document.getElementById("modalLabelsList")
+  modalLabelsList.removeChild(target.parentElement.parentElement)
+}
+
+const displayLabelsSectionInModal = (selectElement) => {
+  if (selectElement.value) {
+    document.getElementById("addLabelsToModal").style.display = "flex"
+  } else {
+    document.getElementById("addLabelsToModal").style.display = "none"
+  }
+}
+
+annotations.resetAddClassificationModal = () => {
+  const annotationForm = document.getElementById("createClassificationForm")
+  annotationForm.removeAttribute("annotationId")
+  annotationForm.querySelectorAll(".form-control").forEach(element => {
+    if (element.type === "checkbox") {
+      element.checked = false
+    } else {
+      element.value = ""
+    }
+  })
+
+  const modalLabelsList = document.getElementById("modalLabelsList")
+  while (modalLabelsList.firstElementChild !== modalLabelsList.lastElementChild) {
+    modalLabelsList.removeChild(modalLabelsList.lastElementChild)
+  }
+  modalLabelsList.parentElement.style.display = "none"
+
+  document.getElementById("addClassificationModal").querySelector("button[type=submit]").innerHTML = "Create Class"
 }

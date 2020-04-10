@@ -136,7 +136,9 @@ canvas {
 }
 
 #thumbnailPicker {
-  margin: 2rem 0 0 1rem;
+  position: absolute;
+  right: 0;
+  margin: 2rem 1.2rem 0 0;
   text-align: right;
   z-index: 5;
 }
@@ -236,16 +238,61 @@ canvas {
 }
 
 #boxFileMgrHeader {
+  height: 4rem;
+  display: none;
+  flex-direction: row;
+}
+
+.boxFileMgrHeader {
+  position: relative;
+  align-items: center;
+  background-color: rgba(210, 210, 210, 0.2);
+}
+
+#fileMgrOptionsContent {
   display: flex;
   flex-direction: row;
+  justify-content: space-evenly;
+  height: 2.5rem;
 }
 
 #boxFileMgrTools {
   margin-left: 1.2rem;
 }
 
+#boxFileMgrOptionsBtn {
+  position: absolute;
+  right: 0;
+  margin-right: 1.2rem;
+}
+
 .boxFileMgrHeaderBtn:not(:last-child) {
   margin-right: 0.7rem;
+}
+
+.fileMgrOptions {
+  margin: auto 0;
+}
+
+.fileMgrOption {
+  width: 100%;
+  min-width: 6rem;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+  vertical-align: middle;
+}
+
+#fileMgrSortValues {
+  min-width: unset;
+  width: fit-content;
+  padding: 0.5rem;
+}
+
+#fileMgrSortValues>button {
+  margin: 0.1rem 0;
 }
 
 .selectedImage {
@@ -456,13 +503,18 @@ canvas {
   color: lightslategray;
 }
 
+.dropdown-toggle.classificationMenuToggle::after {
+  display: none;
+}
+
 .dropdown-toggle.commentMenuToggle::before {
   display: none;
 }
 
-.dropdown-toggle::after {
+.dropdown-toggle.commentMenuToggle::after {
   display: none;
 }
+
 
 .quality_addComment {
   margin-top: 2px;

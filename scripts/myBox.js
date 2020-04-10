@@ -1,12 +1,13 @@
 const myBox = {}
 
-myBox.loadFileManager = async (id = boxRootFolderId) => {
+myBox.loadFileManager = async (id = boxRootFolderId, forceRedraw) => {
   const boxFileMgrHeaderDiv = document.getElementById("boxFileMgrHeader")
-  if (boxFileMgrHeaderDiv.parentElement.getAttribute("folderId") === hashParams.folder) {
+
+  if (boxFileMgrHeaderDiv.parentElement.getAttribute("folderId") === hashParams.folder ) {
     return
   }
 
-  const [fileMgrTools, fileMgrNav] = boxFileMgrHeaderDiv.children
+  const [ fileMgrTools, fileMgrNav, fileMgrOptions, ..._ ] = boxFileMgrHeaderDiv.children
   fileMgrTools.style.position = "absolute"
   fileMgrTools.style.display = "flex"
   fileMgrTools.style["flex-direction"] = "row"
@@ -20,10 +21,11 @@ myBox.loadFileManager = async (id = boxRootFolderId) => {
       backBtnSpan.setAttribute("id", "fileMgrBackBtn")
       backBtnSpan.setAttribute("class", "boxFileMgrHeaderBtn")
 
-      const backButton =
-        `<button type="button" class="btn" style="background-color: rgba(255, 255, 255); border: 1px solid lightgray;">
-              <i style="font-size:25px; color: royalblue;" class="fas fa-caret-left"></i>
-            </button>`
+      const backButton = `
+        <button type="button" class="btn" style="background-color: rgba(255, 255, 255); border: 1px solid lightgray;">
+          <i style="font-size:25px; color:royalblue;" class="fas fa-caret-left"></i>
+        </button>
+      `
       backBtnSpan.innerHTML = backButton
       fileMgrTools.appendChild(backBtnSpan)
     }
@@ -40,8 +42,8 @@ myBox.loadFileManager = async (id = boxRootFolderId) => {
 
       const homeButton =
         `<button type="button" class="btn" style="background-color: rgba(255, 255, 255); border: 1px solid lightgray;">
-              <i style="font-size:25px; color: royalblue;" class="fas fa-home"></i>
-            </button>`
+          <i style="font-size:25px; color: royalblue;" class="fas fa-home"></i>
+        </button>`
       homeBtnSpan.innerHTML = homeButton
       fileMgrTools.appendChild(homeBtnSpan)
     }
@@ -55,12 +57,67 @@ myBox.loadFileManager = async (id = boxRootFolderId) => {
     fileMgrNav.style.margin = "auto 0"
     fileMgrNav.style.textAlign = "center"
 
+    folderData.name = folderData.name.length > 25 ? folderData.name.slice(0,22).trim() + "..." : folderData.name.trim()
+
     fileMgrNav.innerHTML =
       `<strong style="font-size: 18px;">
-            <a href="${box.appBasePath}/${folderData.type}/${folderData.id}" target="_blank">
-              ${folderData.name}
-            </a>
-          </strong>`
+        <a href="${box.appBasePath}/${folderData.type}/${folderData.id}" target="_blank">
+          ${folderData.name}
+        </a>
+      </strong>`
+
+    
+    let optionsToggleDiv = document.getElementById("fileMgrSort")
+    if (!optionsToggleDiv) {
+      optionsToggleDiv = document.createElement("div")
+      optionsToggleDiv.setAttribute("id", "fileMgrSort")
+      optionsToggleDiv.setAttribute("class", "boxFileMgrHeaderBtn")
+
+      const optionsToggle = `
+        <button type="button" class="btn btn-link" id="fileMgrOptionsToggle" disabled data-toggle="collapse" data-target="#boxFileMgrOptionsCollapse">
+          Options <i class="fas fa-caret-down"></i>
+        </button>
+      `
+      const optionsCollapseDiv = document.getElementById("boxFileMgrOptionsCollapse")
+      
+      optionsCollapseDiv.innerHTML = `
+        <div id="fileMgrOptionsContent">
+          <div class="dropdown fileMgrOptions" id="fileMgrSortOption">
+            <button type="button" class="btn btn-light dropdown-toggle" id="fileMgrSortOptionToggle" data-toggle="dropdown" style="color: royalblue;">
+              Sort 
+            </button>
+            <div class="dropdown-menu" id="fileMgrSortValues">
+              <button class="btn btn-sm btn-outline-primary active" value="name" onclick="myBox.setFileSortingPreference('name')"><span class="fileMgrOption">By Name <i class="fas fa-sort-alpha-down"></i></span></button>
+              <button class="btn btn-sm btn-outline-primary" value="random" onclick="myBox.setFileSortingPreference('random')"><span class="fileMgrOption">Randomly <i class="fas fa-random"></i></span></button>
+            </div>
+          </div>
+          <div class="fileMgrOptions">
+            <div>
+              <label for="fileMgrHideFilenameCheckbox" style="color: royalblue; margin-bottom:0;">Hide Filenames&nbsp;&nbsp;</label>
+              <input type="checkbox" id="fileMgrHideFilenameCheckbox" class="form-group" style="margin-bottom:0;" onchange="myBox.hideFilenames(this)"></input>
+            </div>
+          </div>
+        </div>
+      `
+      optionsToggleDiv.innerHTML = optionsToggle
+      fileMgrOptions.appendChild(optionsToggleDiv)
+      new Collapse(document.getElementById("fileMgrOptionsToggle"))
+      new Dropdown(document.getElementById("fileMgrSortOption"))
+
+      if (hashParams.sort) {
+        const sortButtonToActivate = document.getElementById("fileMgrSortValues").querySelector(`button[value=${hashParams.sort}]`)
+        const sortButtonAlreadyActive = document.getElementById("fileMgrSortValues").querySelector(`button.active`)
+        if (sortButtonToActivate && sortButtonAlreadyActive) {
+          sortButtonAlreadyActive.classList.remove("active")
+          sortButtonToActivate.classList.add("active")
+        }
+      }
+
+      if (hashParams.hideFilenames) {
+        document.getElementById("fileMgrHideFilenameCheckbox").checked = true
+      }
+
+    }
 
     boxFileMgrHeaderDiv.style.display = "flex"
     boxFileMgrHeaderDiv.style.alignItems = "center"
@@ -95,7 +152,7 @@ myBox.loadFolderTree = (folderData) => {
   } = folderData
 
   if (folderData && folderData.item_status === "active") {
-    const {
+    let {
       item_collection: {
         entries
       }
@@ -104,16 +161,30 @@ myBox.loadFolderTree = (folderData) => {
     const parentElement = document.getElementById("boxFolderTree")
 
     if (entries.length !== 0) {
-      const loaderElementId = "fileMgrLoaderDiv"
+      // const loaderElementId = "fileMgrLoaderDiv"
       // if (parentElement.childElementCount > 0) {
       //   showLoader(loaderElementId, parentElement)
       // }
+
+      const sortingPreference = document.getElementById("fileMgrSortValues").querySelector("button.active").getAttribute("value")
+      const hideFilenamesSelected = document.getElementById("fileMgrHideFilenameCheckbox").checked
+      if (sortingPreference === "random") {
+        entries.sort(()=> 0.5-Math.random())
+      }
+      if (hideFilenamesSelected) {
+        entries = entries.map(file => {
+          if (entry.type === "file") {
+            entry.name = entry.id
+          }
+          return entry
+        })
+      }
 
       parentElement.firstChild && parentElement.removeChild(parentElement.firstChild) // Removes Empty Directory element (I think :P) 
       const folderSubDiv = myBox.populateFolderTree(entries, id)
       // hideLoader(loaderElementId)
 
-      parentElement.style.height = window.innerHeight - parentElement.getBoundingClientRect().y - 30 // 40 seems to be the initial width of the canvas
+      parentElement.style.height = window.innerHeight - parentElement.getBoundingClientRect().y - 40 // 40 seems to be the initial width of the canvas
 
       folderSubDiv.style.height = "100%"
       folderSubDiv.style.width = "100%"
@@ -132,12 +203,14 @@ myBox.populateFolderTree = (entries, id) => {
   const currentFolderDiv = document.createElement("div")
   currentFolderDiv.setAttribute("class", `boxFileMgr_folderTree`)
   currentFolderDiv.setAttribute("id", `boxFileMgr_folderTree_${id}`)
+  
   entries.forEach(entry => {
     const entryBtnDiv = document.createElement("div")
     entryBtnDiv.setAttribute("id", `boxFileMgr_subFolder_${entry.id}`)
     entryBtnDiv.setAttribute("class", `boxFileMgr_subFolder`)
     const entryBtn = document.createElement("button")
     entryBtn.setAttribute("class", "btn btn-link")
+    entryBtn.setAttribute("fileId", entry.id)
     entryBtn.setAttribute("type", "button")
     const entryIcon = document.createElement("i")
     if (entry.type === "folder") {
@@ -192,4 +265,24 @@ myBox.highlightImage = (id) => {
     newlySelectedImage.classList.add("selectedImage")
   }
 
+}
+
+myBox.hideFilenames = (target) =>{
+  const boxFolderTreeElement = document.getElementById("boxFolderTree").children[0]
+  if (target.checked) {
+    
+  }
+  // if 
+}
+
+myBox.setFileSortingPreference = async (preference) => {
+  if (preference !== hashParams.sortBy) {
+    const sortOptionSelected = document.getElementById("fileMgrSortValues").querySelector(`button[value=${preference}]`)
+    if (sortOptionSelected) {
+      switch(preference) {
+        case 'random':
+
+      }
+    }
+  }
 }

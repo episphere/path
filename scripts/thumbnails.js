@@ -49,6 +49,7 @@ thumbnails.showThumbnailPicker = async (offset = 0, limit=DEFAULT_THUMBNAILS_LIS
     }
     // populateAllFilesInFolder([], 0)
   }
+  thumbnails.highlightThumbnail(hashParams.image)
 }
 
 thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
@@ -76,9 +77,6 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
       const thumbnailImg = document.createElement("img")
       thumbnailImg.setAttribute("id", `thumbnail_${thumbnailId}`)
       thumbnailImg.setAttribute("class", "imagePickerThumbnail")
-      if (thumbnailId === hashParams.image) {
-        thumbnailImg.classList.add("selectedThumbnail")
-      }
       thumbnailImg.setAttribute("loading", "lazy")
 
       thumbnailDiv.appendChild(thumbnailImg)
