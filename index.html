@@ -57,9 +57,9 @@
           <nav aria-label="breadcrumb">
             <span id="imgHeader"></span>
           </nav>
-          <!-- <div class="loaderDiv" id="imgLoaderDiv">
+          <div class="loaderDiv" id="imgLoaderDiv">
             <img src="images/loader.gif" class="loaderImg" id="loaderImg">
-          </div> -->
+          </div>
           <div id="canvasParent">
             <canvas id="tmaCanvas"></canvas>
           </div>
@@ -94,9 +94,13 @@
               <div id="fileMgrLoaderDiv" class="loaderDiv">
                 <img src="images/loader.gif" id="fileMgrLoader" class="loaderImg" />
               </div>
-              <div id="boxFileMgrHeader">
-                <span id="boxFileMgrTools"></span>
-                <span id="boxFileMgrNav"></span>
+              <div id="boxFileMgrHeaderWithDropdown">
+                <div id="boxFileMgrHeader" class="boxFileMgrHeader">
+                  <span id="boxFileMgrTools"></span>
+                  <span id="boxFileMgrNav"></span>
+                  <span id="boxFileMgrOptionsBtn"></span>
+                </div>
+                <div id="boxFileMgrOptionsCollapse" class="collapse boxFileMgrHeader"></div>
               </div>
               <div id="boxFolderTree">
               </div>
@@ -184,7 +188,7 @@
                   <div class="row">
                     <div class="form-group row addedLabel">
                       <div class="col">
-                        <input type="text" class="form-control classLabelField" placeholder="Display Name*" name="labelDisplayText" id="labelDisplayText_0" oninput="prefillLabelValueInModal(0)" required></input>
+                        <input type="text" class="form-control classLabelField" placeholder="Display Name*" name="labelDisplayText" id="labelDisplayText_0" oninput="annotations.prefillLabelValueInModal(0)" required></input>
                       </div>
                     </div>
                     <div class="form-group row addedLabel">
@@ -200,7 +204,7 @@
                     </div>
                   </div> -->
                 </div>
-                <button type="button" class="btn btn-light" onclick="addLabelToModal()">+ Add Label</button>
+                <button type="button" class="btn btn-light" onclick="annotations.addLabelToModal()">+ Add Label</button>
               </div>
             </form>
           </div>
