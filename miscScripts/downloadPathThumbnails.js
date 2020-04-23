@@ -143,7 +143,7 @@ const main = async () => {
             const filePathInGCS = `gs://${GCSBucket}/${GCSFolder}/${image.name}`
             labelsCSVForAutoML[annotationType] += `${selectImageSet(annotationType)},${filePathInGCS},${getModeOfAnnotations(image.metadata.global.properties[annotationType])}\n`
           })
-          // await downloadImage(image)
+          await downloadImage(image)
         } else {
           return
         }

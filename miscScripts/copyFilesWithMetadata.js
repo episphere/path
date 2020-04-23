@@ -33,31 +33,30 @@ const deleteImage = async (image, dateToDeleteFor) => {
   }
 }
 
-
 const main = async () => {
   try {
     const { entries: folderContent } = await client.folders.getItems(fromFolder, {limit: 1000, offset: 0, fields: "name,metadata.global.properties,created_at"})
     folderContent.forEach(async (image) => {
-      await deleteImage(image, "2020-04-22")
-      // if (image.type === "file" && isValidImage(image.name) && image.metadata && image.metadata.global && image.metadata.global.properties) {
-      //   try {
-      //     const copiedImage = await client.files.copy(image.id, toFolder, {name: `fromQC_${image.name}`})
-      //     const setMetadata = await client.files.addMetadata(copiedImage.id, client.metadata.scopes.GLOBAL, "properties", {})
-      //     const copyMetadataOps = []
-      //     Object.keys(image.metadata.global.properties).forEach(property => {
-      //       if (!Object.keys(setMetadata).includes(property)) {
-      //         copyMetadataOps.push({
-      //           op: 'add',
-      //           path: `/${property}`,
-      //           value: image.metadata.global.properties[property]
-      //         })
-      //       }
-      //     })
-      //     await client.files.updateMetadata(copiedImage.id, client.metadata.scopes.GLOBAL, "properties", copyMetadataOps)
-      //   } catch (e) {
-      //     console.log(e)
-      //   }
-      // }
+      // await deleteImage(image, "2020-04-22")
+      if (image.type === "file" && isValidImage(image.name) && image.metadata && image.metadata.global && image.metadata.global.properties) {
+        try {
+          const copiedImage = await client.files.copy(image.id, toFolder, {name: `fromQC_${image.name}`})
+          const setMetadata = await client.files.addMetadata(copiedImage.id, client.metadata.scopes.GLOBAL, "properties", {})
+          const copyMetadataOps = []
+          Object.keys(image.metadata.global.properties).forEach(property => {
+            if (!Object.keys(setMetadata).includes(property)) {
+              copyMetadataOps.push({
+                op: 'add',
+                path: `/${property}`,
+                value: image.metadata.global.properties[property]
+              })
+            }
+          })
+          await client.files.updateMetadata(copiedImage.id, client.metadata.scopes.GLOBAL, "properties", copyMetadataOps)
+        } catch (e) {
+          console.log(e)
+        }
+      }
     })
   } catch (e) {
     console.log(e)
