@@ -1,28 +1,34 @@
 // RUN AS NODE.JS SCRIPT WITH BOX ACCESS TOKEN AS COMMAND LINE ARGUMENT.
+// node downloadPathThumbnails.js <boxAccessToken> <boxFolderId>
 
 const axios = require('axios')
+const axiosRL = require('axios-rate-limit')
 const sharp = require('sharp')
 const fs = require('fs')
 
+const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff"]
 const boxAccessToken = process.argv[2]
-const boxFolderId = 97077691060
-const annotationTypes = ["tissueAdequacy_annotations", "stainingAdequacy_annotations"]
+const boxFolderId = process.argv[3] || 97077691060
+const annotationTypes = ["stainingAdequacy_annotations"]
 const downloadToFolder = "./pathImages"
 const downloadImageWidth = 1000
 const downloadImageHeight = 1000
 const GCSBucket = "epipath_qcimages"
+const GCSFolder = "IHC_QC"
 const trainValidationTestSplit = {
-  "TRAIN": 0.9,
-  "VALIDATION": 0.95,
+  "TRAIN": 0.8,
+  "VALIDATION": 0.9,
   "TEST": 1.0
 }
 
-const boxRequest = (url, opts) => axios.get(url, {
+const http = axiosRL(axios.create(), {maxRequests: 75, perMilliseconds: 1000})
+
+const boxRequest = async (url, opts) => http.get(url, {
   headers: {
     'Authorization': `Bearer ${boxAccessToken}`
   }, 
   ...opts
-})
+}).catch(e => console.log(e))
 
 const getFolderContents = async (folderId, limit=1000, offset=0, allFiles=[]) => {
 
@@ -41,6 +47,11 @@ const getFolderContents = async (folderId, limit=1000, offset=0, allFiles=[]) =>
   return allFiles
 }
 
+const getFileInfo = (id) => {
+  const fileEndpoint = `https://api.box.com/2.0/files/${id}`
+  return boxRequest(fileEndpoint)
+}
+
 const getImage = (id) => {
 
   const contentEndpoint = `https://api.box.com/2.0/files/${id}/content`
@@ -50,8 +61,9 @@ const getImage = (id) => {
 
 const downloadImage = async (image) => {
   
-  const filePath = `${downloadToFolder}/resized_${image.name}`
-  const resizeAndSave = sharp().resize(downloadImageWidth, downloadImageHeight).toFile(filePath, (err, info) => {})
+  const filePath = `${downloadToFolder}/${image.name}`
+  // const resizeAndSave = sharp().resize(downloadImageWidth, downloadImageHeight).toFile(filePath, (err, info) => {})
+  const resizeAndSave = sharp().toFile(filePath, (err, info) => {})
   
   const imageData = await getImage(image.id)
   imageData.data.pipe(resizeAndSave)
@@ -68,11 +80,12 @@ const selectImageSet = (annotationType) => {
 
 const getModeOfAnnotations = (annotations) => {
 
-  const { model, ...manualAnnotations} = JSON.parse(annotations)
+  const { model, ...manualAnnotations } = JSON.parse(annotations)
   const numAnnotationsPerLabel = {}
   let maxNumAnnotations = 0
 
   for (annotation of Object.values(manualAnnotations)) {
+    annotation.value = annotation.value === "S" ? "U" : annotation.value
     numAnnotationsPerLabel[annotation.value] = numAnnotationsPerLabel[annotation.value] ? numAnnotationsPerLabel[annotation.value] + 1 : 1
     maxNumAnnotations = maxNumAnnotations < numAnnotationsPerLabel[annotation.value] ? numAnnotationsPerLabel[annotation.value] : maxNumAnnotations
   }
@@ -83,8 +96,21 @@ const getModeOfAnnotations = (annotations) => {
     return labelsWithMaxAnnotations[0]
   } else {
     // Return a randomly selected label from the ones with the most annotations. Best strategy? Probably not.
-    return labelsWithMaxAnnotations[Math.floor(Math.random() * labelsWithMaxAnnotations.length)]
+    // return labelsWithMaxAnnotations[Math.floor(Math.random() * labelsWithMaxAnnotations.length)]
+    return "U"
   }
+}
+
+const isValidImage = (fileName) => {
+  let isValid = false
+  
+  validFileTypes.forEach(fileType => {
+    if (fileName.endsWith(fileType)) {
+      isValid = true
+    }
+  })
+    
+  return isValid
 }
 
 const main = async () => {
@@ -94,14 +120,35 @@ const main = async () => {
 
   const folderContents = await getFolderContents(boxFolderId)
   if (folderContents && folderContents.length > 0) {
-    folderContents.forEach(async (image) => {
-      if (image.type === "file" && (image.name.endsWith(".jpg") || image.name.endsWith(".png"))) {
-        annotationTypes.forEach(annotationType => {
-          labelsCSVForAutoML[annotationType] += `${selectImageSet(annotationType)},gs://${GCSBucket}/resized_${image.name},${getModeOfAnnotations(image.metadata.global.properties[annotationType])}\n`
-        })
-        await downloadImage(image)
+    for (let image of folderContents) {
+      if (image.type === "file" && isValidImage(image.name)) {
+        // For TIFF images, get the converted filename.
+        if (image.name.endsWith(".tiff")) { 
+          if (image.metadata.global.properties["jpegRepresentation"]) {
+            const { representationFileId } = JSON.parse(image.metadata.global.properties["jpegRepresentation"])
+            const representation = await getFileInfo(representationFileId)
+            if (representation) {
+              image.id = representation.data.id
+              image.name = representation.data.name
+            } else {
+              continue
+            }
+          } else {
+            continue
+          }
+        }
+
+        if (image.metadata && image.metadata.global && image.metadata.global.properties) {
+          annotationTypes.forEach(annotationType => {
+            const filePathInGCS = `gs://${GCSBucket}/${GCSFolder}/${image.name}`
+            labelsCSVForAutoML[annotationType] += `${selectImageSet(annotationType)},${filePathInGCS},${getModeOfAnnotations(image.metadata.global.properties[annotationType])}\n`
+          })
+          // await downloadImage(image)
+        } else {
+          return
+        }
       }
-    })
+    }
 
     annotationTypes.forEach(annotationType => {
       const csvPath = `${downloadToFolder}/${boxFolderId}_${annotationType}.csv`

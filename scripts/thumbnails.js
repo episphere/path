@@ -9,7 +9,7 @@ thumbnails.showThumbnailPicker = async (offset = 0, limit=DEFAULT_THUMBNAILS_LIS
   const thumbnailPicker = document.getElementById("thumbnailPicker")
   thumbnailPicker.style.display = "flex"
   thumbnailPicker.style["flex-direction"] = "column"
-  thumbnailPicker.style.height = window.innerHeight - thumbnailPicker.getBoundingClientRect().y - 40
+  thumbnailPicker.style.height = window.innerHeight - window.pageYOffset - thumbnailPicker.getBoundingClientRect().y - 40
 
   if (thumbnailPicker.childElementCount === 0 || thumbnailPicker.getAttribute("folder") !== window.localStorage.currentThumbnailsFolder || window.localStorage.currentThumbnailsOffset !== offset) {
     thumbnailPicker.setAttribute("folder", window.localStorage.currentThumbnailsFolder)

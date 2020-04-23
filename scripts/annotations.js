@@ -416,10 +416,10 @@ const submitAnnotationComment = (annotationName) => {
     annotationComments.push(newCommentMetadata)
   }
 
-  updateCommentsInBox(annotationName, annotationComments)
+  updateCommentsInBox(annotationName, annotationComments, true)
 }
 
-const updateCommentsInBox = async (annotationName, annotationComments) => {
+const updateCommentsInBox = async (annotationName, annotationComments, newComment=false) => {
   const boxMetadataPath = `/${annotationName}_comments`
   try {
     const newMetadata = await box.updateMetadata(hashParams.image, boxMetadataPath, JSON.stringify(annotationComments))
@@ -427,7 +427,7 @@ const updateCommentsInBox = async (annotationName, annotationComments) => {
     
     if (localFileMetadata[`${annotationName}_comments`] && JSON.parse(newMetadata[`${annotationName}_comments`]).length < JSON.parse(localFileMetadata[`${annotationName}_comments`]).length ) {
       utils.showToast("Comment Deleted Successfully!")
-    } else {
+    } else if (newComment) {
       utils.showToast("Comment Added Successfully!")
     }
 
@@ -435,7 +435,7 @@ const updateCommentsInBox = async (annotationName, annotationComments) => {
     populateComments(annotationName)
 
     const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
-    if (toggleCommentsButton.classList.contains("collapsed")) {
+    if (toggleCommentsButton.classList.contains("collapsed") && newComment) {
       toggleCommentsButton.click()
     }
     document.getElementById(`${annotationName}_allCommentsCard`).scrollTop = document.getElementById(`${annotationName}_allCommentsCard`).scrollHeight
@@ -472,8 +472,7 @@ const populateComments = (annotationName) => {
       }
 
       const visibleComments = commentsSortedByTime.filter(comment => comment.userId === window.localStorage.userId || !comment.isPrivate)
-
-      if (visibleComments) {
+      if (visibleComments.length > 0) {
         const userCommentIds = []
 
         const commentsHTML = visibleComments.map((comment, index) => {
@@ -533,7 +532,8 @@ const populateComments = (annotationName) => {
 
         userCommentIds.forEach(commentId => {
           const commentMenu = document.getElementById(`${annotationName}_commentMenu_${commentId}`)
-          const commentMenuDropdown = new Dropdown(commentMenu)
+          new Dropdown(commentMenu)
+
           new Tooltip(document.getElementById(`${annotationName}_editComment_${commentId}`), {
             'placement': "bottom",
             'animation': "slideNfade",
