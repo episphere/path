@@ -1,0 +1,32 @@
+{
+  "user": {
+    "level": 0,
+    "folderName": "_epibox",
+    "children": [{
+      "level": 1,
+      "folderName": "epiPath",
+      "children": [{
+        "level": 2,
+        "folderName": "config"
+      }]
+    }]
+  },
+  "dataset": {
+    "level": 0,
+    "folderName": "_epibox",
+    "children": [{
+      "level": 1,
+      "folderName": "epiPath",
+      "children": [{
+        "level": 2,
+        "folderName": "config"
+      }, {
+        "level": 2,
+        "folderName": "jpegRepresentations"
+      }, {
+        "level": 2,
+        "folderName": "models"
+      }]
+    }]
+  }
+}
