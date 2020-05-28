@@ -1,9 +1,6 @@
 {
   "userId": -1,
-  "datasetsUsed": [{
-    "folderId": -1,
-    "configFileId": -1
-  }],
+  "datasetsUsed": [],
   "lastAccessedDatasetFolder": -1,
   "preferences": {}
 }
