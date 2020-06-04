@@ -43,7 +43,7 @@ const loadHashParams = async () => {
     path.loadModules()
   }
   
-  if (path.userConfig && await box.isLoggedIn()) {
+  if (await box.isLoggedIn()) {
  
     if (hashParams.image && hashParams.image !== window.localStorage.currentImage) {
       await loadImageFromBox(hashParams.image)
@@ -178,6 +178,7 @@ path.setupEventListeners = () => {
       window.localStorage.selectDatasetModalShown = Date.now()
     
     }
+    loadHashParams()
     // await thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
     // if (path.datasetConfig) {
     //   path.datasetConfig.annotations.forEach((classType) => annotations.createTables(classType))
@@ -243,7 +244,10 @@ path.selectDataset = async (folderId = path.userConfig.lastUsedDataset) => {
     }
   }
   path.datasetConfig = datasetConfig
-  loadHashParams()
+  if (hashParams.image) {
+    annotations.showAnnotationOptions(path.datasetConfig.annotations)
+    thumbnails.reBorderThumbnails()
+  }
 }
 
 const loadDefaultImage = async () => {
