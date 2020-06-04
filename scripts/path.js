@@ -1,6 +1,9 @@
+const EPIBOX = "epibox"
+const APPNAME = "epiPath"
+
 const boxRootFolderId = "0"
-// let configFileId = window.location.hash.includes("covid") ? 644912149213 : 627997326641
-const configFileId = 627997326641
+let configFileId = window.location.hash.includes("covid") ? 644912149213 : 627997326641
+// const configFileId = 627997326641
 const containsEmojiRegex = new RegExp("(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])")
 const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff"]
 
@@ -40,7 +43,7 @@ const loadHashParams = async () => {
     path.loadModules()
   }
   
-  if (await box.isLoggedIn()) {
+  if (path.userConfig && await box.isLoggedIn()) {
  
     if (hashParams.image && hashParams.image !== window.localStorage.currentImage) {
       await loadImageFromBox(hashParams.image)
@@ -49,7 +52,9 @@ const loadHashParams = async () => {
     if (hashParams.folder) {
       window.localStorage.currentFolder = hashParams.folder
       window.localStorage.allFilesInFolder[hashParams.folder] = {}
-      myBox.loadFileManager(hashParams.folder)
+      if (path.userConfig) {
+        myBox.loadFileManager(hashParams.folder)
+      }
     } else {
       selectFolder(boxRootFolderId)
     }
@@ -61,13 +66,13 @@ const loadHashParams = async () => {
   }
 }
 
-const defaultImg = window.location.origin + window.location.pathname + "images/OFB_023_2_003_1_13_03.jpg"
+const defaultImg = window.location.origin + window.location.pathname + "external/images/OFB_023_2_003_1_13_03.jpg"
 
 const utils = {
-  request: (url, opts, returnJson = true) =>
+  request: (url, opts, returnJson = true) => 
     fetch(url, opts)
     .then(res => res.ok ? (returnJson ? res.json() : res) : res),
-  
+
   isValidImage: (name) => {
     let isValid = false
     
@@ -124,19 +129,15 @@ const path = async () => {
   path.toolsDiv = document.getElementById("toolsDiv")
   path.tmaImage = new Image()
   path.setupEventListeners()
-
-
+  
   await box()
-  loadHashParams()
+  loadHashParams()  
   loadDefaultImage()
   path.loadModules()
 
+
   path.tiffWorker = new Worker('scripts/processImage.js')
   path.tiffUnsupportedAlertShown = false
-
-  if (hashParams.useWorker) {
-    path.predictionworker = new Worker('scripts/modelPrediction.js')
-  }
 }
 
 path.loadModules = async (modules) => {
@@ -162,8 +163,30 @@ path.loadModules = async (modules) => {
 
 path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
-    path.getDatasetConfig()
+  
     box.getUserProfile()
+    path.userConfig = await box.getAppConfig()
+    loadHashParams()
+    
+    if (path.userConfig.lastUsedDataset !== -1) {
+    
+      await path.selectDataset(path.userConfig.lastUsedDataset)
+    
+    } else if(!window.localStorage.selectDatasetModalShown || (window.localStorage.selectDatasetModalShown - Date.now() > 15*60*1000)) {
+    
+      const selectDatasetModal = new Modal(document.getElementById("selectDatasetModal"))
+      selectDatasetModal.show()
+      window.localStorage.selectDatasetModalShown = Date.now()
+    
+    }
+    // await thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
+    // if (path.datasetConfig) {
+    //   path.datasetConfig.annotations.forEach((classType) => annotations.createTables(classType))
+    // }
+    
+    if (hashParams.useWorker) {
+      path.predictionWorker = new Worker('scripts/modelPrediction.js')
+    }
     if (window.location.host.includes("localhost")) {
       loadLocalModel()
     }
@@ -171,7 +194,7 @@ path.setupEventListeners = () => {
 
   const addClassificationModal = document.getElementById("addClassificationModal")
   addClassificationModal.addEventListener("show.bs.modal", (evt) => {
-    document.getElementById("datasetFolderId").value = path.appConfig.datasetFolderId ? path.appConfig.datasetFolderId : "INVALID"
+    document.getElementById("datasetFolderId").value = path.datasetConfig.datasetFolderId ? path.datasetConfig.datasetFolderId : "INVALID"
   })
   addClassificationModal.addEventListener("hidden.bs.modal", (evt) => {
     annotations.resetAddClassificationModal()
@@ -183,16 +206,18 @@ path.setupEventListeners = () => {
     if (path.isImageFromBox) {
       
       await thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
-      
-      path.appConfig.annotations.forEach((classType) => annotations.createTables(classType))
-      if (path.predictionworker) {
-        path.predictionworker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
-        path.predictionworker.onmessage = (e) => {
-          console.log("Message received from worker!", e.data)
-          console.log("Prediction: ", e.data.reduce((maxLabel, pred) => {
-            maxLabel && maxLabel.prob > pred.prob ? maxLabel : pred
-          }, {}))
-        }
+      if (path.datasetConfig && path.datasetConfig.annotations) {
+        annotations.showAnnotationOptions(path.datasetConfig.annotations)
+      }
+
+      if (path.predictionWorker) {
+        // path.predictionWorker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
+        // path.predictionWorker.onmessage = (e) => {
+        //   console.log("Message received from worker!", e.data)
+        //   console.log("Prediction: ", e.data.reduce((maxLabel, pred) => {
+        //     maxLabel && maxLabel.prob > pred.prob ? maxLabel : pred
+        //   }, {}))
+        // }
       } else {
         // setTimeout(() => {
         //   path.model.classify(path.tmaImage).then(preds => console.log("Local Model Prediction", preds))
@@ -202,11 +227,25 @@ path.setupEventListeners = () => {
   }
 }
 
-path.getDatasetConfig = async () => {
-  const isFileJSON = true
-  path.appConfig = await box.getFileContent(configFileId, isFileJSON)
-  const annotations = path.appConfig.annotations.filter(annotation => !annotation.private || (annotation.private && annotation.createdBy === window.localStorage.userId))
-  path.appConfig.annotations = annotations
+path.selectDataset = async (folderId = path.userConfig.lastUsedDataset) => {
+  let datasetConfig = {
+    annotations: []
+  }
+  if (folderId != -1) {
+    const folderBtnInFileMgr = document.querySelector(`button[entryId="${folderId}"]`)
+    datasetConfig = await box.getDatasetConfig(folderId)
+    if (datasetConfig) {
+      const annotations = datasetConfig.annotations.filter(annotation => !annotation.private || (annotation.private && annotation.createdBy === window.localStorage.userId))
+      datasetConfig.annotations = annotations
+      utils.showToast(`Using ${datasetConfig.datasetFolderName} as the current dataset.`)
+      if (folderBtnInFileMgr) {
+        folderBtnInFileMgr.click()
+      }
+    }
+  }
+  path.datasetConfig = datasetConfig
+  annotations.showAnnotationOptions(path.datasetConfig.annotations)
+  thumbnails.reBorderThumbnails()
 }
 
 const loadDefaultImage = async () => {
@@ -422,6 +461,8 @@ const hideLoader = (id) => {
 path.loadCanvas = () => {
   // Condition checks if path.tmaImage.src is empty
   if (path.tmaImage.src !== window.location.origin + window.location.pathname) {
+    // console.log(path.tmaCanvas.width, path.tmaCanvas.parentElement.getBoundingClientRect().width)
+    // console.log(path.tmaCanvas.height, path.tmaCanvas.parentElement.getBoundingClientRect().height)
     path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
     path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
 
@@ -531,19 +572,42 @@ const getModelPrediction = async (annotationType) => {
     return annotations["model"]
   }
 
-  const payload = {
-    annotationType,
-    "image": path.tmaCanvas.toDataURL().split("base64,")[1]
+  let prediction = null
+  if (path.predictionWorker) {
+    path.predictionWorker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
+    path.predictionWorker.onmessage = (e) => {
+      prediction = e.data.reduce((maxLabel, pred) => {
+        if (maxLabel.prob && maxLabel.prob > pred.prob) {
+          return maxLabel
+        } 
+        return pred
+      }, {})
+      prediction.displayName = prediction.label
+      prediction.classification = {}
+      prediction.classification.score = prediction.prob
+      prediction = [prediction]
+      displayModelPrediction(prediction, path.datasetConfig.annotations[0], document.getElementById(`${path.datasetConfig.annotations[0].annotationName}Select`).querySelector("tbody"))
+    }
+  } else {
+    const payload = {
+      annotationType,
+      "image": path.tmaCanvas.toDataURL().split("base64,")[1]
+    }
+    
+    prediction = await utils.request("https://us-central1-nih-nci-dceg-episphere-dev.cloudfunctions.net/getPathPrediction", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }, false)
+    .then(res => {
+      return res.json()
+    })
+    .catch(err => {})
+
   }
-  const prediction = await utils.request("https://us-central1-nih-nci-dceg-episphere-dev.cloudfunctions.net/getPathPrediction", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  }, false).then(res => {
-    return res.json()
-  }).catch(err => {})
+
 
   if (prediction) {
     annotations["model"] = prediction

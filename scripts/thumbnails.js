@@ -9,7 +9,8 @@ thumbnails.showThumbnailPicker = async (offset = 0, limit=DEFAULT_THUMBNAILS_LIS
   const thumbnailPicker = document.getElementById("thumbnailPicker")
   thumbnailPicker.style.display = "flex"
   thumbnailPicker.style["flex-direction"] = "column"
-  thumbnailPicker.style.height = window.innerHeight - window.pageYOffset - thumbnailPicker.getBoundingClientRect().y - 40
+  console.log()
+  thumbnailPicker.style.height = thumbnailPicker.parentElement ? thumbnailPicker.parentElement.getBoundingClientRect().height : window.innerHeight - window.pageYOffset - thumbnailPicker.getBoundingClientRect().y - 40
 
   if (thumbnailPicker.childElementCount === 0 || thumbnailPicker.getAttribute("folder") !== window.localStorage.currentThumbnailsFolder || window.localStorage.currentThumbnailsOffset !== offset) {
     thumbnailPicker.setAttribute("folder", window.localStorage.currentThumbnailsFolder)
@@ -85,17 +86,18 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
       const thumbnailNameWithoutExtension = name.trim().split(".")
       thumbnailNameWithoutExtension.pop()
       const thumbnailName = thumbnailNameWithoutExtension.join("")
+      thumbnailNameText.innerText = thumbnailName
+      // thumbnailNameText.style.width = thumbnailImg.getBoundingClientRect().width
+      // thumbnailNameText.style["text-overflow"] = "ellipsis"
+      // thumbnailNameText.style["white-space"] = "nowrap"
+      // thumbnailNameText.style["overflow"] = "hidden"
+      
       thumbnailDiv.appendChild(thumbnailNameText)
       thumbnailsListDiv.appendChild(thumbnailDiv)
       thumbnailDiv.onclick = () => selectImage(thumbnailId)
-
+      
       box.getThumbnail(thumbnailId).then(res => {
         thumbnailImg.setAttribute("src", res)
-        thumbnailNameText.innerText = thumbnailName
-        thumbnailNameText.style.width = thumbnailImg.getBoundingClientRect().width
-        thumbnailNameText.style["text-overflow"] = "ellipsis"
-        thumbnailNameText.style["white-space"] = "nowrap"
-        thumbnailNameText.style["overflow"] = "hidden"
       })
       thumbnails.getAnnotationsForBorder(thumbnailId)
     }
@@ -195,21 +197,27 @@ thumbnails.getAnnotationsForBorder = (thumbnailId) => {
 }
 
 thumbnails.getNumCompletedAnnotations = (metadata) => {
-  const numAnnotationsCompleted = path.appConfig.annotations.reduce((total, {
-    annotationName
-  }) => {
-    if (metadata[`${annotationName}_annotations`] && window.localStorage.userId in JSON.parse(metadata[`${annotationName}_annotations`])) {
-      total += 1
-    }
-    return total
-  }, 0)
+  let numAnnotationsCompleted = 0
+  if (path.datasetConfig && path.datasetConfig.annotations) {
+    numAnnotationsCompleted = path.datasetConfig.annotations.reduce((total, {
+      annotationName
+    }) => {
+      if (metadata[`${annotationName}_annotations`] && window.localStorage.userId in JSON.parse(metadata[`${annotationName}_annotations`])) {
+        total += 1
+      }
+      return total
+    }, 0)
+  }
   return numAnnotationsCompleted
 }
 
 thumbnails.borderByAnnotations = (thumbnailId, metadata = JSON.parse(window.localStorage.fileMetadata)) => {
   const numAnnotationsCompleted = thumbnails.getNumCompletedAnnotations(metadata)
   const thumbnailImg = document.getElementById(`thumbnail_${thumbnailId}`)
-  if (numAnnotationsCompleted === path.appConfig.annotations.length) {
+  if (numAnnotationsCompleted === 0) {
+    thumbnailImg.classList.remove("annotationsCompletedThumbnail")
+    thumbnailImg.classList.remove("annotationsPartlyCompletedThumbnail")
+  } else if (path.datasetConfig && path.datasetConfig.annotations && numAnnotationsCompleted === path.datasetConfig.annotations.length) {
     thumbnailImg.classList.add("annotationsCompletedThumbnail")
   } else if (numAnnotationsCompleted > 0) {
     thumbnailImg.classList.add("annotationsPartlyCompletedThumbnail")

@@ -2,7 +2,7 @@ importScripts("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs", "https://cdn.jsde
 model = {}
 
 const loadLocalModel = async () => {
-  model = await tf.automl.loadImageClassification("./model/covidModel/model.json")
+  model = await tf.automl.loadImageClassification("../model/covidModel/model.json")
   console.log("LOADED IN WORKER", model)
 }
 

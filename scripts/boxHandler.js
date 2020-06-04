@@ -1,5 +1,17 @@
+const epiBoxFolderName = "_epibox"
+const appFolderName = `_${APPNAME}`
+const datasetConfigFolderName = `_${APPNAME}`
+const epiBoxConfigFileName = "_epiboxUserConfig.json"
+const appConfigFileName = "_userConfig.json"
+const datasetConfigFileName = "_datasetConfig.json"
+const configTemplates = {
+  'epiBoxConfig': "https://episphere.github.io/path/assets/epiBoxConfigTemplate.json",
+  'userConfig': "https://episphere.github.io/path/assets/userConfigTemplate.json",
+  'datasetConfig': "https://episphere.github.io/path/assets/datasetConfigTemplate.json",
+}
+
 const box = async () => {
-  
+
   const client_id = window.location.host.includes("localhost") ? "52zad6jrv5v52mn1hfy1vsjtr9jn5o1w" : "1n44fu5yu1l547f2n2fgcw7vhps7kvuw"
   const client_secret = window.location.host.includes("localhost") ? "2rHTqzJumz8s9bAjmKMV83WHX1ooN4kT" : "2ZYzmHXGyzBcjZ9d1Ttsc1d258LiGGVd"
   const state = "sALTfOrSEcUrITy"
@@ -24,7 +36,8 @@ const box = async () => {
       'content': "content",
       'items': "items",
       'thumbnail': "thumbnail.jpg"
-    }
+    },
+    'search': `${box.basePath}/search`
   }
 
   document.getElementById("boxLoginBtn").onclick = () => window.location.replace(boxAuthEndpoint)
@@ -153,7 +166,7 @@ box.getUserProfile = async () => {
 
 box.getData = async (id, type, fields=[]) => {
   const defaultFields = ["id", "type", "name", "metadata.global.properties", "parent", "path_collection", "size", "representations"]
-  const fieldsToRequest = defaultFields.concat(fields).join(",")
+  const fieldsToRequest = [... new Set(defaultFields.concat(fields)) ].join(",")
   const fieldsParam = `fields=${fieldsToRequest}`
   let dataEndpoint = type in box.endpoints['data'] && `${box.endpoints['data'][type]}/${id}`
   dataEndpoint += type === "file" ? `?${fieldsParam}` : ""
@@ -161,17 +174,34 @@ box.getData = async (id, type, fields=[]) => {
 }
 
 box.getFolderContents = async (folderId, limit=15, offset=0, fields=[]) => {
-  const defaultFields = ["id","type","name"]
-  const fieldsToRequest = defaultFields.concat(fields).join(",")
+  const defaultFields = ["id", "type", "name", "path_collection"]
+  const fieldsToRequest = [... new Set(defaultFields.concat(fields)) ].join(",")
   const fieldsParam =  `fields=${fieldsToRequest}`
   let itemsEndpoint = `${box.endpoints['data']['folder']}/${folderId}/${box.endpoints['subEndpoints']['items']}`
   itemsEndpoint += `?${fieldsParam}&limit=${limit}&offset=${offset}`
-  return await utils.boxRequest(itemsEndpoint)
+  return utils.boxRequest(itemsEndpoint)
+}
+
+box.getAllFolderContents = async (folderId, fields=[]) => {
+  let offset = 0
+  let limit = 1000
+  const folderContents = await box.getFolderContents(folderId, limit, offset, fields)
+  if (folderContents.total_count > limit) {
+    while (true) {
+      offset += limit
+      const remainingFiles = await box.getFolderContents(folderId, limit, offset)
+      folderContents.entries = folderContents.entries.concat(remainingFiles.entries)
+      if (remainingFiles.entries.length < limit) {
+        break
+      }
+    }
+  }
+  return folderContents
 }
 
 box.getFileContent = async (id, isFileJSON=false) => {
   const contentEndpoint = `${box.endpoints['data']['file']}/${id}/${box.endpoints['subEndpoints']['content']}`
-  return await utils.boxRequest(contentEndpoint, {
+  return utils.boxRequest(contentEndpoint, {
     'headers': {
       'Authorization': `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`
     }
@@ -207,7 +237,7 @@ box.createMetadata = async (id, type) => {
   })
 }
 
-box.uploadFile = (id, updateData) => {
+box.uploadFile = (updateData, id) => {
   // If id is present, the file needs to be updated, otherwise create a new file.
   const uploadEndpoint = id ? `${box.endpoints['upload']}/${id}/${box.endpoints['subEndpoints']['content']}` : `${box.endpoints['upload']}/${box.endpoints['subEndpoints']['content']}`
   return utils.boxRequest(uploadEndpoint, {
@@ -239,5 +269,254 @@ box.getRepresentation = async (url) => {
   if (resp.status === 200) {
     const imageBlob = await resp.blob()
     return URL.createObjectURL(imageBlob)
+  }
+}
+
+box.search = async (name, type="file", parentFolderIds=[0], limit=100, fields) => {
+  const defaultFields = ["id", "name", "metadata.global.properties"]
+  const fieldsRequested = [... new Set(defaultFields.concat(fields))].join(",")
+  const queryParams = `query=${name}&ancestor_folder_ids=${parentFolderIds.join(",")}&type=${type}&content_types=name&limit=${limit}`
+  const searchEndpoint = `${box.endpoints.search}?${queryParams}`
+  return utils.boxRequest(searchEndpoint)
+}
+
+box.createFolder = async (folderName, parentFolderId=0) => {
+  const createFolderEndpoint = box.endpoints.data.folder
+  const folderDetails = {
+    'name': folderName,
+    'parent': {
+      'id': parentFolderId
+    }
+  }
+  return await utils.boxRequest(createFolderEndpoint, {
+    'method': "POST",
+    'headers': {
+      "Content-Type": "application/json"
+    },
+    'body': JSON.stringify(folderDetails)
+  })
+}
+
+box.setupEpiboxConfig = async (epiBoxFolderId, application=APPNAME) => {
+  // Writes the epibox config file when not present.
+  const creationTimestamp = Date.now()
+
+  const newUserConfigFD = new FormData()
+  const configFileAttributes = {
+    "name": epiBoxConfigFileName,
+    "parent": {
+      "id": epiBoxFolderId
+    }
+  }
+  
+  const epiBoxConfigTemplate = await utils.request(configTemplates.epiBoxConfig, {}, true)
+  epiBoxConfigTemplate.userId = window.localStorage.userId
+  epiBoxConfigTemplate.createdAt = creationTimestamp
+  epiBoxConfigTemplate.lastModifiedAt = creationTimestamp
+  epiBoxConfigTemplate.applications.push({
+    "name": APPNAME
+  })
+  const newConfigBlob = new Blob([JSON.stringify(epiBoxConfigTemplate)], {
+    type: "application/json"
+  })
+
+  newUserConfigFD.append("attributes", JSON.stringify(configFileAttributes))
+  newUserConfigFD.append("file", newConfigBlob)
+
+  await box.uploadFile(newUserConfigFD)
+}
+
+box.selectDataset = async (folderId) => {
+  
+}
+
+box.getAppConfig = async () => {
+  // Gets the application configuration file from the _epibox folder in the user's root directory. First checks the epiboxUserConfig for an entry
+  // corresponding to the application. If present, reads and returns the file id in the entry; if absent, creates the entire hierarchy of folders
+  // required for the config file to be present.
+
+  const { entries: rootEntries } = await box.search(epiBoxFolderName, "folder", [boxRootFolderId], 1000)
+  let rootEpiBoxEntry = rootEntries.find(entry => entry.name === epiBoxFolderName && entry.path_collection.entries.length === 1 && entry.path_collection.entries[0].id === boxRootFolderId)
+  if (!rootEpiBoxEntry) {
+    const rootFolderContents = await box.getAllFolderContents(boxRootFolderId) // To handle case where _epibox folder was very recently created, so doesn't show up in search response yet.
+    if (rootFolderContents.entries.find(entry => entry.name === epiBoxFolderName)) {
+      rootEpiBoxEntry = rootFolderContents.entries.find(entry => entry.name === epiBoxFolderName)
+    } else {
+      // Create _epibox folder if it doesn't exist
+      rootEpiBoxEntry = await box.createFolder(epiBoxFolderName, boxRootFolderId)
+      box.setupEpiboxConfig(rootEpiBoxEntry.id)
+    }
+  }
+
+  const epiBoxFolderId = rootEpiBoxEntry.id
+  const { entries: epiBoxEntries } = await box.search(appFolderName, "folder", [epiBoxFolderId], 1)
+  let appFolderEntry = epiBoxEntries.find(entry => entry.name === epiBoxFolderName && entry.path_collection.entries.length === 2 && entry.path_collection.entries[entry.path_collection.entries.length - 1].id === epiBoxFolderId)
+  if (!appFolderEntry) {
+    const epiBoxContents = await box.getAllFolderContents(epiBoxFolderId) // To handle case where app folder was very recently created, so doesn't show up in search response yet.
+    appFolderEntry = epiBoxContents.entries.find(entry => entry.name === appFolderName)
+    if (!appFolderEntry) {
+      // Create _epiPath folder if it doesn't exist
+      appFolderEntry  = await box.createFolder(appFolderName, epiBoxFolderId)
+    }
+  }
+
+
+  const appFolderId = appFolderEntry.id
+  let userConfig = {}
+  const { entries: appEntries } = await box.search(appConfigFileName, "file", [appFolderId], 1)
+  let appConfigFileEntry = appEntries.find(file => file.name === appConfigFileName)
+  if (!appConfigFileEntry) {
+    const appFolderContents = await box.getAllFolderContents(appFolderId) // To handle case where config file was very recently created, so doesn't show up in search response yet.
+    appConfigFileEntry = appFolderContents.entries.find(entry => entry.name === appConfigFileName)
+    
+    if (appConfigFileEntry) {
+      userConfig = await box.getFileContent(appConfigFileEntry.id, true)
+    } else {
+      // Creates user config file if it doesn't exist.
+      const newUserConfigFD = new FormData()
+      const configFileAttributes = {
+        "name": appConfigFileName,
+        "parent": {
+          "id": appFolderId
+        }
+      }
+      
+      const userConfigTemplate = await utils.request(configTemplates.userConfig, {}, true)
+      userConfigTemplate["userId"] = window.localStorage.userId
+      const newConfigBlob = new Blob([JSON.stringify(userConfigTemplate)], {
+        type: "application/json"
+      })
+
+      newUserConfigFD.append("attributes", JSON.stringify(configFileAttributes))
+      newUserConfigFD.append("file", newConfigBlob)
+
+      const uploadResp = await box.uploadFile(newUserConfigFD)
+      appConfigFileEntry = uploadResp.entries[0]
+      userConfig = userConfigTemplate
+    }
+  } else {
+    userConfig = await box.getFileContent(appConfigFileEntry.id, true)
+  }
+  
+  box.appConfigFileId = appConfigFileEntry.id
+  
+  return userConfig
+}
+
+box.getDatasetConfig = async (datasetFolderId) => {
+  let datasetConfig = {}
+  
+  const availableDataset = path.userConfig.datasetsUsed.find(dataset => dataset.folderId === datasetFolderId)
+  if (availableDataset) {
+    datasetConfig = await box.getFileContent(availableDataset.configFileId, true)
+    box.currentDatasetConfigFileId = availableDataset.configFileId
+  } else {
+    
+    const { entries: datasetEntries } = await box.search(epiBoxFolderName, "folder", [datasetFolderId], 1000, ["path_collection"])
+    let datasetEpiBoxEntry = datasetEntries.find(entry => entry.name === epiBoxFolderName && entry.path_collection.entries[entry.path_collection.entries.length - 1].id === datasetFolderId)
+    if (!datasetEpiBoxEntry) {
+      const datasetFolderContents = await box.getAllFolderContents(datasetFolderId) // To handle case where the dataset config folder was very recently created, so doesn't show up in search response yet.
+      datasetEpiBoxEntry = datasetFolderContents.entries.find(entry => entry.name === epiBoxFolderName)
+      if (!datasetEpiBoxEntry) {
+        // Create _epibox folder if it doesn't exist.
+        datasetEpiBoxEntry = await box.createFolder(epiBoxFolderName, datasetFolderId)
+      }
+    }
+  
+    const epiBoxFolderId = datasetEpiBoxEntry.id
+    const { entries: epiBoxEntries } = await box.search(appFolderName, "folder", [epiBoxFolderId], 100)
+    let appFolderEntry = epiBoxEntries.find(entry => entry.name === appFolderName && entry.path_collection.entries.length === 2 && entry.path_collection.entries[entry.path_collection.entries.length - 1].id === epiBoxFolderId)
+    if (!appFolderEntry) {
+      const epiBoxContents = await box.getAllFolderContents(epiBoxFolderId) // To handle case where app folder was very recently created, so doesn't show up in search response yet.
+      appFolderEntry = epiBoxContents.entries.find(entry => entry.name === appFolderName)
+      if (!appFolderEntry) {
+        // Create _epiPath folder if it doesn't exist
+        appFolderEntry  = await box.createFolder(appFolderName, epiBoxFolderId)
+      }
+    }
+  
+    const appFolderId = appFolderEntry.id
+    const { entries: appEntries } = await box.search(datasetConfigFileName, "file", [appFolderId], 100)
+    let appConfigFileEntry = appEntries.find(file => file.name === datasetConfigFileName)
+    if (!appConfigFileEntry) {
+      const appFolderContents = await box.getAllFolderContents(appFolderId) // To handle case where config file was very recently created, so doesn't show up in Search response yet.
+      appConfigFileEntry = appFolderContents.entries.find(entry => entry.name === datasetConfigFileName)
+      
+      if (appConfigFileEntry) {
+        datasetConfig = await box.getFileContent(appConfigFileEntry.id, true)
+      } else {
+        // Creates user config file if it doesn't exist.
+        const newDatasetConfigFD = new FormData()
+        const configFileAttributes = {
+          "name": datasetConfigFileName,
+          "parent": {
+            "id": appFolderId
+          }
+        }
+        
+        const datasetConfigTemplate = await utils.request(configTemplates.datasetConfig, {}, true)
+        datasetConfigTemplate.datasetFolderId = datasetFolderId
+        datasetConfigTemplate.datasetFolderName = datasetEpiBoxEntry.path_collection.entries[datasetEpiBoxEntry.path_collection.entries.length - 1].name
+        const newConfigBlob = new Blob([JSON.stringify(datasetConfigTemplate)], {
+          type: "application/json"
+        })
+  
+        newDatasetConfigFD.append("attributes", JSON.stringify(configFileAttributes))
+        newDatasetConfigFD.append("file", newConfigBlob)
+  
+        const configFileUploadResp = await box.uploadFile(newDatasetConfigFD)
+        appConfigFileEntry = configFileUploadResp.entries[0]
+        datasetConfig = datasetConfigTemplate
+      }
+    } else {
+      datasetConfig = await box.getFileContent(appConfigFileEntry.id, true)
+    }
+    box.currentDatasetConfigFileId = appConfigFileEntry.id
+    await box.addDatasetToAppConfig(datasetFolderId)
+  }
+  
+  box.changeLastUsedDataset(datasetFolderId)
+
+  return datasetConfig
+
+}
+
+box.addDatasetToAppConfig = async (datasetFolderId) => {
+  const newUserConfigFD = new FormData()
+  const configFileAttributes = {
+    "name": appConfigFileName
+  }
+  
+  path.userConfig.datasetsUsed.push({
+    'folderId': datasetFolderId,
+    'configFileId': box.currentDatasetConfigFileId
+  })
+
+  const newConfigBlob = new Blob([JSON.stringify(path.userConfig)], {
+    type: "application/json"
+  })
+
+  newUserConfigFD.append("attributes", JSON.stringify(configFileAttributes))
+  newUserConfigFD.append("file", newConfigBlob)
+
+  await box.uploadFile(newUserConfigFD, box.appConfigFileId)
+}
+
+box.changeLastUsedDataset = async (datasetFolderId) => {
+  if (path.userConfig.lastUsedDataset !== datasetFolderId) {
+    const newUserConfigFD = new FormData()
+    const configFileAttributes = {
+      "name": appConfigFileName
+    }
+    
+    path.userConfig.lastUsedDataset = datasetFolderId
+    const newConfigBlob = new Blob([JSON.stringify(path.userConfig)], {
+      type: "application/json"
+    })
+  
+    newUserConfigFD.append("attributes", JSON.stringify(configFileAttributes))
+    newUserConfigFD.append("file", newConfigBlob)
+  
+    await box.uploadFile(newUserConfigFD, box.appConfigFileId)
   }
 }
