@@ -166,7 +166,6 @@ path.setupEventListeners = () => {
   
     box.getUserProfile()
     path.userConfig = await box.getAppConfig()
-    loadHashParams()
     
     if (path.userConfig.lastUsedDataset !== -1) {
     
@@ -244,8 +243,7 @@ path.selectDataset = async (folderId = path.userConfig.lastUsedDataset) => {
     }
   }
   path.datasetConfig = datasetConfig
-  annotations.showAnnotationOptions(path.datasetConfig.annotations)
-  thumbnails.reBorderThumbnails()
+  loadHashParams()
 }
 
 const loadDefaultImage = async () => {
