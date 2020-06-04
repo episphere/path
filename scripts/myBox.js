@@ -261,7 +261,7 @@ myBox.populateFolderTree = (entries, id) => {
           entryBtnDropdownToggleBtn.setAttribute("class", "btn btn-light boxFolderOption")
           entryBtnDropdownToggleBtn.setAttribute("id", `${entry.id}_selectDataset`)
           entryBtnDropdownToggleBtn.onclick = () => {
-            entryBtnOptionsDiv.innerHTML = `<img src="../external/images/loader_folder.gif" style="width:2rem;"></img>`
+            entryBtnOptionsDiv.innerHTML = `<img src="https://episphere.github.io/path/external/images/loader_folder.gif" style="width:2rem;"></img>`
             path.selectDataset(entry.id)
           }
           entryBtnDropdownToggleBtn.innerHTML = ` <i class="fas fa-pencil-alt"></i> &nbsp;Use as Dataset`
