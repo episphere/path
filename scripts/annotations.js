@@ -962,11 +962,12 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
     newConfigFormData.append("file", newConfigBlob)
 
     try {
-      await box.uploadFile(newConfigFormData, configFileId)
+      await box.uploadFile(newConfigFormData, box.currentDatasetConfigFileId)
       utils.showToast(toastMessage)
       
       path.datasetConfig = datasetConfig
-      path.datasetConfig.annotations.forEach((annotationConfig) => annotations.createTables(annotationConfig, annotationConfig[identifier] === deltaData[identifier]))
+      annotations.showAnnotationOptions(path.datasetConfig.annotations)
+      // path.datasetConfig.annotations.forEach((annotationConfig) => annotations.createTables(annotationConfig, annotationConfig[identifier] === deltaData[identifier]))
 
       thumbnails.reBorderThumbnails()
 
