@@ -192,6 +192,10 @@ myBox.loadFolderTree = (folderData) => {
 
       parentElement.appendChild(folderSubDiv)
 
+      // To Enable Dropdown for folders
+      const folderOptionsTogglers = document.querySelectorAll(".dropdown.boxFolderOptionsDiv")
+      folderOptionsTogglers.forEach(folderOptionDiv => new Dropdown(folderOptionDiv))
+
     } else if (entries.length === 0) {
       parentElement.style.textAlign = "center"
       parentElement.innerText = "-- Empty Folder --"
@@ -205,51 +209,88 @@ myBox.populateFolderTree = (entries, id) => {
   currentFolderDiv.setAttribute("id", `boxFileMgr_folderTree_${id}`)
   
   entries.forEach(entry => {
-    const entryBtnDiv = document.createElement("div")
-    entryBtnDiv.setAttribute("id", `boxFileMgr_subFolder_${entry.id}`)
-    entryBtnDiv.setAttribute("class", `boxFileMgr_subFolder`)
-    const entryBtn = document.createElement("button")
-    entryBtn.setAttribute("class", "btn btn-link")
-    entryBtn.setAttribute("fileId", entry.id)
-    entryBtn.setAttribute("type", "button")
-    const entryIcon = document.createElement("i")
-    if (entry.type === "folder") {
-      entryIcon.setAttribute("class", "fas fa-folder")
-    } else if (entry.type === "file") {
-      if (utils.isValidImage(entry.name)) {
-        entryIcon.setAttribute("class", "fas fa-file-image")
-      } else {
-        entryIcon.setAttribute("class", "fas fa-file")
-      }
-      if (entry.id === hashParams.image) {
-        entryBtnDiv.classList.add("selectedImage")
-      }
-    }
-    entryIcon.innerHTML = "&nbsp&nbsp"
-    entryBtn.appendChild(entryIcon)
-    entryBtn.innerHTML += entry.name
-    // const loaderImage = document.createElement("img")
-    // loaderImage.setAttribute("src", `${window.location.origin}${window.location.pathname}/images/loader_sm.gif`)
-    // loaderImage.setAttribute("class", "boxFileMgr_loader")
-    // entryBtnSubfolders.appendChild(loaderImage)
-    // entryBtnSubfolders.style.display = "none"
-    // entryBtnDiv.appendChild(entryBtnSubfolders)
-    entryBtnDiv.appendChild(entryBtn)
-    entryBtnDiv.appendChild(document.createElement("hr"))
-
-    entryBtn.onclick = async () => {
+    // Do not show _epibox and _app folders
+    if (entry.name !== `_${EPIBOX}` && entry.name !== `_${APPNAME}`) {
+      const entryBtnDiv = document.createElement("div")
+      entryBtnDiv.setAttribute("id", `boxFileMgr_subFolder_${entry.id}`)
+      entryBtnDiv.setAttribute("class", `boxFileMgr_subFolder`)
+      const entryBtn = document.createElement("button")
+      entryBtn.setAttribute("class", "btn btn-link")
+      entryBtn.setAttribute("entryId", entry.id)
+      entryBtn.setAttribute("type", "button")
+      const entryIcon = document.createElement("i")
       if (entry.type === "folder") {
-        selectFolder(entry.id)
-      } else if (entry.type === "file" && utils.isValidImage(entry.name)) {
-        if (entry.id !== hashParams.image) {
-          selectImage(entry.id)
-          myBox.highlightImage(entry.id)
+        entryIcon.setAttribute("class", "fas fa-folder")
+      } else if (entry.type === "file") {
+        if (utils.isValidImage(entry.name)) {
+          entryIcon.setAttribute("class", "fas fa-file-image")
+        } else {
+          entryIcon.setAttribute("class", "fas fa-file")
+        }
+        if (entry.id === hashParams.image) {
+          entryBtnDiv.classList.add("selectedImage")
         }
       }
+      entryIcon.innerHTML = "&nbsp&nbsp"
+      entryBtn.appendChild(entryIcon)
+      entryBtn.innerHTML += entry.name
+      // const loaderImage = document.createElement("img")
+      // loaderImage.setAttribute("src", `${window.location.origin}${window.location.pathname}/images/loader_sm.gif`)
+      // loaderImage.setAttribute("class", "boxFileMgr_loader")
+      // entryBtnSubfolders.appendChild(loaderImage)
+      // entryBtnSubfolders.style.display = "none"
+      // entryBtnDiv.appendChild(entryBtnSubfolders)
+      entryBtnDiv.appendChild(entryBtn)
+      if (entry.type === "folder") {
+        const entryBtnOptionsDiv = document.createElement("div")
+        entryBtnOptionsDiv.setAttribute("class", "boxFolderOptionsDiv")
+        entryBtnOptionsDiv.setAttribute("id", `${entry.id}_folderOptions`)
+        
+        if (entry.id !== path.userConfig.lastUsedDataset) {
+          entryBtnOptionsDiv.classList.add("dropdown")
+          entryBtnOptionsDiv.innerHTML = `<button class="btn btn-light dropdown-toggle boxFolderOptionsToggle" role="button" id="${entry.id}_folderOptionsToggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            <i class="fas fa-ellipsis-v"></i>
+          </button>
+          `
+          const entryBtnDropdownDiv = document.createElement("div")
+          entryBtnDropdownDiv.setAttribute("class", "dropdown-menu dropdown-menu-right boxFolderOptionsDropdown")
+          const entryBtnDropdownOptionsDiv = document.createElement("div")
+          entryBtnDropdownOptionsDiv.setAttribute("class", "boxFolderOptions")
+            
+          const entryBtnDropdownToggleBtn = document.createElement("button")
+          entryBtnDropdownToggleBtn.setAttribute("class", "btn btn-light boxFolderOption")
+          entryBtnDropdownToggleBtn.setAttribute("id", `${entry.id}_selectDataset`)
+          entryBtnDropdownToggleBtn.onclick = () => {
+            entryBtnOptionsDiv.innerHTML = `<img src="../external/images/loader_folder.gif" style="width:2rem;"></img>`
+            path.selectDataset(entry.id)
+          }
+          entryBtnDropdownToggleBtn.innerHTML = ` <i class="fas fa-pencil-alt"></i> &nbsp;Use as Dataset`
+          
+          entryBtnDropdownOptionsDiv.appendChild(entryBtnDropdownToggleBtn)
+          entryBtnDropdownDiv.appendChild(entryBtnDropdownOptionsDiv)
+          entryBtnOptionsDiv.appendChild(entryBtnDropdownDiv)
+          
+        } else {
+          entryBtnOptionsDiv.innerHTML = `<i class="far fa-check-circle"></i>`
+        }
+        entryBtnDiv.appendChild(entryBtnOptionsDiv)
+      }
+      
+      entryBtn.onclick = async () => {
+        if (entry.type === "folder") {
+          selectFolder(entry.id)
+        } else if (entry.type === "file" && utils.isValidImage(entry.name)) {
+          if (entry.id !== hashParams.image) {
+            selectImage(entry.id)
+            myBox.highlightImage(entry.id)
+          }
+        }
+      }
+      // const folderTree = document.createElement("div")
+      // folderTree.setAttribute("class", `boxFileMgr_folderTree_${id}`)
+      currentFolderDiv.appendChild(entryBtnDiv)
+      currentFolderDiv.appendChild(document.createElement("hr"))
     }
-    // const folderTree = document.createElement("div")
-    // folderTree.setAttribute("class", `boxFileMgr_folderTree_${id}`)
-    currentFolderDiv.appendChild(entryBtnDiv)
   })
   // currentFolderDiv.appendChild(folderTree)
   return currentFolderDiv

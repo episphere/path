@@ -1,170 +1,177 @@
 const annotations = {}
 
-annotations.createTables = async (annotation, forceRedraw = false) => {
-  const {
-    annotationId,
-    displayName,
-    annotationName,
-    definition,
-    enableComments
-  } = annotation
+annotations.showAnnotationOptions = async (annotationsConfig=path.datasetConfig.annotations, forceRedraw=false) => {
+  await annotations.createTables(annotationsConfig)
+  const annotationsDiv = document.getElementById("annotationsDiv")
+  annotationsDiv.style.display = "block"
+}
 
-  const annotationsAccordion = document.getElementById("annotationsAccordion")
-  if (annotationsAccordion.childElementCount > path.appConfig.annotations.length) {
-
-    annotationsAccordion.innerHTML = ""
-  }
-
-  let annotationCard = annotationsAccordion.querySelector(`#annotation_${annotationId}Card`)
-
-  if (annotationCard && forceRedraw) {
-    annotationCard.parentElement.removeChild(annotationCard)
-    annotationCard = undefined
-  }
-
-  if (!annotationCard || annotationCard.childElementCount === 0) {
-    const annotationCardDiv = document.createElement("div")
-    annotationCardDiv.setAttribute("class", "card annotationsCard")
-    annotationCardDiv.setAttribute("id", `annotation_${annotationId}Card`)
-    annotationCardDiv.style.overflow = "visible"
-    let annotationCard = `
-      <div class="card-header">
-        <div class="annotationWithMenuHeader">
-          <div class="classWithDefinition">
-            <h2 class="mb-0">
-              <button class="btn btn-link classCardHeader" type="button" data-toggle="collapse"
-                data-target="#${annotationName}Annotations" id="${annotationName}Toggle">
-                ${displayName}
-              </button>
-            </h2>
-    `
-
-    if (definition) {
-      annotationCard += `
-            <button class="btn btn-light classDefinitionPopup" id="${annotationName}_definitionPopup" type="button" data-toggle="popover">
-              <i class="fas fa-info-circle"></i>
-            </button>
-      `
-    }
-
-    annotationCard += `
-          </div>
-          <div class="dropdown classificationMenu" id="${annotationName}_classificationMenu">
-            <button class="btn btn-light dropdown-toggle classificationMenuToggle" role="button" id="${annotationName}_classificationMenuToggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-              <i class="fas fa-ellipsis-v"></i>
-            </button>
-            <div class="dropdown-menu dropdown-menu-right classificationMenuDropdown">
-              <div class="classificationMenuButtons">
-                <button class="btn btn-light classificationMenuOption" role="button" id="${annotationName}_editClassification" title="Edit" onclick="editClassificationConfig(${annotationId})"  aria-haspopup="true" aria-expanded="false">
-                  <i class="fas fa-pencil-alt"></i> &nbsp;Edit Config
-                </button>
-                <hr/>
-                <button class="btn btn-light classificationMenuOption" role="button" id="${annotationName}_deleteClassification" title="Delete" onclick="deleteClassificationConfig(${annotationId})" aria-haspopup="true" aria-expanded="false">
-                  <i class="fas fa-trash-alt"></i> &nbsp;Delete Class
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
   
-      <div id="${annotationName}Annotations" class="collapse qualityAnnotations" data-parent="#annotationsAccordion">
-        <div class="card-body annotationsCardBody" name="${displayName}">
-          <table id="${annotationName}Select" class="table table-bordered qualitySelect">
-            <thead>
-              <tr>
-                <th scope="col" style="border-right: none; padding-left: 0; padding-right: 0;">
-                  <div class="text-left col">Label</div>
-                </th>
-                <th scope="col" style="border-left: none;">
-                  <div class="text-center col">Model Score</div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-            </tbody>
-          </table>
-          <div id="${annotationName}_othersAnnotations" class="quality_othersAnnotations"></div>
+  const annotationsAccordion = document.getElementById("annotationsAccordion")
+  annotationsAccordion.innerHTML = ""
+  
+  annotationsConfig.forEach(annotation => {
+    const {
+      annotationId,
+      displayName,
+      annotationName,
+      definition,
+      enableComments
+    } = annotation
+
+    let annotationCard = annotationsAccordion.querySelector(`#annotation_${annotationId}Card`)
+  
+    if (annotationCard && forceRedraw) {
+      annotationCard.parentElement.removeChild(annotationCard)
+      annotationCard = undefined
+    }
+  
+    if (!annotationCard || annotationCard.childElementCount === 0) {
+      const annotationCardDiv = document.createElement("div")
+      annotationCardDiv.setAttribute("class", "card annotationsCard")
+      annotationCardDiv.setAttribute("id", `annotation_${annotationId}Card`)
+      annotationCardDiv.style.overflow = "visible"
+      let annotationCard = `
+        <div class="card-header">
+          <div class="annotationWithMenuHeader">
+            <div class="classWithDefinition">
+              <h2 class="mb-0">
+                <button class="btn btn-link classCardHeader" type="button" data-toggle="collapse"
+                  data-target="#${annotationName}Annotations" id="${annotationName}Toggle">
+                  ${displayName}
+                </button>
+              </h2>
       `
-    if (enableComments) {
+  
+      if (definition) {
+        annotationCard += `
+              <button class="btn btn-light classDefinitionPopup" id="${annotationName}_definitionPopup" type="button" data-toggle="popover">
+                <i class="fas fa-info-circle"></i>
+              </button>
+        `
+      }
+  
       annotationCard += `
-          <div class="commentsToggleDiv">
-            <button id="${annotationName}_commentsToggle" type="button" data-toggle="collapse" data-target="#${annotationName}_allComments" role="button" class="btn btn-link collapsed" disabled style="padding-left: 0;"></button>
-          </div>
-          <div class="collapse" id="${annotationName}_allComments">
-            <div class="allCommentsCard card card-body" id="${annotationName}_allCommentsCard">
             </div>
-          </div>
-          <div id="${annotationName}_comments" class="quality_addComment form-group">
-            <textarea class="form-control" id="${annotationName}_commentsTextField" rows="2" placeholder="Add your comments here..."></textarea>
-            <div style="display: flex; flex-direction: row; justify-content: space-between; margin-top: 0.5rem; margin-left: 0.1rem;">
-              <div style="display: flex; flex-direction: row; style="margin: auto 0;">
-                <label for="${annotationName}_commentsPublic" style="margin-right: 0.5rem;">Private</label>
-                <div class="custom-control custom-switch">
-                  <input type="checkbox" class="custom-control-input" id="${annotationName}_commentsPublic">
-                  <label class="custom-control-label" for="${annotationName}_commentsPublic">Public</label>
+            <div class="dropdown classificationMenu" id="${annotationName}_classificationMenu">
+              <button class="btn btn-light dropdown-toggle classificationMenuToggle" role="button" id="${annotationName}_classificationMenuToggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <i class="fas fa-ellipsis-v"></i>
+              </button>
+              <div class="dropdown-menu dropdown-menu-right classificationMenuDropdown">
+                <div class="classificationMenuButtons">
+                  <button class="btn btn-light classificationMenuOption" role="button" id="${annotationName}_editClassification" title="Edit" onclick="editClassificationConfig(${annotationId})"  aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-pencil-alt"></i> &nbsp;Edit Config
+                  </button>
+                  <hr/>
+                  <button class="btn btn-light classificationMenuOption" role="button" id="${annotationName}_deleteClassification" title="Delete" onclick="deleteClassificationConfig(${annotationId})" aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-trash-alt"></i> &nbsp;Delete Class
+                  </button>
                 </div>
               </div>
-              <div>
-                <button type="button" onclick=cancelEditComment("${annotationName}") id="${annotationName}_cancelEditComment" class="btn btn-link">Cancel</button>
-                <button type="submit" onclick=submitAnnotationComment("${annotationName}") id="${annotationName}_submitComment" class="btn btn-info" disabled>Submit</button>
-              </div>
             </div>
           </div>
-        `
-    }
-    annotationCard += `
         </div>
-      </div>
-      `
-    annotationCardDiv.innerHTML += annotationCard
-    annotationsAccordion.appendChild(annotationCardDiv)
-    new Collapse(document.getElementById(`${annotationName}Toggle`))
-    new Dropdown(document.getElementById(`${annotationName}_classificationMenu`))
-
-    if (definition) {
-      new Popover(document.getElementById(`${annotationName}_definitionPopup`), {
-        placement: "right",
-        animation: "slidenfade",
-        delay: 100,
-        dismissible: false,
-        trigger: "hover",
-        content: definition
-      })
+    
+        <div id="${annotationName}Annotations" class="collapse qualityAnnotations" data-parent="#annotationsAccordion">
+          <div class="card-body annotationsCardBody" name="${displayName}">
+            <table id="${annotationName}Select" class="table table-bordered qualitySelect">
+              <thead>
+                <tr>
+                  <th scope="col" style="border-right: none; padding-left: 0; padding-right: 0;">
+                    <div class="text-left col">Label</div>
+                  </th>
+                  <th scope="col" style="border-left: none;">
+                    <div class="text-center col">Model Score</div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+              </tbody>
+            </table>
+            <div id="${annotationName}_othersAnnotations" class="quality_othersAnnotations"></div>
+        `
+      if (enableComments) {
+        annotationCard += `
+            <div class="commentsToggleDiv">
+              <button id="${annotationName}_commentsToggle" type="button" data-toggle="collapse" data-target="#${annotationName}_allComments" role="button" class="btn btn-link collapsed" disabled style="padding-left: 0;"></button>
+            </div>
+            <div class="collapse" id="${annotationName}_allComments">
+              <div class="allCommentsCard card card-body" id="${annotationName}_allCommentsCard">
+              </div>
+            </div>
+            <div id="${annotationName}_comments" class="quality_addComment form-group">
+              <textarea class="form-control" id="${annotationName}_commentsTextField" rows="2" placeholder="Add your comments here..."></textarea>
+              <div style="display: flex; flex-direction: row; justify-content: space-between; margin-top: 0.5rem; margin-left: 0.1rem;">
+                <div style="display: flex; flex-direction: row; style="margin: auto 0;">
+                  <label for="${annotationName}_commentsPublic" style="margin-right: 0.5rem;">Private</label>
+                  <div class="custom-control custom-switch">
+                    <input type="checkbox" class="custom-control-input" id="${annotationName}_commentsPublic">
+                    <label class="custom-control-label" for="${annotationName}_commentsPublic">Public</label>
+                  </div>
+                </div>
+                <div>
+                  <button type="button" onclick=cancelEditComment("${annotationName}") id="${annotationName}_cancelEditComment" class="btn btn-link">Cancel</button>
+                  <button type="submit" onclick=submitAnnotationComment("${annotationName}") id="${annotationName}_submitComment" class="btn btn-info" disabled>Submit</button>
+                </div>
+              </div>
+            </div>
+          `
+      }
+      annotationCard += `
+          </div>
+        </div>
+        `
+      annotationCardDiv.innerHTML += annotationCard
+      annotationsAccordion.appendChild(annotationCardDiv)
+      new Collapse(document.getElementById(`${annotationName}Toggle`))
+      new Dropdown(document.getElementById(`${annotationName}_classificationMenu`))
+  
+      if (definition) {
+        new Popover(document.getElementById(`${annotationName}_definitionPopup`), {
+          placement: "right",
+          animation: "slidenfade",
+          delay: 100,
+          dismissible: false,
+          trigger: "hover",
+          content: definition
+        })
+      }
+  
+      if (enableComments) {
+  
+        const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
+        new Collapse(toggleCommentsButton)
+        toggleCommentsButton.addEventListener("shown.bs.collapse", (evt) => {
+          toggleCommentsButton.innerHTML = "- Hide All Comments"
+        })
+        toggleCommentsButton.addEventListener("hidden.bs.collapse", (evt) => {
+          toggleCommentsButton.innerHTML = "+ Show All Comments"
+        })
+  
+        const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
+        const commentsSubmitButton = document.getElementById(`${annotationName}_submitComment`)
+        commentsTextField.oninput = (evt) => {
+          if (commentsTextField.value.length > 0) {
+            commentsSubmitButton.removeAttribute("disabled")
+          } else {
+            commentsSubmitButton.setAttribute("disabled", "true")
+          }
+        }
+        commentsTextField.onkeydown = (evt) => {
+          if (evt.shiftKey && evt.keyCode === 13) {
+            evt.preventDefault()
+            commentsSubmitButton.click()
+          }
+        }
+      }
     }
-
+    showQualitySelectors(annotation)
     if (enableComments) {
-
-      const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
-      new Collapse(toggleCommentsButton)
-      toggleCommentsButton.addEventListener("shown.bs.collapse", (evt) => {
-        toggleCommentsButton.innerHTML = "- Hide All Comments"
-      })
-      toggleCommentsButton.addEventListener("hidden.bs.collapse", (evt) => {
-        toggleCommentsButton.innerHTML = "+ Show All Comments"
-      })
-
-      const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
-      const commentsSubmitButton = document.getElementById(`${annotationName}_submitComment`)
-      commentsTextField.oninput = (evt) => {
-        if (commentsTextField.value.length > 0) {
-          commentsSubmitButton.removeAttribute("disabled")
-        } else {
-          commentsSubmitButton.setAttribute("disabled", "true")
-        }
-      }
-      commentsTextField.onkeydown = (evt) => {
-        if (evt.shiftKey && evt.keyCode === 13) {
-          evt.preventDefault()
-          commentsSubmitButton.click()
-        }
-      }
+      populateComments(annotationName)
     }
-  }
-  showQualitySelectors(annotation)
+  })
   showNextImageButton()
-  populateComments(annotationName)
-  annotationsAccordion.parentElement.style.display = "block"
 }
 
 const showQualitySelectors = async (annotation) => {
@@ -204,7 +211,7 @@ const showQualitySelectors = async (annotation) => {
       qualityButton.setAttribute("class", qualityButtonClass)
       qualityButton.setAttribute("id", `${annotationName}_${label}`)
       qualityButton.setAttribute("value", label)
-      qualityButton.setAttribute("onclick", `selectQuality("${annotationName}", "${label}")`)
+      qualityButton.setAttribute("onclick", `selectQuality("${annotation}", "${label}")`)
       qualityButton.innerText = displayText
       if (tooltip) {
         qualityButton.setAttribute("title", tooltip)
@@ -240,14 +247,19 @@ const showQualitySelectors = async (annotation) => {
   }
   activateQualitySelector(annotationName, fileAnnotations)
   getOthersAnnotations(annotationName, fileAnnotations)
-  loadModelPrediction(annotationName, selectTableBody)
+  loadModelPrediction(annotation, selectTableBody)
   annotationDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
 }
 
-const loadModelPrediction = async (annotationName, tableBodyElement) => {
-  const modelQualityPrediction = await getModelPrediction(annotationName)
+const loadModelPrediction = async (annotation, tableBodyElement) => {
+  const modelQualityPrediction = await getModelPrediction(annotation.annotationName)
+  displayModelPrediction(modelQualityPrediction, annotation, tableBodyElement)
+}
+
+const displayModelPrediction = (modelQualityPrediction, annotation, tableBodyElement) => {
+  const { annotationName } = annotation
   if (modelQualityPrediction) {
-    qualityEnum.forEach(({
+    annotation.labels.forEach(({
       label
     }) => {
       const labelPrediction = modelQualityPrediction.find(pred => pred.displayName === label)
@@ -284,59 +296,63 @@ const getOthersAnnotations = (annotationName, fileAnnotations) => {
 }
 
 const showNextImageButton = (metadata) => {
-  metadata = metadata || JSON.parse(window.localStorage.fileMetadata)
-  const numAnnotationsCompleted = thumbnails.getNumCompletedAnnotations(metadata)
   const nextImageMessage = document.getElementById("nextImageMessage")
-  const nextImageText = `<b><span style='color:darkorchid'>${numAnnotationsCompleted}</span> / ${path.appConfig.annotations.length} Annotations Completed!</b>`
-  nextImageMessage.innerHTML = nextImageText
-
-  const nextImageButton = document.getElementById("nextImageBtn") || document.createElement("button")
-  nextImageButton.setAttribute("type", "button")
-  nextImageButton.setAttribute("id", "nextImageBtn")
-  nextImageButton.setAttribute("class", "btn btn-link")
-  nextImageButton.innerHTML = "Next Image >>"
-
-  const allFilesInCurrentFolder = JSON.parse(window.localStorage.allFilesInFolder)[window.localStorage.currentFolder] || []
-
-  if (allFilesInCurrentFolder.length > 0) {
-    const currentImageIndex = allFilesInCurrentFolder.indexOf(hashParams.image.toString())
-    if (currentImageIndex === allFilesInCurrentFolder.length - 1) {
-      return
-    }
-
-    nextImageButton.onclick = async (_) => {
-      if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
-        const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
-        thumbnailCurrentPageText.stepUp()
-        thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+  nextImageMessage.innerHTML = ``
+  if (path.datasetConfig.annotations.length > 0) {
+    metadata = metadata || JSON.parse(window.localStorage.fileMetadata)
+    const numAnnotationsCompleted = thumbnails.getNumCompletedAnnotations(metadata)
+    const nextImageText = `<b><span style='color:darkorchid'>${numAnnotationsCompleted}</span> / ${path.datasetConfig.annotations.length} Annotations Completed!</b>`
+    nextImageMessage.innerHTML = nextImageText
+  
+    const nextImageButton = document.getElementById("nextImageBtn") || document.createElement("button")
+    nextImageButton.setAttribute("type", "button")
+    nextImageButton.setAttribute("id", "nextImageBtn")
+    nextImageButton.setAttribute("class", "btn btn-link")
+    nextImageButton.innerHTML = "Next Image >>"
+  
+    const allFilesInCurrentFolder = JSON.parse(window.localStorage.allFilesInFolder)[window.localStorage.currentFolder] || []
+  
+    if (allFilesInCurrentFolder.length > 0) {
+      const currentImageIndex = allFilesInCurrentFolder.indexOf(hashParams.image.toString())
+      if (currentImageIndex === allFilesInCurrentFolder.length - 1) {
+        return
       }
-      selectImage(allFilesInCurrentFolder[currentImageIndex + 1])
-    }
-
-  } else {
-    // Fallback for first load where allFilesInFolder is yet to be populated, since doing that takes a lot of time.
-    const currentImageIndex = currentThumbnailsList.indexOf(hashParams.image.toString())
-    if (currentImageIndex === currentThumbnailsList.length - 1 && thumbnails.isThumbnailsLastPage()) {
-      return
-    }
-
-    nextImageButton.onclick = async (_) => {
-      if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
-        const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
-        thumbnailCurrentPageText.stepUp()
-        thumbnailCurrentPageText.dispatchEvent(new Event("change"))
-        setTimeout(() => { // Needs to wait for new thumbnails list to be loaded. Very ugly, need rethinking later.
-          selectImage(currentThumbnailsList[0])
-        }, 3000)
-      } else {
-        selectImage(currentThumbnailsList[currentImageIndex + 1])
+  
+      nextImageButton.onclick = async (_) => {
+        if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
+          const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
+          thumbnailCurrentPageText.stepUp()
+          thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+        }
+        selectImage(allFilesInCurrentFolder[currentImageIndex + 1])
+      }
+  
+    } else {
+      // Fallback for first load where allFilesInFolder is yet to be populated, since doing that takes a lot of time.
+      const currentImageIndex = currentThumbnailsList.indexOf(hashParams.image.toString())
+      if (currentImageIndex === currentThumbnailsList.length - 1 && thumbnails.isThumbnailsLastPage()) {
+        return
+      }
+  
+      nextImageButton.onclick = async (_) => {
+        if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
+          const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
+          thumbnailCurrentPageText.stepUp()
+          thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+          setTimeout(() => { // Needs to wait for new thumbnails list to be loaded. Very ugly, need rethinking later.
+            selectImage(currentThumbnailsList[0])
+          }, 3000)
+        } else {
+          selectImage(currentThumbnailsList[currentImageIndex + 1])
+        }
       }
     }
+    nextImageMessage.appendChild(nextImageButton)
   }
-  nextImageMessage.appendChild(nextImageButton)
 }
 
-const selectQuality = async (annotationName, qualitySelected) => {
+const selectQuality = async (annotation, qualitySelected) => {
+  const { annotationName } = annotation
   if (await box.isLoggedIn()) {
     const imageId = hashParams.image
     const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
@@ -354,10 +370,10 @@ const selectQuality = async (annotationName, qualitySelected) => {
     if (previousAnnotation && previousAnnotation.value != newAnnotation.value) {
       const {
         displayText: previousValue
-      } = qualityEnum.find(quality => quality.label === previousAnnotation.value)
+      } = annotation.labels.find(quality => quality.label === previousAnnotation.value)
       const {
         displayText: newValue
-      } = qualityEnum.find(quality => quality.label === newAnnotation.value)
+      } = annotation.labels.find(quality => quality.label === newAnnotation.value)
       if (!confirm(`You previously annotated this image to be of ${previousValue} quality. Do you wish to change your annotation to ${newValue} quality?`)) {
         return
       } else {
@@ -823,7 +839,7 @@ const editClassificationConfig = (annotationId) => {
   const annotationForm = document.getElementById("createClassificationForm")
   annotationForm.setAttribute("annotationId", annotationId) // Used after submit to know if the form was used to add a new class or update an old one.
 
-  const annotationToEdit = path.appConfig.annotations.filter(annotation => annotation["annotationId"] === annotationId)[0]
+  const annotationToEdit = path.datasetConfig.annotations.filter(annotation => annotation["annotationId"] === annotationId)[0]
   if (annotationToEdit) {
     document.getElementById("addClassificationBtn").Modal.show()
     document.getElementById("addClassificationModal").querySelector("button[type=submit]").innerHTML = "Update Class"
@@ -866,7 +882,7 @@ const editClassificationConfig = (annotationId) => {
 
 const deleteClassificationConfig = async (annotationId) => {
   if (confirm("This will delete this classification for everyone with access to this dataset. Are you sure you want to continue?")) {
-    const annotationToDelete = path.appConfig.annotations.filter(annotation => annotation["annotationId"] === annotationId)[0]
+    const annotationToDelete = path.datasetConfig.annotations.filter(annotation => annotation["annotationId"] === annotationId)[0]
     if (annotationToDelete) {
       updateConfigInBox("annotations", "remove", annotationToDelete, "annotationId")
     }
@@ -877,17 +893,17 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
   let toastMessage = ""
   if (deltaData) {
     const isFileJSON = true
-    const appConfig = await box.getFileContent(configFileId, isFileJSON)
-    if (appConfig) {
+    const datasetConfig = { ...path.datasetConfig }
+    if (datasetConfig) {
 
       if (operation === "append") {
 
-        if (Array.isArray(appConfig[changedProperty])) {
-          appConfig[changedProperty].push(deltaData)
-        } else if (typeof (appConfig[changedProperty]) === "object") {
-          appConfig[changedProperty] = {
+        if (Array.isArray(datasetConfig[changedProperty])) {
+          datasetConfig[changedProperty].push(deltaData)
+        } else if (typeof (datasetConfig[changedProperty]) === "object") {
+          datasetConfig[changedProperty] = {
             ...deltaData,
-            ...appConfig[changedProperty]
+            ...datasetConfig[changedProperty]
           }
         }
 
@@ -895,25 +911,25 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
 
       } else if (operation === "remove") {
 
-        if (Array.isArray(appConfig[changedProperty])) {
-          appConfig[changedProperty] = appConfig[changedProperty].filter(val => {
+        if (Array.isArray(datasetConfig[changedProperty])) {
+          datasetConfig[changedProperty] = datasetConfig[changedProperty].filter(val => {
             if (typeof (val) === "object" && val[identifier]) {
               return val[identifier] !== deltaData[identifier]
             } else {
               return val !== deltaData
             }
           })
-        } else if (typeof (appConfig[changedProperty]) === "object" && appConfig[changedProperty][deltaData]) {
-          delete appConfig[changedProperty][deltaData]
+        } else if (typeof (datasetConfig[changedProperty]) === "object" && datasetConfig[changedProperty][deltaData]) {
+          delete datasetConfig[changedProperty][deltaData]
         }
 
         toastMessage = "Class Removed From Config!"
 
       } else if (operation === "modify") {
 
-        if (Array.isArray(appConfig[changedProperty])) {
+        if (Array.isArray(datasetConfig[changedProperty])) {
 
-          const indexToChangeAt = appConfig[changedProperty].findIndex(val => {
+          const indexToChangeAt = datasetConfig[changedProperty].findIndex(val => {
             if (typeof (val) === "object" && val[identifier]) {
               return val[identifier] === deltaData[identifier]
             } else {
@@ -922,11 +938,11 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
           })
 
           if (indexToChangeAt !== -1) {
-            appConfig[changedProperty][indexToChangeAt] = deltaData
+            datasetConfig[changedProperty][indexToChangeAt] = deltaData
           }
 
-        } else if (typeof (appConfig[changedProperty]) === "object") {
-          appConfig[changedProperty] = deltaData
+        } else if (typeof (datasetConfig[changedProperty]) === "object") {
+          datasetConfig[changedProperty] = deltaData
         }
         toastMessage = "Class Updated Successfully!"
       }
@@ -937,20 +953,20 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
 
     const newConfigFormData = new FormData()
     const configFileAttributes = {
-      "name": "appConfig.json"
+      "name": `_${datasetConfigFileName}`
     }
-    const newConfigBlob = new Blob([JSON.stringify(appConfig)], {
+    const newConfigBlob = new Blob([JSON.stringify(datasetConfig)], {
       type: "application/json"
     })
     newConfigFormData.append("attributes", JSON.stringify(configFileAttributes))
     newConfigFormData.append("file", newConfigBlob)
 
     try {
-      await box.uploadFile(configFileId, newConfigFormData)
+      await box.uploadFile(newConfigFormData, configFileId)
       utils.showToast(toastMessage)
       
-      path.appConfig = appConfig
-      path.appConfig.annotations.forEach((annotationConfig) => annotations.createTables(annotationConfig, annotationConfig[identifier] === deltaData[identifier]))
+      path.datasetConfig = datasetConfig
+      path.datasetConfig.annotations.forEach((annotationConfig) => annotations.createTables(annotationConfig, annotationConfig[identifier] === deltaData[identifier]))
 
       thumbnails.reBorderThumbnails()
 
