@@ -425,7 +425,7 @@ box.getDatasetConfig = async (datasetFolderId) => {
   
     const epiBoxFolderId = datasetEpiBoxEntry.id
     const { entries: epiBoxEntries } = await box.search(appFolderName, "folder", [epiBoxFolderId], 100)
-    let appFolderEntry = epiBoxEntries.find(entry => entry.name === appFolderName && entry.path_collection.entries.length === 2 && entry.path_collection.entries[entry.path_collection.entries.length - 1].id === epiBoxFolderId)
+    let appFolderEntry = epiBoxEntries.find(entry => entry.name === appFolderName && entry.path_collection.entries[entry.path_collection.entries.length - 1].id === epiBoxFolderId)
     if (!appFolderEntry) {
       const epiBoxContents = await box.getAllFolderContents(epiBoxFolderId) // To handle case where app folder was very recently created, so doesn't show up in search response yet.
       appFolderEntry = epiBoxContents.entries.find(entry => entry.name === appFolderName)
