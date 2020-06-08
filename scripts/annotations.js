@@ -211,7 +211,7 @@ const showQualitySelectors = async (annotation) => {
       qualityButton.setAttribute("class", qualityButtonClass)
       qualityButton.setAttribute("id", `${annotationName}_${label}`)
       qualityButton.setAttribute("value", label)
-      qualityButton.setAttribute("onclick", `selectQuality("${annotation}", "${label}")`)
+      qualityButton.onclick = () => selectQuality(annotation, label)
       qualityButton.innerText = displayText
       if (tooltip) {
         qualityButton.setAttribute("title", tooltip)
