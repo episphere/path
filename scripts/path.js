@@ -245,7 +245,8 @@ path.selectDataset = async (folderId = path.userConfig.lastUsedDataset) => {
   }
   path.datasetConfig = datasetConfig
   if (hashParams.image) {
-    annotations.showAnnotationOptions(path.datasetConfig.annotations)
+    const forceRedraw = true
+    annotations.showAnnotationOptions(path.datasetConfig.annotations, forceRedraw)
     thumbnails.reBorderThumbnails()
   }
 }
