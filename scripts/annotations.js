@@ -1,15 +1,22 @@
 const annotations = {}
 
-annotations.showAnnotationOptions = async (annotationsConfig=path.datasetConfig.annotations, forceRedraw=false) => {
-  await annotations.createTables(annotationsConfig, forceRedraw)
-  const annotationsDiv = document.getElementById("annotationsDiv")
-  annotationsDiv.style.display = "block"
+annotations.showAnnotationOptions = async (annotationsConfig=path.datasetConfig.annotations, isImageFromBox=false, forceRedraw=false) => {
+  if (isImageFromBox) {
+    await annotations.createTables(annotationsConfig, forceRedraw)
+  } else {
+    const annotationsAccordion = document.getElementById("annotationsAccordion")
+    annotationsAccordion.innerHTML = `
+      <span id="localImageAnnotationsMsg" style="margin: 0 auto; color: gray;">
+        <i style="text-align: center;">-- Please select an image from </i><a href="#" onclick="document.getElementById('box-tab').click(); return false;">My Box</a><i> first! --</i>
+      </span>`
+  }
 }
 
 annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
   
   const annotationsAccordion = document.getElementById("annotationsAccordion")
-  if (forceRedraw) {
+
+  if (forceRedraw || annotationsAccordion.querySelector("span#localImageAnnotationsMsg")) {
     annotationsAccordion.innerHTML = ""
   }
   
@@ -174,6 +181,7 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
     }
   })
   showNextImageButton()
+  document.getElementById("addClassificationBtn").removeAttribute("disabled")
 }
 
 const showQualitySelectors = async (annotation) => {

@@ -206,10 +206,7 @@ path.setupEventListeners = () => {
     if (path.isImageFromBox) {
       
       await thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
-      if (path.datasetConfig && path.datasetConfig.annotations) {
-        annotations.showAnnotationOptions(path.datasetConfig.annotations)
-      }
-
+      
       if (path.predictionWorker) {
         // path.predictionWorker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
         // path.predictionWorker.onmessage = (e) => {
@@ -223,6 +220,9 @@ path.setupEventListeners = () => {
         //   path.model.classify(path.tmaImage).then(preds => console.log("Local Model Prediction", preds))
         // }, 3000)
       }
+    }
+    if (path.datasetConfig && path.datasetConfig.annotations) {
+      annotations.showAnnotationOptions(path.datasetConfig.annotations, path.isImageFromBox, false)
     }
   }
 }
@@ -610,7 +610,6 @@ const getModelPrediction = async (annotationType) => {
     .catch(err => {})
 
   }
-
 
   if (prediction) {
     annotations["model"] = prediction

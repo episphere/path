@@ -331,7 +331,7 @@ canvas {
 
 #annotationsDiv {
   height: auto;
-  display: none;
+  /* display: none; */
   /* border-left: 1px solid lightgray */
 }
 
