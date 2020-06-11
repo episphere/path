@@ -15,6 +15,10 @@ const loadURLParams = () => {
   })
 }
 
+if (typeof OffscreenCanvas !== "function") { // Alert for browsers without OffscreenCanvas support.
+  alert("This browser does not support all features required to run this application. Please use the Google Chrome browser for the best experience!")
+}
+
 var hashParams
 const loadHashParams = async () => {
   hashParams = {}
@@ -326,7 +330,9 @@ const loadImageFromBox = async (id, url) => {
               path.tiffUnsupportedAlertShown = true
             }
   
-            if (!fileMetadata["jpegRepresentation"]) { // Get a temporary png from Box, send to web worker for tiff to png conversion.
+            if (!fileMetadata["jpegRepresentation"]) { // Get a temporary png from Box, send TIFF to web worker for PNG conversion in the meantime.
+              console.log("Representation not found, loading Box's.", new Date())
+
               const maxResolutionRep = representations.entries.reduce((maxRep, rep) => {
                 const resolution = Math.max(...rep.properties.dimensions.split("x").map(Number))
                 if (resolution > maxRep.resolution) {
@@ -339,7 +345,6 @@ const loadImageFromBox = async (id, url) => {
                 }
               }, { resolution: 0, url: "" })
               
-              console.log("Representation not found, loading Box's.", new Date())
               url = await box.getRepresentation(maxResolutionRep.url)
               if (url) {
                 await loadImgFromBoxFile(null, url)

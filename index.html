@@ -112,8 +112,13 @@
           <div class="tab-pane fade" id="annotations" role="tabpanel" aria-labelledby="annotations-tab">
             <div class="tabContainer tabContainerWithMargin" id="annotationsDiv">
               <div id="nextImageMessage"></div>
-              <div class="accordion" id="annotationsAccordion"></div>
-              <button type="button" class="btn btn-link" id="addClassificationBtn" data-toggle="modal" data-target="#addClassificationModal">+ Add Classifications</button>
+              <div class="accordion" id="annotationsAccordion">
+                <span id="localImageAnnotationsMsg" style="margin: 0 auto; color: gray;">
+                  <i style="text-align: center;">-- Please select an image from </i><a href="#" onclick="document.getElementById('box-tab').click(); return false;">My Box</a><i> first! --</i>
+                </span>
+                <br/>
+              </div>
+              <button type="button" class="btn btn-link" id="addClassificationBtn" data-toggle="modal" data-target="#addClassificationModal" disabled>+ Add Classifications</button>
             </div>
           </div>
           <div class="tab-pane fade" id="collaborate" role="tabpanel" aria-labelledby="collaborate-tab">
