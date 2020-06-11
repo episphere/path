@@ -976,7 +976,7 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
       utils.showToast(toastMessage)
       
       path.datasetConfig = datasetConfig
-      annotations.showAnnotationOptions(path.datasetConfig.annotations)
+      annotations.showAnnotationOptions(path.datasetConfig.annotations, true)
       // path.datasetConfig.annotations.forEach((annotationConfig) => annotations.createTables(annotationConfig, annotationConfig[identifier] === deltaData[identifier]))
 
       thumbnails.reBorderThumbnails()

@@ -1,5 +1,7 @@
 {
   "datasetFolderId": -1,
   "datasetFolderName": "",
-  "annotations": []
+  "annotations": [],
+  "jpegRepresentationsFolder": -1,
+  "modelsFolder": -1
 }

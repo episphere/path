@@ -250,7 +250,7 @@ path.selectDataset = async (folderId = path.userConfig.lastUsedDataset) => {
   path.datasetConfig = datasetConfig
   if (hashParams.image) {
     const forceRedraw = true
-    annotations.showAnnotationOptions(path.datasetConfig.annotations, forceRedraw)
+    annotations.showAnnotationOptions(path.datasetConfig.annotations, true, forceRedraw)
     thumbnails.reBorderThumbnails()
   }
 }
