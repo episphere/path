@@ -1,7 +1,7 @@
 const annotations = {}
 
 annotations.showAnnotationOptions = async (annotationsConfig=path.datasetConfig.annotations, forceRedraw=false) => {
-  await annotations.createTables(annotationsConfig)
+  await annotations.createTables(annotationsConfig, forceRedraw)
   const annotationsDiv = document.getElementById("annotationsDiv")
   annotationsDiv.style.display = "block"
 }
@@ -9,7 +9,9 @@ annotations.showAnnotationOptions = async (annotationsConfig=path.datasetConfig.
 annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
   
   const annotationsAccordion = document.getElementById("annotationsAccordion")
-  annotationsAccordion.innerHTML = ""
+  if (forceRedraw) {
+    annotationsAccordion.innerHTML = ""
+  }
   
   annotationsConfig.forEach(annotation => {
     const {
