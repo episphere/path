@@ -364,23 +364,13 @@ const zoomHandler = (canvas, image, magnification = 2, scrollToZoom = true, lens
     zoomLens.style.left = `${x}px`
     zoomLens.style.top = `${y}px`
 
-    if (lensPosition.x <= zoomLens.offsetWidth / 2) {
-      lensPosition.x = zoomLens.offsetWidth / 2
-    } else if (lensPosition.x >= canvas.width - zoomLens.offsetWidth / 2) {
-      lensPosition.x = canvas.width - zoomLens.offsetWidth / 2
-    }
-    if (lensPosition.y <= zoomLens.offsetHeight / 2) {
-      lensPosition.y = zoomLens.offsetHeight / 2
-    } else if (lensPosition.y >= canvas.height - zoomLens.offsetHeight / 2) {
-      lensPosition.y = canvas.height - zoomLens.offsetHeight / 2
-    }
-
     renderZoomedImage(lensPosition)
   }
 
   const getLensPositionInImage = (canvas, image, lensPosition) => {
     const xInImage = lensPosition.x * (image.width / canvas.width)
     const yInImage = lensPosition.y * (image.height / canvas.height)
+
     return {
       xInImage,
       yInImage
@@ -394,7 +384,21 @@ const zoomHandler = (canvas, image, magnification = 2, scrollToZoom = true, lens
     } = getLensPositionInImage(canvas, image, lensPosition)
     const zoomFactor = 1 / scaleFactor
     zoomCtx.fillRect(0, 0, zoomLens.width, zoomLens.height)
-    zoomCtx.drawImage(path.tmaImage, xInImage - (lensSize[0] * zoomFactor / 2), yInImage - (lensSize[1] * zoomFactor / 2), lensSize[0] * zoomFactor, lensSize[1] * zoomFactor, 0, 0, zoomLens.width, zoomLens.height)
+    
+    let startX = xInImage - (lensSize[0] * zoomFactor / 2) > 0 ? xInImage - (lensSize[0] * zoomFactor / 2) : 0
+    let startY = yInImage - (lensSize[1] * zoomFactor / 2) > 0 ? yInImage - (lensSize[1] * zoomFactor / 2) : 0
+    const endX = lensSize[0] * zoomFactor
+    const endY = lensSize[1] * zoomFactor
+
+    if (startX + endX > image.width) {
+      startX = image.width - endX
+    }
+    if (startY + endY > image.height) {
+      startY = image.height - endY
+    }
+    
+    zoomCtx.drawImage(image, startX, startY, endX, endY, 0, 0, zoomLens.width, zoomLens.height)
+
   }
 
   zoomHandler.changeScale = (scrolledUp) => {
