@@ -330,7 +330,7 @@ box.selectDataset = async (folderId) => {
   
 }
 
-box.getAppConfig = async () => {
+box.getUserConfig = async () => {
   // Gets the application configuration file from the _epibox folder in the user's root directory. First checks the epiboxUserConfig for an entry
   // corresponding to the application. If present, reads and returns the file id in the entry; if absent, creates the entire hierarchy of folders
   // required for the config file to be present.
@@ -519,4 +519,21 @@ box.changeLastUsedDataset = async (datasetFolderId) => {
   
     await box.uploadFile(newUserConfigFD, box.appConfigFileId)
   }
+}
+
+box.addToDatasetConfig = async (objectToAdd) => {
+  const newDatasetConfigFD = new FormData()
+  const configFileAttributes = {
+    "name": datasetConfigFileName
+  }
+
+  path.datasetConfig = { ...path.datasetConfig, ...objectToAdd }
+  const newConfigBlob = new Blob([JSON.stringify(path.datasetConfig)], {
+    type: "application/json"
+  })
+
+  newDatasetConfigFD.append("attributes", JSON.stringify(configFileAttributes))
+  newDatasetConfigFD.append("file", newConfigBlob)
+  
+  await box.uploadFile(newDatasetConfigFD, box.currentDatasetConfigFileId)
 }

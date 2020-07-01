@@ -169,7 +169,7 @@ path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
   
     box.getUserProfile()
-    path.userConfig = await box.getAppConfig()
+    path.userConfig = await box.getUserConfig()
     
     if (path.userConfig.lastUsedDataset !== -1) {
     
@@ -188,12 +188,18 @@ path.setupEventListeners = () => {
     //   path.datasetConfig.annotations.forEach((classType) => annotations.createTables(classType))
     // }
     
-    if (hashParams.useWorker) {
-      path.predictionWorker = new Worker('scripts/modelPrediction.js')
+    // if (hashParams.useWorker) {
+    path.predictionWorker = new Worker('scripts/modelPrediction.js')
+    if (path.datasetConfig.models) {
+      path.predictionWorker.postMessage({
+        "op": "loadModel", 
+        "modelsConfig": path.datasetConfig.models
+      })
     }
-    if (window.location.host.includes("localhost")) {
-      loadLocalModel()
-    }
+    // }
+    // if (window.location.host.includes("localhost")) {
+    //   loadLocalModel()
+    // }
   })
 
   const addClassificationModal = document.getElementById("addClassificationModal")
@@ -207,7 +213,7 @@ path.setupEventListeners = () => {
   path.tmaImage.onload = async () => {
     path.loadCanvas()
     hideLoader("imgLoaderDiv")
-    if (path.isImageFromBox) {
+    if (path.isImageFromBox && !path.isThumbnail) {
       
       await thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
       
@@ -225,7 +231,7 @@ path.setupEventListeners = () => {
         // }, 3000)
       }
     }
-    if (path.datasetConfig && path.datasetConfig.annotations) {
+    if (path.datasetConfig && path.datasetConfig.annotations && !path.isThumbnail) {
       annotations.showAnnotationOptions(path.datasetConfig.annotations, path.isImageFromBox, false)
     }
   }
@@ -272,8 +278,10 @@ const loadImageFromBox = async (id, url) => {
 
     const thumbnailImage = document.getElementById(`thumbnail_${id}`)
     if (thumbnailImage) {
+      path.isThumbnail = true
       path.tmaImage.src = thumbnailImage.src
     } else if (path.tmaCanvasLoaded) {
+      path.isThumbnail = false
       const loaderElementId = "imgLoaderDiv"
       showLoader(loaderElementId, path.tmaCanvas)
     }
@@ -409,6 +417,7 @@ const loadImgFromBoxFile = async (id, url) => {
     url = fileContent.url
   }
   path.isImageFromBox = true
+  path.isThumbnail = false
   path.tmaImage.setAttribute("src", "")
   path.tmaImage.setAttribute("src", url)
   path.tmaImage.setAttribute("crossorigin", "Anonymous")
@@ -471,8 +480,10 @@ path.loadCanvas = () => {
   if (path.tmaImage.src !== window.location.origin + window.location.pathname) {
     // console.log(path.tmaCanvas.width, path.tmaCanvas.parentElement.getBoundingClientRect().width)
     // console.log(path.tmaCanvas.height, path.tmaCanvas.parentElement.getBoundingClientRect().height)
-    path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
-    path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
+    if (!path.isThumbnail) {
+      path.tmaCanvas.setAttribute("width", path.tmaCanvas.parentElement.getBoundingClientRect().width)
+      path.tmaCanvas.setAttribute("height", path.tmaCanvas.width * path.tmaImage.height / path.tmaImage.width)
+    }
 
     const tmaContext = path.tmaCanvas.getContext("2d")
     tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
@@ -574,14 +585,14 @@ const getModelPrediction = async (annotationType) => {
   //   tmpCtx.drawImage(image, 0, 0, image.width, image.height)
   //   return tmpCanvas.toDataURL().split("base64,")[1]
   // }
-  let annotations = JSON.parse(window.localStorage.fileMetadata)[`${annotationType}_annotations`]
+  let annotations = JSON.parse(window.localStorage.fileMetadata)[annotationType]
   annotations = annotations ? JSON.parse(annotations) : {}
   if (annotations["model"]) {
     return annotations["model"]
   }
 
   let prediction = null
-  if (path.predictionWorker) {
+  if (path.predictionWorker && hashParams.useWorker) {
     path.predictionWorker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
     path.predictionWorker.onmessage = (e) => {
       prediction = e.data.reduce((maxLabel, pred) => {

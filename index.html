@@ -87,6 +87,10 @@
               aria-controls="annotations" aria-selected="false">Annotations</a>
           </li>
           <li class="nav-item">
+            <a class="nav-link" id="model-tab" data-toggle="tab" href="#model" role="tab"
+              aria-controls="model" aria-selected="false">Model</a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link" id="collaborate-tab" data-toggle="tab" href="#collaborate" role="tab"
               aria-controls="collaborate" aria-selected="false">Collaborate</a>
           </li>
@@ -120,6 +124,9 @@
               </div>
               <button type="button" class="btn btn-link" id="addClassificationBtn" data-toggle="modal" data-target="#addClassificationModal" disabled>+ Add Classifications</button>
             </div>
+          </div>
+          <div class="tab-pane fade" id="model" role="tabpanel" aria-labelledby="model-tab">
+            <div class="tabContainer tabContainerWithMargin"></div>
           </div>
           <div class="tab-pane fade" id="collaborate" role="tabpanel" aria-labelledby="collaborate-tab">
             <div class="tabContainer tabContainerWithMargin jumbotron">

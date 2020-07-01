@@ -10,7 +10,8 @@ thumbnails.showThumbnailPicker = async (offset = 0, limit=DEFAULT_THUMBNAILS_LIS
   thumbnailPicker.style.display = "flex"
   thumbnailPicker.style["flex-direction"] = "column"
   console.log()
-  thumbnailPicker.style.height = thumbnailPicker.parentElement ? thumbnailPicker.parentElement.getBoundingClientRect().height : window.innerHeight - window.pageYOffset - thumbnailPicker.getBoundingClientRect().y - 40
+  thumbnailPicker.style.height = thumbnailPicker.parentElement ? thumbnailPicker.parentElement.getBoundingClientRect().height - window.pageYOffset - 40: window.innerHeight - window.pageYOffset - thumbnailPicker.getBoundingClientRect().y - 40
+  thumbnailPicker.style.maxHeight = window.innerHeight - thumbnailPicker.parentElement.getBoundingClientRect().top - 80
 
   if (thumbnailPicker.childElementCount === 0 || thumbnailPicker.getAttribute("folder") !== window.localStorage.currentThumbnailsFolder || window.localStorage.currentThumbnailsOffset !== offset) {
     thumbnailPicker.setAttribute("folder", window.localStorage.currentThumbnailsFolder)
@@ -200,9 +201,9 @@ thumbnails.getNumCompletedAnnotations = (metadata) => {
   let numAnnotationsCompleted = 0
   if (path.datasetConfig && path.datasetConfig.annotations) {
     numAnnotationsCompleted = path.datasetConfig.annotations.reduce((total, {
-      annotationName
+      metaName
     }) => {
-      if (metadata[`${annotationName}_annotations`] && window.localStorage.userId in JSON.parse(metadata[`${annotationName}_annotations`])) {
+      if (metadata[metaName] && window.localStorage.userId in JSON.parse(metadata[metaName])) {
         total += 1
       }
       return total

@@ -187,10 +187,12 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
 const showQualitySelectors = async (annotation) => {
   const {
     annotationName,
+    metaName,
     labels,
   } = annotation
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
-  const fileAnnotations = fileMetadata[`${annotationName}_annotations`] && JSON.parse(fileMetadata[`${annotationName}_annotations`])
+  
+  const fileAnnotations = fileMetadata[metaName] ? JSON.parse(fileMetadata[metaName]) : {}
   const annotationDiv = document.getElementById(`${annotationName}Annotations`)
   const selectTable = document.getElementById(`${annotationName}Select`)
   const selectTableBody = selectTable.querySelector("tbody")
@@ -362,11 +364,12 @@ const showNextImageButton = (metadata) => {
 }
 
 const selectQuality = async (annotation, qualitySelected) => {
-  const { annotationName } = annotation
+  const { annotationName, metaName } = annotation
   if (await box.isLoggedIn()) {
     const imageId = hashParams.image
     const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
-    const fileAnnotations = fileMetadata[`${annotationName}_annotations`] ? JSON.parse(fileMetadata[`${annotationName}_annotations`]) : {}
+    const annotationFieldName = metaName
+    const fileAnnotations = fileMetadata[metaName] ? JSON.parse(fileMetadata[metaName]) : {}
 
     const newAnnotation = {
       'userId': window.localStorage.userId,
@@ -685,6 +688,7 @@ const addClassificationToConfig = () => {
     "annotationId": annotationIdToEdit || Math.floor(1000000 + Math.random() * 9000000), //random 7 digit annotation ID
     "displayName": "",
     "annotationName": "",
+    "metaName": "",
     "definition": "",
     "enableComments": false,
     "labelType": "",
@@ -976,7 +980,7 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
       utils.showToast(toastMessage)
       
       path.datasetConfig = datasetConfig
-      annotations.showAnnotationOptions(path.datasetConfig.annotations, true)
+      annotations.showAnnotationOptions(path.datasetConfig.annotations, true, true)
       // path.datasetConfig.annotations.forEach((annotationConfig) => annotations.createTables(annotationConfig, annotationConfig[identifier] === deltaData[identifier]))
 
       thumbnails.reBorderThumbnails()
