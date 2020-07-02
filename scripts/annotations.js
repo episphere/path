@@ -15,6 +15,7 @@ annotations.showAnnotationOptions = async (annotationsConfig=path.datasetConfig.
 annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
   
   const annotationsAccordion = document.getElementById("annotationsAccordion")
+  annotationsAccordion.style.height = "auto"
 
   if (forceRedraw || annotationsAccordion.querySelector("span#localImageAnnotationsMsg")) {
     annotationsAccordion.innerHTML = ""
@@ -25,6 +26,7 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
       annotationId,
       displayName,
       annotationName,
+      metaName,
       definition,
       enableComments
     } = annotation
@@ -121,7 +123,7 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
                 </div>
                 <div>
                   <button type="button" onclick=cancelEditComment("${annotationName}") id="${annotationName}_cancelEditComment" class="btn btn-link">Cancel</button>
-                  <button type="submit" onclick=submitAnnotationComment("${annotationName}") id="${annotationName}_submitComment" class="btn btn-info" disabled>Submit</button>
+                  <button type="submit" onclick=submitAnnotationComment("${annotationName}", "${metaName}") id="${annotationName}_submitComment" class="btn btn-info" disabled>Submit</button>
                 </div>
               </div>
             </div>
@@ -368,7 +370,6 @@ const selectQuality = async (annotation, qualitySelected) => {
   if (await box.isLoggedIn()) {
     const imageId = hashParams.image
     const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
-    const annotationFieldName = metaName
     const fileAnnotations = fileMetadata[metaName] ? JSON.parse(fileMetadata[metaName]) : {}
 
     const newAnnotation = {
@@ -398,7 +399,7 @@ const selectQuality = async (annotation, qualitySelected) => {
     } else {
       fileAnnotations[window.localStorage.userId] = newAnnotation
     }
-    const boxMetadataPath = `/${annotationName}_annotations`
+    const boxMetadataPath = `/${metaName}`
     const newMetadata = await box.updateMetadata(imageId, boxMetadataPath, JSON.stringify(fileAnnotations))
 
     if (!newMetadata.status) { // status is returned only on error, check for errors properly later
@@ -416,7 +417,7 @@ const selectQuality = async (annotation, qualitySelected) => {
   }
 }
 
-const submitAnnotationComment = (annotationName) => {
+const submitAnnotationComment = (annotationName, metaName) => {
   const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
   const commentText = commentsTextField.value.trim()
 
@@ -433,7 +434,7 @@ const submitAnnotationComment = (annotationName) => {
   }
 
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
-  const annotationComments = fileMetadata[`${annotationName}_comments`] ? JSON.parse(fileMetadata[`${annotationName}_comments`]) : []
+  const annotationComments = fileMetadata[`${metaName}_comments`] ? JSON.parse(fileMetadata[`${metaName}_comments`]) : []
   const editingCommentId = parseInt(commentsTextField.getAttribute("editingCommentId"))
   // If comment is an edit of a previously submitted comment, replace it, otherwise add a new one.
   if (editingCommentId) {

@@ -203,6 +203,7 @@ canvas {
 
 .tabContainer {
   margin-left: 1.5rem;
+  max-height: 75vh;
 }
 
 .tabContainerWithMargin {
@@ -222,6 +223,7 @@ canvas {
 #boxFolderTree {
   position: relative;
   width: 100%;
+  border-right: 1px solid lightgray;
 }
 
 #boxFileManager hr {
@@ -329,12 +331,6 @@ canvas {
   background-color: rgba(220, 120, 190, 0.2);
 }
 
-#annotationsDiv {
-  height: auto;
-  /* display: none; */
-  /* border-left: 1px solid lightgray */
-}
-
 #nextImageMessage {
   padding: 0.375rem 0.75rem;
 }
@@ -348,6 +344,8 @@ canvas {
 #annotationsAccordion {
   display: flex;
   flex-direction: column;
+  max-height: 65vh;
+  overflow-y: scroll;
 }
 
 .annotationWithMenuHeader {

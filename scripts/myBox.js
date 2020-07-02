@@ -159,7 +159,6 @@ myBox.loadFolderTree = (folderData) => {
     } = folderData
 
     const parentElement = document.getElementById("boxFolderTree")
-
     if (entries.length !== 0) {
       // const loaderElementId = "fileMgrLoaderDiv"
       // if (parentElement.childElementCount > 0) {
@@ -180,7 +179,7 @@ myBox.loadFolderTree = (folderData) => {
         })
       }
 
-      parentElement.firstChild && parentElement.removeChild(parentElement.firstChild) // Removes Empty Directory element (I think :P) 
+      parentElement.firstChild && parentElement.removeChild(parentElement.firstChild) // Removes Empty Directory element if present. 
       const folderSubDiv = myBox.populateFolderTree(entries, id)
       // hideLoader(loaderElementId)
 
@@ -198,8 +197,11 @@ myBox.loadFolderTree = (folderData) => {
 
     } else if (entries.length === 0) {
       parentElement.style.textAlign = "center"
-      parentElement.innerText = "-- Empty Folder --"
+      parentElement.style.color = "gray"
+      parentElement.innerHTML = `<span><br/><i style="font-size:1.1rem">-- Empty Folder --</i></span>`
+      // parentElement.innerText = `-- Empty Folder --`
     }
+    parentElement.style.maxHeight = window.innerHeight - window.pageYOffset - thumbnailPicker.parentElement.getBoundingClientRect().top - 40
   }
 }
 
