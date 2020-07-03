@@ -123,7 +123,7 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
                 </div>
                 <div>
                   <button type="button" onclick=cancelEditComment("${annotationName}") id="${annotationName}_cancelEditComment" class="btn btn-link">Cancel</button>
-                  <button type="submit" onclick=submitAnnotationComment("${annotationName}", "${metaName}") id="${annotationName}_submitComment" class="btn btn-info" disabled>Submit</button>
+                  <button type="submit" onclick="submitAnnotationComment('${annotationName}', '${metaName}')" id="${annotationName}_submitComment" class="btn btn-info" disabled>Submit</button>
                 </div>
               </div>
             </div>
@@ -153,10 +153,11 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
   
         const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
         new Collapse(toggleCommentsButton)
-        toggleCommentsButton.addEventListener("shown.bs.collapse", (evt) => {
+        const commentsCollapseDiv = document.getElementById(`${annotationName}_allComments`)
+        commentsCollapseDiv.addEventListener("show.bs.collapse", (evt) => {
           toggleCommentsButton.innerHTML = "- Hide All Comments"
         })
-        toggleCommentsButton.addEventListener("hidden.bs.collapse", (evt) => {
+        commentsCollapseDiv.addEventListener("hide.bs.collapse", (evt) => {
           toggleCommentsButton.innerHTML = "+ Show All Comments"
         })
   
@@ -417,7 +418,7 @@ const selectQuality = async (annotation, qualitySelected) => {
   }
 }
 
-const submitAnnotationComment = (annotationName, metaName) => {
+const submitAnnotationComment = (annotationName) => {
   const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
   const commentText = commentsTextField.value.trim()
 
@@ -434,7 +435,7 @@ const submitAnnotationComment = (annotationName, metaName) => {
   }
 
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
-  const annotationComments = fileMetadata[`${metaName}_comments`] ? JSON.parse(fileMetadata[`${metaName}_comments`]) : []
+  const annotationComments = fileMetadata[`${annotationName}_comments`] ? JSON.parse(fileMetadata[`${annotationName}_comments`]) : []
   const editingCommentId = parseInt(commentsTextField.getAttribute("editingCommentId"))
   // If comment is an edit of a previously submitted comment, replace it, otherwise add a new one.
   if (editingCommentId) {
