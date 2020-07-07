@@ -60,7 +60,7 @@ const loadHashParams = async () => {
         myBox.loadFileManager(hashParams.folder)
       }
     } else {
-      selectFolder(boxRootFolderId)
+      path.selectFolder(boxRootFolderId)
     }
  
     if (!hashParams.sort) {
@@ -75,7 +75,16 @@ const defaultImg = window.location.origin + window.location.pathname + "external
 const utils = {
   request: (url, opts, returnJson = true) => 
     fetch(url, opts)
-    .then(res => res.ok ? (returnJson ? res.json() : res) : res),
+    .then(res => {
+      if (res.ok) {
+        if (returnJson)
+        return res.json()
+        else
+        return res
+      } else {
+        throw Error(res.status)
+      } 
+    }),
 
   isValidImage: (name) => {
     let isValid = false
@@ -168,12 +177,15 @@ path.loadModules = async (modules) => {
 path.setupEventListeners = () => {
   document.addEventListener("boxLoggedIn", async (e) => {
   
-    box.getUserProfile()
+    const username = await box.getUserProfile()
+    document.getElementById("boxLoginBtn").style = "display: none"
+    document.getElementById("username").innerText = `Welcome ${username.split(" ")[0]}!`
+
     path.userConfig = await box.getUserConfig()
     
     if (path.userConfig.lastUsedDataset !== -1) {
     
-      await path.selectDataset(path.userConfig.lastUsedDataset)
+      path.selectDataset(path.userConfig.lastUsedDataset)
     
     } else if(!window.localStorage.selectDatasetModalShown || (window.localStorage.selectDatasetModalShown - Date.now() > 15*60*1000)) {
     
@@ -189,8 +201,9 @@ path.setupEventListeners = () => {
     // }
     
     // if (hashParams.useWorker) {
+    
     path.predictionWorker = new Worker('scripts/modelPrediction.js')
-    if (path.datasetConfig.models) {
+    if (path.datasetConfig && path.datasetConfig.models) {
       path.predictionWorker.postMessage({
         "op": "loadModel", 
         "modelsConfig": path.datasetConfig.models
@@ -237,21 +250,22 @@ path.setupEventListeners = () => {
   }
 }
 
-path.selectDataset = async (folderId = path.userConfig.lastUsedDataset) => {
+path.selectDataset = async (folderId=path.userConfig.lastUsedDataset) => {
   let datasetConfig = {
     annotations: []
   }
   if (folderId != -1) {
-    const folderBtnInFileMgr = document.querySelector(`button[entryId="${folderId}"]`)
     datasetConfig = await box.getDatasetConfig(folderId)
     if (datasetConfig) {
       const annotations = datasetConfig.annotations.filter(annotation => !annotation.private || (annotation.private && annotation.createdBy === window.localStorage.userId))
       datasetConfig.annotations = annotations
       utils.showToast(`Using ${datasetConfig.datasetFolderName} as the current dataset.`)
-      if (folderBtnInFileMgr) {
-        folderBtnInFileMgr.click()
-      }
     }
+    const datasetSelectDropdownBtn = document.getElementById("datasetSelectDropdownBtn")
+    datasetSelectDropdownBtn.innerHTML = `
+       ${datasetConfig.datasetFolderName} <i class="fas fa-caret-down"></i>
+    `
+    document.getElementById("datasetSelectSpan").style.display = "flex"
   }
   path.datasetConfig = datasetConfig
   if (hashParams.image) {
@@ -259,6 +273,34 @@ path.selectDataset = async (folderId = path.userConfig.lastUsedDataset) => {
     annotations.showAnnotationOptions(path.datasetConfig.annotations, true, forceRedraw)
     thumbnails.reBorderThumbnails()
   }
+
+  const datasetsUsed = path.userConfig.datasetsUsed.map(d => d.folderId)
+  const { entries: availableDatasets } = await box.search(epiBoxFolderName, "folder", undefined, 100)
+  if (availableDatasets.length > 0) {
+    const datasetSelectDropdownDiv = document.getElementById("datasetSelectDropdownDiv")
+    while (datasetSelectDropdownDiv.childElementCount > 1) {
+      datasetSelectDropdownDiv.removeChild(datasetSelectDropdownDiv.firstElementChild)
+    }
+    availableDatasets.sort((d1, d2) => datasetsUsed.includes(d1.id) ? -1 : 1 )
+    availableDatasets.forEach(folder => {
+      const datasetFolder = folder.path_collection.entries[folder.path_collection.entries.length - 1]
+      if (folder.name === epiBoxFolderName && datasetFolder.id !== folderId && folder.path_collection.entries.length > 1) {
+        const datasetOptionBtn = document.createElement("button")
+        datasetOptionBtn.setAttribute("class", "btn btn-link")
+        datasetOptionBtn.innerText = datasetFolder.name
+        datasetOptionBtn.onclick = () => {
+          path.selectDataset(datasetFolder.id)
+          const folderInMyBox = document.getElementById("boxFolderTree").querySelector(`button[entryid="${datasetFolder.id}"]`)
+          if (folderInMyBox) {
+            path.selectFolder(datasetFolder.id)
+          }
+        }
+        datasetSelectDropdownDiv.insertBefore(datasetOptionBtn, datasetSelectDropdownDiv.lastElementChild)
+        datasetSelectDropdownDiv.insertBefore(document.createElement("hr"), datasetSelectDropdownDiv.lastElementChild)
+      }
+    })
+  }
+  
 }
 
 const loadDefaultImage = async () => {
@@ -294,7 +336,7 @@ const loadImageFromBox = async (id, url) => {
       if (imageData.status === 404) {
         console.log(`Can't fetch data for image ID ${id} from Box`)
         alert("The image ID in the URL does not point to a file in Box!")
-        selectImage()
+        path.selectImage()
         loadDefaultImage()
         return
       }
@@ -396,7 +438,7 @@ const loadImageFromBox = async (id, url) => {
         window.localStorage.currentImage = id
         
         if (!hashParams.folder) {
-          selectFolder(parent.id)
+          path.selectFolder(parent.id)
         }
       } else {
         alert("The ID in the URL does not point to a valid image file (.jpg/.png/.tiff) in Box.")
@@ -506,7 +548,7 @@ path.loadOptions = () => {
   tools.segmentButton()
 }
 
-const selectImage = (imageId) => {
+path.selectImage = (imageId) => {
   let hash = decodeURIComponent(window.location.hash)
   if (imageId && imageId !== hashParams.image) {
    
@@ -534,7 +576,7 @@ const selectImage = (imageId) => {
   }
 }
 
-const selectFolder = (folderId) => {
+path.selectFolder = (folderId) => {
   if (folderId && folderId !== hashParams.folder) {
     if (hashParams.folder) {
       window.location.hash = window.location.hash.replace(`folder=${hashParams.folder}`, `folder=${folderId}`)
@@ -608,22 +650,22 @@ const getModelPrediction = async (annotationType) => {
       displayModelPrediction(prediction, path.datasetConfig.annotations[0], document.getElementById(`${path.datasetConfig.annotations[0].annotationName}Select`).querySelector("tbody"))
     }
   } else {
-    const payload = {
-      annotationType,
-      "image": path.tmaCanvas.toDataURL().split("base64,")[1]
-    }
+    // const payload = {
+    //   annotationType,
+    //   "image": path.tmaCanvas.toDataURL().split("base64,")[1]
+    // }
     
-    prediction = await utils.request("https://us-central1-nih-nci-dceg-episphere-dev.cloudfunctions.net/getPathPrediction", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    }, false)
-    .then(res => {
-      return res.json()
-    })
-    .catch(err => {})
+    // prediction = await utils.request("https://us-central1-nih-nci-dceg-episphere-dev.cloudfunctions.net/getPathPrediction", {
+    //   method: "POST",
+    //   headers: {
+    //     "Content-Type": "application/json"
+    //   },
+    //   body: JSON.stringify(payload)
+    // }, false)
+    // .then(res => {
+    //   return res.json()
+    // })
+    // .catch(err => {})
 
   }
 

@@ -95,7 +95,7 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
       
       thumbnailDiv.appendChild(thumbnailNameText)
       thumbnailsListDiv.appendChild(thumbnailDiv)
-      thumbnailDiv.onclick = () => selectImage(thumbnailId)
+      thumbnailDiv.onclick = () => path.selectImage(thumbnailId)
       
       box.getThumbnail(thumbnailId).then(res => {
         thumbnailImg.setAttribute("src", res)

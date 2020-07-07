@@ -36,6 +36,36 @@ canvas {
   margin-bottom: 0.3rem;
 }
 
+#datasetSelectSpan {
+  display: none;
+  flex-direction: row; 
+  margin-top: -10px;
+}
+
+#datasetSelectDropdown {
+  margin-left: 1rem;
+}
+
+#datasetSelectDropdownBtn {
+  padding: 0.3rem 2rem;
+}
+
+#datasetSelectDropdownBtn>i {
+  margin-left: 1rem;
+}
+
+#datasetSelectDropdownDiv {
+  width:fit-content;
+  min-width: 35vw; 
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+#datasetSelectDropdownDiv>button {
+  width: fit-content;
+  text-align: left;
+}
+
 #imgInputBtn {
   margin-bottom: 0.8rem;
 }
@@ -144,7 +174,7 @@ canvas {
 }
 
 #thumbnailsList {
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 
 #thumbnailPageSelector {
@@ -341,11 +371,15 @@ canvas {
   vertical-align: unset;
 }
 
+.accordion>.card:only-child {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
 #annotationsAccordion {
   display: flex;
   flex-direction: column;
   max-height: 65vh;
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 
 .annotationWithMenuHeader {
@@ -436,7 +470,7 @@ canvas {
   background-color: azure;
   height: auto;
   max-height: 10rem;
-  overflow-y: scroll;
+  overflow-y: auto;
   scrollbar-width: none;
 }
 
@@ -572,7 +606,7 @@ canvas {
 }
 
 #addAnnotationsModal {
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 
 #enableComments {

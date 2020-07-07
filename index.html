@@ -33,6 +33,17 @@
     </span>
     <span id="loginSpan">
       <p id="digiPathTitle"> Digital Pathology EpiSphere</p>
+      <span id="datasetSelectSpan">
+        <label style="margin: auto 0;"> <p>Dataset: </p></label>
+        <div id="datasetSelectDropdown" class="dropdown">
+          <button id="datasetSelectDropdownBtn" class="btn btn-outline-primary" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+            Select... <i class="fas fa-caret-down"></i>
+          </button>
+          <div class="dropdown-menu" id="datasetSelectDropdownDiv" aria-labelledby="datasetSelectDropdown">
+            <button class="btn btn-link" data-toggle="modal" data-target="#addDatasetInfoModal">+ Add Dataset</a>
+          </div>
+        </div>
+      </span>
       <div id="boxLogin">
         <button id="boxLoginBtn" class='btn btn-primary' style="display: none;">Login To Box</button>
         <p id="username"></p>
@@ -158,7 +169,7 @@
       <div class="modal-dialog" role="document">
         <div class="modal-content">
           <div class="modal-header">
-            <h4 class="modal-title">Add New Annotation</h4>
+            <h4 class="modal-title">Add New Classification</h4>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </button>
@@ -240,7 +251,26 @@
             </button>
           </div>
           <div class="modal-body">
-            <p>Start by clicking on the <i class="fas fa-ellipsis-v"></i> icon against the name of your dataset folder in <a href="" data-dismiss="modal"><u style="color:cornflowerblue">My Box</u></a>!</p>
+            <p>Start by selecting your <em>Dataset Folder</em> from the dropdown or by clicking on the&nbsp; <i class="fas fa-ellipsis-v"></i>&nbsp; icon against your dataset folder in <a href="" data-dismiss="modal"><u style="color:cornflowerblue">My Box</u></a>!</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-dismiss="modal">Okay</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" tabindex="-1" role="dialog" id="addDatasetInfoModal">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Add Dataset</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <p>To add a new Dataset, click on the&nbsp; <i class="fas fa-ellipsis-v"></i>&nbsp; icon against the name of the dataset folder in <a href="" data-dismiss="modal"><u style="color:cornflowerblue">My Box</u></a>.</p>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-primary" data-dismiss="modal">Okay</button>
@@ -260,7 +290,7 @@
   </div>
 </body>
 <!-- <script src="opencv.js" async></script> -->
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js"></script>
+<!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js"></script> -->
 
 </html>

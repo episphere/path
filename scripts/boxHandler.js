@@ -99,7 +99,13 @@ const box = async () => {
       const boxHeaders = {}
       boxHeaders['Authorization'] = `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`
       opts['headers'] = opts['headers'] ? Object.assign(boxHeaders, opts['headers']) : boxHeaders   // Using Object.assign instead of spread operator for Edge compatibility
-      return utils.request(url, opts, returnJson)
+      try {
+        const res = utils.request(url, opts, returnJson)
+        return res
+      } catch (e) {
+        throw Error(e)
+      }
+      
     }
     const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
     document.dispatchEvent(boxLoginEvent)
@@ -135,8 +141,7 @@ box.getUserProfile = async () => {
   window.localStorage.userId = id
   window.localStorage.username = name
   window.localStorage.email = login
-  document.getElementById("boxLoginBtn").style = "display: none"
-  document.getElementById("username").innerText = `Welcome ${window.localStorage.username.split(" ")[0]}!`
+  return name
 }
 
 
@@ -272,10 +277,10 @@ box.getRepresentation = async (url) => {
   }
 }
 
-box.search = async (name, type="file", parentFolderIds=[0], limit=100, fields) => {
-  const defaultFields = ["id", "name", "metadata.global.properties"]
+box.search = async (name, type="file", parentFolderIds=[0], limit=100, fields=[]) => {
+  const defaultFields = ["id", "name", "path_collection", "metadata.global.properties"]
   const fieldsRequested = [... new Set(defaultFields.concat(fields))].join(",")
-  const queryParams = `query=${name}&ancestor_folder_ids=${parentFolderIds.join(",")}&type=${type}&content_types=name&limit=${limit}`
+  const queryParams = `query=${name}&ancestor_folder_ids=${parentFolderIds.join(",")}&type=${type}&content_types=name&limit=${limit}&fields=${fieldsRequested}`
   const searchEndpoint = `${box.endpoints.search}?${queryParams}`
   return utils.boxRequest(searchEndpoint)
 }
@@ -403,12 +408,18 @@ box.getUserConfig = async () => {
   return userConfig
 }
 
-box.getDatasetConfig = async (datasetFolderId) => {
+box.getDatasetConfig = async (datasetFolderId, forceCreateNew = false) => {
   let datasetConfig = {}
   
   const availableDataset = path.userConfig.datasetsUsed.find(dataset => dataset.folderId === datasetFolderId)
-  if (availableDataset) {
-    datasetConfig = await box.getFileContent(availableDataset.configFileId, true)
+  if (availableDataset && !forceCreateNew) {
+    try {
+      datasetConfig = await box.getFileContent(availableDataset.configFileId, true)
+    } catch (e) {
+      if (e.message === "404") {
+        return box.getDatasetConfig(datasetFolderId, true)
+      }
+    }
     box.currentDatasetConfigFileId = availableDataset.configFileId
   } else {
     

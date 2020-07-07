@@ -339,7 +339,7 @@ const showNextImageButton = (metadata) => {
           thumbnailCurrentPageText.stepUp()
           thumbnailCurrentPageText.dispatchEvent(new Event("change"))
         }
-        selectImage(allFilesInCurrentFolder[currentImageIndex + 1])
+        path.selectImage(allFilesInCurrentFolder[currentImageIndex + 1])
       }
   
     } else {
@@ -355,10 +355,10 @@ const showNextImageButton = (metadata) => {
           thumbnailCurrentPageText.stepUp()
           thumbnailCurrentPageText.dispatchEvent(new Event("change"))
           setTimeout(() => { // Needs to wait for new thumbnails list to be loaded. Very ugly, need rethinking later.
-            selectImage(currentThumbnailsList[0])
+            path.selectImage(currentThumbnailsList[0])
           }, 3000)
         } else {
-          selectImage(currentThumbnailsList[currentImageIndex + 1])
+          path.selectImage(currentThumbnailsList[currentImageIndex + 1])
         }
       }
     }

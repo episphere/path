@@ -31,7 +31,7 @@ myBox.loadFileManager = async (id = boxRootFolderId, forceRedraw) => {
     }
 
     backBtnSpan.onclick = id === boxRootFolderId ? () => {} : (e) => {
-      selectFolder(folderData.path_collection.entries[folderData.path_collection.entries.length - 1].id)
+      path.selectFolder(folderData.path_collection.entries[folderData.path_collection.entries.length - 1].id)
     }
 
     let homeBtnSpan = document.getElementById("fileMgrHomeBtn")
@@ -49,7 +49,7 @@ myBox.loadFileManager = async (id = boxRootFolderId, forceRedraw) => {
     }
 
     homeBtnSpan.onclick = id === boxRootFolderId ? () => {} : (e) => {
-      selectFolder(boxRootFolderId)
+      path.selectFolder(boxRootFolderId)
     }
 
     fileMgrNav.setAttribute("id", "boxFileMgrNav")
@@ -133,7 +133,7 @@ myBox.loadFileManager = async (id = boxRootFolderId, forceRedraw) => {
 
   } else if (folderData && folderData.status === 404) {
     alert("The folder ID in the URL does not point to a valid folder in your Box account!")
-    selectFolder(boxRootFolderId)
+    path.selectFolder(boxRootFolderId)
   }
 
   // const forwardBtnSpan = document.getElementById("fileMgrForwardBtn") || document.createElement("span")
@@ -265,6 +265,7 @@ myBox.populateFolderTree = (entries, id) => {
           entryBtnDropdownToggleBtn.onclick = () => {
             entryBtnOptionsDiv.innerHTML = `<img src="https://episphere.github.io/path/external/images/loader_folder.gif" style="width:2rem;"></img>`
             path.selectDataset(entry.id)
+            path.selectFolder(entry.id)
           }
           entryBtnDropdownToggleBtn.innerHTML = ` <i class="fas fa-pencil-alt"></i> &nbsp;Use as Dataset`
           
@@ -280,10 +281,10 @@ myBox.populateFolderTree = (entries, id) => {
       
       entryBtn.onclick = async () => {
         if (entry.type === "folder") {
-          selectFolder(entry.id)
+          path.selectFolder(entry.id)
         } else if (entry.type === "file" && utils.isValidImage(entry.name)) {
           if (entry.id !== hashParams.image) {
-            selectImage(entry.id)
+            path.selectImage(entry.id)
             myBox.highlightImage(entry.id)
           }
         }

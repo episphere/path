@@ -29,7 +29,7 @@ tools.addLocalFileButton = async () => {
     if (files) {
       document.getElementById("imgHeader").innerHTML = `<h5>${files[0].name}</h5>`
       if (hashParams.image) {
-        selectImage(null)
+        path.selectImage(null)
         window.localStorage.currentImage = ""
         window.localStorage.currentFolder = ""
       }
