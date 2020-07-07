@@ -521,6 +521,9 @@ box.changeLastUsedDataset = async (datasetFolderId) => {
     }
     
     path.userConfig.lastUsedDataset = datasetFolderId
+    path.userConfig.preferences.datasetAccessLog = path.userConfig.preferences.datasetAccessLog || {}
+    path.userConfig.preferences.datasetAccessLog[datasetFolderId] = Date.now()
+    
     const newConfigBlob = new Blob([JSON.stringify(path.userConfig)], {
       type: "application/json"
     })

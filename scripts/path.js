@@ -251,6 +251,8 @@ path.setupEventListeners = () => {
 }
 
 path.selectDataset = async (folderId=path.userConfig.lastUsedDataset) => {
+  const datasetSelectDropdownBtn = document.getElementById("datasetSelectDropdownBtn")
+  datasetSelectDropdownBtn.setAttribute("disabled", "true")
   let datasetConfig = {
     annotations: []
   }
@@ -261,7 +263,6 @@ path.selectDataset = async (folderId=path.userConfig.lastUsedDataset) => {
       datasetConfig.annotations = annotations
       utils.showToast(`Using ${datasetConfig.datasetFolderName} as the current dataset.`)
     }
-    const datasetSelectDropdownBtn = document.getElementById("datasetSelectDropdownBtn")
     datasetSelectDropdownBtn.innerHTML = `
        ${datasetConfig.datasetFolderName} <i class="fas fa-caret-down"></i>
     `
@@ -274,14 +275,30 @@ path.selectDataset = async (folderId=path.userConfig.lastUsedDataset) => {
     thumbnails.reBorderThumbnails()
   }
 
-  const datasetsUsed = path.userConfig.datasetsUsed.map(d => d.folderId)
+  const datasetsUsed = path.userConfig.datasetsUsed.sort((d1, d2)=> {
+    if (path.userConfig.preferences.datasetAccessLog) {
+      const d1Time = path.userConfig.preferences.datasetAccessLog[d1.folderId]
+      const d2Time = path.userConfig.preferences.datasetAccessLog[d2.folderId]
+      return d2Time - d1Time
+    } else {
+      return 0
+    }
+  }).map(d => d.folderId)
+
   const { entries: availableDatasets } = await box.search(epiBoxFolderName, "folder", undefined, 100)
   if (availableDatasets.length > 0) {
     const datasetSelectDropdownDiv = document.getElementById("datasetSelectDropdownDiv")
     while (datasetSelectDropdownDiv.childElementCount > 1) {
       datasetSelectDropdownDiv.removeChild(datasetSelectDropdownDiv.firstElementChild)
     }
-    availableDatasets.sort((d1, d2) => datasetsUsed.includes(d1.id) ? -1 : 1 )
+    availableDatasets.sort((d1, d2) => {
+      let d1Index = datasetsUsed.indexOf(d1.path_collection.entries[d1.path_collection.entries.length - 1].id)
+      d1Index = d1Index !== -1 ? d1Index : Infinity
+      let d2Index = datasetsUsed.indexOf(d2.path_collection.entries[d2.path_collection.entries.length - 1].id) 
+      d2Index = d2Index !== -1 ? d2Index : Infinity
+      return d1Index-d2Index
+    })
+
     availableDatasets.forEach(folder => {
       const datasetFolder = folder.path_collection.entries[folder.path_collection.entries.length - 1]
       if (folder.name === epiBoxFolderName && datasetFolder.id !== folderId && folder.path_collection.entries.length > 1) {
@@ -300,6 +317,7 @@ path.selectDataset = async (folderId=path.userConfig.lastUsedDataset) => {
       }
     })
   }
+  datasetSelectDropdownBtn.removeAttribute("disabled")
   
 }
 
