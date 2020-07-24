@@ -281,7 +281,9 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
   }
   populateDatasetSelectDropdown(datasetFolderId)
   
-  if (path.datasetConfig && path.datasetConfig.models) {
+  if (path.datasetConfig && path.datasetConfig.models && path.datasetConfig.models.trainedModels?.length > 0) {
+    const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Loading AI Model..." : "Loading AI Models..."
+    utils.showToast(toastMessage)
     path.predictionWorker.postMessage({
       "op": "loadModels", 
       "body": {
@@ -291,6 +293,9 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
     path.predictionWorker.onmessage = (message) => {
       if (message.data.annotationId && message.data.modelLoaded) {
         path.modelsLoaded[message.data.annotationId] = true
+      } if (Object.keys(path.modelsLoaded).length === path.datasetConfig.models.trainedModels.length) {
+        const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Model loaded successfully!" : "Models loaded successfully!"
+        utils.showToast(toastMessage)
       }
     }
   }
@@ -674,7 +679,7 @@ const getModelPrediction = (annotationId, annotationType, imageId=hashParams.ima
           'label': annotations["model"][0].displayName,
           'prob': annotations["model"][0].classification.score
         }]
-        updatePredictionInBox(imageId, prediction, annotationType)
+        // updatePredictionInBox(imageId, prediction, annotationType)
         resolve(prediction)
       } else {
         resolve(annotations["model"])
@@ -724,7 +729,7 @@ const getModelPrediction = (annotationId, annotationType, imageId=hashParams.ima
   
       path.predictionWorker.onmessage = (e) => {
         resolve(e.data)
-        updatePredictionInBox(imageId, e.data, annotationType)
+        // updatePredictionInBox(imageId, e.data, annotationType)
       }
     } else {
       resolve(null)
@@ -768,56 +773,38 @@ const getModelPrediction = (annotationId, annotationType, imageId=hashParams.ima
 // }
 
 path.annotateFolder = async (folderId=hashParams.folder, annotationName) => {
-  const annotation = path.datasetConfig.annotations[1]
+  const annotation = path.datasetConfig.annotations[0]
   annotationName = annotationName || annotation.metaName
-  path.annotationsForFolder = `id,filename,actual_label,${annotationName}_pred,${annotationName}_pred_score,url_in_app`
+  let annotationsForFolder = `id,filename,prediction_label,prediction_score,url_in_app,prediction_score_present,prediction_score_absent,prediction_score_uncertain`
   // let forROC = ""
   const images = await box.getAllFolderContents(folderId)
-  const folderName = images.entries[0].path_collection.entries[images.entries[0].path_collection.entries.length - 1].name
-  const model = await tf.automl.loadImageClassification("../model/model.json")
-  const makePrediction = async (id, filename) => new Promise(async (resolve) => {
-    const imageElement = new Image()
-    const imageData = await box.getFileContent(id)
-    imageElement.crossOrigin = "anonymous"
-    imageElement.src = imageData.url
-    imageElement.onload = async () => {
-      const pred = await model.classify(imageElement)
-      const {
-        label: predictedLabel,
-        prob: predictionScore
-      } = pred.reduce((prev, current) => prev.prob > current.prob ? prev : current)
-      const positivePredictionScoreForROC = pred.filter(pred1 => pred1.label === "O")[0].prob
-      const fileMetadata = await box.getMetadata(id, "file")
-      const annotationMetadata = JSON.parse(fileMetadata[annotationName])
-      let actualLabel = Object.values(annotationMetadata)[0].value
-      path.annotationsForFolder += `\n${id},${filename},${qualityEnum.find(o => o.label === actualLabel).tooltip},${qualityEnum.find(o => o.label === predictedLabel).tooltip},${predictionScore},https://episphere.github.io/path#image=${id}`
-      // if (actualLabel !== "S") {
-      //   const actualLabelNumeric = actualLabel === "O" ? 1 : 0
-      //   forROC += `${actualLabelNumeric},${positivePredictionScoreForROC}\n`
-      // }
-      annotationMetadata.model = pred
-      await box.updateMetadata(id, `/${annotationName}`, JSON.stringify(annotationMetadata))
-      resolve()
-    }
-  })
+
   console.log("Starting predictions for folder", folderId)
   console.time("Prediction")
   for (let image of images.entries) {
-    if (image.type === "file" && image.name.endsWith(".jpg")) {
-      console.log(`Prediction for ${image.name}`)
-      await makePrediction(image.id, image.name)
+    if (image.type === "file" && utils.isValidImage(image.name)) {
+      const preds = await getModelPrediction(annotation.annotationId, annotationName, image.id, true)
+      const maxPred = preds.reduce((maxLabel, pred) => {
+        if (!maxLabel.prob || maxLabel.prob < pred.prob) {
+          maxLabel = pred
+        }
+        return maxLabel
+      }, {})
+      console.log(`Prediction for ${image.name} completed.`)
+      annotationsForFolder += `\n${image.id},${image.name},${maxPred.label},${maxPred.prob},https://episphere.github.io/path#image=${image.id},${preds.find(pred => pred.label==="Present").prob},${preds.find(pred => pred.label==="Absent").prob},${preds.find(pred => pred.label==="Uncertain").prob}`
     }
   }
   console.timeEnd("Prediction")
+  
   console.log("DONE!")
   const uploadPredictionsFileFD = new FormData()
   const predictionsFileConfig =  {
-    "name": `Predictions_${folderName}_${annotation.displayName}.csv`,
+    "name": `Predictions_${annotation.displayName}.csv`,
     "parent": {
-      "id": 116473887942
+      "id": 109209908256
     }
   }
-  const predictionsBlob = new Blob([path.annotationsForFolder], {
+  const predictionsBlob = new Blob([annotationsForFolder], {
     type: 'text/plain'
   })
 
