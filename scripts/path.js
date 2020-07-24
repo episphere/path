@@ -2,6 +2,10 @@ const EPIBOX = "epibox"
 const APPNAME = "epiPath"
 
 const boxRootFolderId = "0"
+const indexedDBConfig = {
+  dbName: "boxCreds",
+  objectStoreName: "oauth"
+}
 let configFileId = window.location.hash.includes("covid") ? 644912149213 : 627997326641
 // const configFileId = 627997326641
 const containsEmojiRegex = new RegExp("(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])")
@@ -142,15 +146,35 @@ const path = async () => {
   path.toolsDiv = document.getElementById("toolsDiv")
   path.tmaImage = new Image()
   path.setupEventListeners()
+  path.indexedDB = await path.setupIndexedDB()
   
   await box()
   loadHashParams()  
   loadDefaultImage()
   path.loadModules()
 
-
+  path.predictionWorker = new Worker('scripts/modelPrediction.js')
+  path.modelsLoaded = {}
+  
   path.tiffWorker = new Worker('scripts/processImage.js')
   path.tiffUnsupportedAlertShown = false
+}
+
+path.setupIndexedDB = () => {
+  return new Promise(resolve => {
+    const dbRequest = window.indexedDB.open(indexedDBConfig.dbName)
+    dbRequest.onupgradeneeded = () => {
+      const db = dbRequest.result
+      if (!db.objectStoreNames.contains(indexedDBConfig.objectStoreName)) {
+        db.createObjectStore(indexedDBConfig.objectStoreName, {autoIncrement: true})
+      }
+      resolve(db)
+    }
+    dbRequest.onsuccess = (evt) => {
+      const db = evt.target.result
+      resolve(db)
+    }
+  })
 }
 
 path.loadModules = async (modules) => {
@@ -202,13 +226,7 @@ path.setupEventListeners = () => {
     
     // if (hashParams.useWorker) {
     
-    path.predictionWorker = new Worker('scripts/modelPrediction.js')
-    if (path.datasetConfig && path.datasetConfig.models) {
-      path.predictionWorker.postMessage({
-        "op": "loadModel", 
-        "modelsConfig": path.datasetConfig.models
-      })
-    }
+    
     // }
     // if (window.location.host.includes("localhost")) {
     //   loadLocalModel()
@@ -230,34 +248,21 @@ path.setupEventListeners = () => {
       
       await thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
       
-      if (path.predictionWorker) {
-        // path.predictionWorker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
-        // path.predictionWorker.onmessage = (e) => {
-        //   console.log("Message received from worker!", e.data)
-        //   console.log("Prediction: ", e.data.reduce((maxLabel, pred) => {
-        //     maxLabel && maxLabel.prob > pred.prob ? maxLabel : pred
-        //   }, {}))
-        // }
-      } else {
-        // setTimeout(() => {
-        //   path.model.classify(path.tmaImage).then(preds => console.log("Local Model Prediction", preds))
-        // }, 3000)
+      if (path.datasetConfig && path.datasetConfig.annotations.length > 0 && !path.isThumbnail) {
+        annotations.showAnnotationOptions(path.datasetConfig.annotations, path.isImageFromBox, false)
       }
-    }
-    if (path.datasetConfig && path.datasetConfig.annotations && !path.isThumbnail) {
-      annotations.showAnnotationOptions(path.datasetConfig.annotations, path.isImageFromBox, false)
     }
   }
 }
 
-path.selectDataset = async (folderId=path.userConfig.lastUsedDataset) => {
+path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => {
   const datasetSelectDropdownBtn = document.getElementById("datasetSelectDropdownBtn")
   datasetSelectDropdownBtn.setAttribute("disabled", "true")
   let datasetConfig = {
     annotations: []
   }
-  if (folderId != -1) {
-    datasetConfig = await box.getDatasetConfig(folderId)
+  if (datasetFolderId != -1) {
+    datasetConfig = await box.getDatasetConfig(datasetFolderId)
     if (datasetConfig) {
       const annotations = datasetConfig.annotations.filter(annotation => !annotation.private || (annotation.private && annotation.createdBy === window.localStorage.userId))
       datasetConfig.annotations = annotations
@@ -274,7 +279,24 @@ path.selectDataset = async (folderId=path.userConfig.lastUsedDataset) => {
     annotations.showAnnotationOptions(path.datasetConfig.annotations, true, forceRedraw)
     thumbnails.reBorderThumbnails()
   }
+  populateDatasetSelectDropdown(datasetFolderId)
+  
+  if (path.datasetConfig && path.datasetConfig.models) {
+    path.predictionWorker.postMessage({
+      "op": "loadModels", 
+      "body": {
+        "modelsConfig": path.datasetConfig.models
+      }
+    })
+    path.predictionWorker.onmessage = (message) => {
+      if (message.data.annotationId && message.data.modelLoaded) {
+        path.modelsLoaded[message.data.annotationId] = true
+      }
+    }
+  }
+}
 
+const populateDatasetSelectDropdown = async (selectedDatasetId) => {
   const datasetsUsed = path.userConfig.datasetsUsed.sort((d1, d2)=> {
     if (path.userConfig.preferences.datasetAccessLog) {
       const d1Time = path.userConfig.preferences.datasetAccessLog[d1.folderId]
@@ -296,12 +318,12 @@ path.selectDataset = async (folderId=path.userConfig.lastUsedDataset) => {
       d1Index = d1Index !== -1 ? d1Index : Infinity
       let d2Index = datasetsUsed.indexOf(d2.path_collection.entries[d2.path_collection.entries.length - 1].id) 
       d2Index = d2Index !== -1 ? d2Index : Infinity
-      return d1Index-d2Index
+      return d1Index - d2Index
     })
-
+    
     availableDatasets.forEach(folder => {
       const datasetFolder = folder.path_collection.entries[folder.path_collection.entries.length - 1]
-      if (folder.name === epiBoxFolderName && datasetFolder.id !== folderId && folder.path_collection.entries.length > 1) {
+      if (folder.name === epiBoxFolderName && datasetFolder.id !== selectedDatasetId && folder.path_collection.entries.length > 1) {
         const datasetOptionBtn = document.createElement("button")
         datasetOptionBtn.setAttribute("class", "btn btn-link")
         datasetOptionBtn.innerText = datasetFolder.name
@@ -318,7 +340,6 @@ path.selectDataset = async (folderId=path.userConfig.lastUsedDataset) => {
     })
   }
   datasetSelectDropdownBtn.removeAttribute("disabled")
-  
 }
 
 const loadDefaultImage = async () => {
@@ -383,9 +404,9 @@ const loadImageFromBox = async (id, url) => {
           })
         }
         
-        const allFilesInFolderObj = JSON.parse(window.localStorage.allFilesInFolder) || {}
-        allFilesInFolderObj[parent.id] = parent.id in allFilesInFolderObj && allFilesInFolderObj[parent.id].length > 0 ? allFilesInFolderObj[parent.id] : []
-        window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
+        // const allFilesInFolderObj = JSON.parse(window.localStorage.allFilesInFolder) || {}
+        // allFilesInFolderObj[parent.id] = parent.id in allFilesInFolderObj && allFilesInFolderObj[parent.id].length > 0 ? allFilesInFolderObj[parent.id] : []
+        // window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
         window.localStorage.currentThumbnailsFolder = parent.id
   
         path.tmaImage.setAttribute("alt", name)
@@ -635,7 +656,98 @@ const startCollaboration = () => {
   return false
 }
 
-const getModelPrediction = async (annotationType) => {
+const getModelPrediction = (annotationId, annotationType, imageId=hashParams.image, forceModel=false) => {
+  
+  return new Promise(async (resolve) => {
+    const updatePredictionInBox = (imageId, prediction, annotationName) => {
+      annotations["model"] = prediction
+      const boxMetadataPath = `/${annotationName}`
+      box.updateMetadata(imageId, boxMetadataPath, JSON.stringify(annotations)).then(newMetadata => {
+        window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+      })
+    }
+    let annotations = JSON.parse(window.localStorage.fileMetadata)[annotationType]
+    annotations = annotations ? JSON.parse(annotations) : {}
+    if (!forceModel && annotations["model"]) {
+      if (annotations["model"][0].classification) {
+        const prediction = [{
+          'label': annotations["model"][0].displayName,
+          'prob': annotations["model"][0].classification.score
+        }]
+        updatePredictionInBox(imageId, prediction, annotationType)
+        resolve(prediction)
+      } else {
+        resolve(annotations["model"])
+      }
+    } else if (path.predictionWorker && path.modelsLoaded[annotationId]) {
+      let imageBitmap = []
+      if (imageId === hashParams.image) {
+        const offscreenCV = new OffscreenCanvas(path.tmaImage.width, path.tmaImage.height)
+        const offscreenCtx = offscreenCV.getContext('2d')
+        offscreenCtx.drawImage(path.tmaImage, 0, 0, path.tmaImage.width, path.tmaImage.height)
+        imageBitmap = offscreenCV.transferToImageBitmap()
+        path.predictionWorker.postMessage({
+          'op': "predict",
+          'body': {
+            'annotationId': annotationId,
+            'tmaImageData': {
+              imageBitmap,
+              'width': path.tmaImage.width,
+              'height': path.tmaImage.height
+            }
+          }
+        }, [imageBitmap])
+      } else {
+        const fileContent = await box.getFileContent(imageId)
+        const tempImage = new Image()
+        tempImage.crossOrigin = "anonymous"
+        tempImage.src = fileContent.url
+        tempImage.onload = (() => {
+          const offscreenCV = new OffscreenCanvas(tempImage.width, tempImage.height)
+          const offscreenCtx = offscreenCV.getContext('2d')
+          offscreenCtx.drawImage(tempImage, 0, 0, tempImage.width, tempImage.height)
+          imageBitmap = offscreenCV.transferToImageBitmap()
+          path.predictionWorker.postMessage({
+            'op': "predict",
+            'body': {
+              'annotationId': annotationId,
+              'tmaImageData': {
+                imageBitmap,
+                'width': tempImage.width,
+                'height': tempImage.height
+              }
+            }
+          }, [imageBitmap])
+        })
+      }
+      
+  
+      path.predictionWorker.onmessage = (e) => {
+        resolve(e.data)
+        updatePredictionInBox(imageId, e.data, annotationType)
+      }
+    } else {
+      resolve(null)
+      // const payload = {
+      //   annotationType,
+      //   "image": path.tmaCanvas.toDataURL().split("base64,")[1]
+      // }
+      
+      // prediction = await utils.request("https://us-central1-nih-nci-dceg-episphere-dev.cloudfunctions.net/getPathPrediction", {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json"
+      //   },
+      //   body: JSON.stringify(payload)
+      // }, false)
+      // .then(res => {
+      //   return res.json()
+      // })
+      // .catch(err => {})
+  
+    }
+  })
+
 
   // const getBase64FromImage = (image) => {
   //   const tmpCanvas = document.createElement("canvas")
@@ -645,87 +757,75 @@ const getModelPrediction = async (annotationType) => {
   //   tmpCtx.drawImage(image, 0, 0, image.width, image.height)
   //   return tmpCanvas.toDataURL().split("base64,")[1]
   // }
-  let annotations = JSON.parse(window.localStorage.fileMetadata)[annotationType]
-  annotations = annotations ? JSON.parse(annotations) : {}
-  if (annotations["model"]) {
-    return annotations["model"]
-  }
 
-  let prediction = null
-  if (path.predictionWorker && hashParams.useWorker) {
-    path.predictionWorker.postMessage(await tf.browser.fromPixels(path.tmaImage).array())
-    path.predictionWorker.onmessage = (e) => {
-      prediction = e.data.reduce((maxLabel, pred) => {
-        if (maxLabel.prob && maxLabel.prob > pred.prob) {
-          return maxLabel
-        } 
-        return pred
-      }, {})
-      prediction.displayName = prediction.label
-      prediction.classification = {}
-      prediction.classification.score = prediction.prob
-      prediction = [prediction]
-      displayModelPrediction(prediction, path.datasetConfig.annotations[0], document.getElementById(`${path.datasetConfig.annotations[0].annotationName}Select`).querySelector("tbody"))
-    }
-  } else {
-    // const payload = {
-    //   annotationType,
-    //   "image": path.tmaCanvas.toDataURL().split("base64,")[1]
-    // }
-    
-    // prediction = await utils.request("https://us-central1-nih-nci-dceg-episphere-dev.cloudfunctions.net/getPathPrediction", {
-    //   method: "POST",
-    //   headers: {
-    //     "Content-Type": "application/json"
-    //   },
-    //   body: JSON.stringify(payload)
-    // }, false)
-    // .then(res => {
-    //   return res.json()
-    // })
-    // .catch(err => {})
-
-  }
-
-  if (prediction) {
-    annotations["model"] = prediction
-    const boxMetadataPath = `/${annotationType}_annotations`
-    box.updateMetadata(hashParams.image, boxMetadataPath, JSON.stringify(annotations)).then(newMetadata => {
-      window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-    })
-    return prediction
-  }
+  
 }
 
-const loadLocalModel = async () => {
-  // path.model = await tf.automl.loadImageClassification("./model/model.json")
-  path.model = await tf.automl.loadImageClassification("./model/covidModel/model.json")
-  console.log("LOADED", path.model)
-}
+// const loadLocalModel = async () => {
+//   // path.model = await tf.automl.loadImageClassification("./model/model.json")
+//   path.model = await tf.automl.loadImageClassification("./model/covidModel/model.json")
+//   console.log("LOADED", path.model)
+// }
 
-const annotateFolder = async () => {
-  path.annotationsForFolder = "id,tissue_adequacy,tissue_adequacy_score,url_in_app"
-  const folderContents = JSON.parse(window.localStorage.allFilesInFolder)[hashParams.folder]
-
-  const makePrediction = async (id) => {
-
+path.annotateFolder = async (folderId=hashParams.folder, annotationName) => {
+  const annotation = path.datasetConfig.annotations[1]
+  annotationName = annotationName || annotation.metaName
+  path.annotationsForFolder = `id,filename,actual_label,${annotationName}_pred,${annotationName}_pred_score,url_in_app`
+  // let forROC = ""
+  const images = await box.getAllFolderContents(folderId)
+  const folderName = images.entries[0].path_collection.entries[images.entries[0].path_collection.entries.length - 1].name
+  const model = await tf.automl.loadImageClassification("../model/model.json")
+  const makePrediction = async (id, filename) => new Promise(async (resolve) => {
     const imageElement = new Image()
-    const actualImage = await box.getFileContent(id)
+    const imageData = await box.getFileContent(id)
     imageElement.crossOrigin = "anonymous"
-    imageElement.src = actualImage.url
+    imageElement.src = imageData.url
     imageElement.onload = async () => {
-      const pred = await path.model.classify(imageElement)
+      const pred = await model.classify(imageElement)
       const {
-        label,
-        prob
+        label: predictedLabel,
+        prob: predictionScore
       } = pred.reduce((prev, current) => prev.prob > current.prob ? prev : current)
-      path.annotationsForFolder += `\n${id},${label},${prob},${window.location.origin+window.location.pathname}#image=${id}`
-      // return makePrediction(folderContents[1])
+      const positivePredictionScoreForROC = pred.filter(pred1 => pred1.label === "O")[0].prob
+      const fileMetadata = await box.getMetadata(id, "file")
+      const annotationMetadata = JSON.parse(fileMetadata[annotationName])
+      let actualLabel = Object.values(annotationMetadata)[0].value
+      path.annotationsForFolder += `\n${id},${filename},${qualityEnum.find(o => o.label === actualLabel).tooltip},${qualityEnum.find(o => o.label === predictedLabel).tooltip},${predictionScore},https://episphere.github.io/path#image=${id}`
+      // if (actualLabel !== "S") {
+      //   const actualLabelNumeric = actualLabel === "O" ? 1 : 0
+      //   forROC += `${actualLabelNumeric},${positivePredictionScoreForROC}\n`
+      // }
+      annotationMetadata.model = pred
+      await box.updateMetadata(id, `/${annotationName}`, JSON.stringify(annotationMetadata))
+      resolve()
+    }
+  })
+  console.log("Starting predictions for folder", folderId)
+  console.time("Prediction")
+  for (let image of images.entries) {
+    if (image.type === "file" && image.name.endsWith(".jpg")) {
+      console.log(`Prediction for ${image.name}`)
+      await makePrediction(image.id, image.name)
     }
   }
-  folderContents.forEach(async (image, ind) => {
-    await makePrediction(image)
+  console.timeEnd("Prediction")
+  console.log("DONE!")
+  const uploadPredictionsFileFD = new FormData()
+  const predictionsFileConfig =  {
+    "name": `Predictions_${folderName}_${annotation.displayName}.csv`,
+    "parent": {
+      "id": 116473887942
+    }
+  }
+  const predictionsBlob = new Blob([path.annotationsForFolder], {
+    type: 'text/plain'
   })
+
+  uploadPredictionsFileFD.append("attributes", JSON.stringify(predictionsFileConfig))
+  uploadPredictionsFileFD.append("file", predictionsBlob)
+
+  await box.uploadFile(uploadPredictionsFileFD)
+  // console.log(forROC)
 }
 
 window.onload = path

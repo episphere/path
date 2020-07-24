@@ -183,6 +183,7 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
       populateComments(annotationName)
     }
   })
+  loadModelPredictions()
   showNextImageButton()
   document.getElementById("addClassificationBtn").removeAttribute("disabled")
 }
@@ -254,38 +255,42 @@ const showQualitySelectors = async (annotation) => {
       selectTableBody.appendChild(tableRow)
     })
   }
+  
   const previousPrediction = selectTableBody.querySelector("tr.modelPrediction")
   if (previousPrediction) {
     previousPrediction.classList.remove("modelPrediction")
-    const previousPredictionTD = previousPrediction.querySelector("td.predictionScore")
-    previousPredictionTD.innerHTML = "--"
   }
+  const previousPredictionScores = selectTableBody.querySelectorAll("td.predictionScore")
+  previousPredictionScores.forEach(el => el.innerText = "--")
+
   activateQualitySelector(annotationName, fileAnnotations)
   getOthersAnnotations(annotationName, fileAnnotations)
-  loadModelPrediction(annotation, selectTableBody)
   annotationDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
 }
 
-const loadModelPrediction = async (annotation, tableBodyElement) => {
-  const modelQualityPrediction = await getModelPrediction(annotation.annotationName)
-  displayModelPrediction(modelQualityPrediction, annotation, tableBodyElement)
+const loadModelPredictions = async () => {
+  for (const annotation of path.datasetConfig.annotations) {
+    const modelQualityPrediction = await getModelPrediction(annotation.annotationId, annotation.metaName)
+    if (modelQualityPrediction) {
+      displayModelPrediction(modelQualityPrediction, annotation)
+    }
+  }
 }
 
-const displayModelPrediction = (modelQualityPrediction, annotation, tableBodyElement) => {
+const displayModelPrediction = (modelQualityPrediction, annotation) => {
   const { annotationName } = annotation
-  if (modelQualityPrediction) {
-    annotation.labels.forEach(({
-      label
-    }) => {
-      const labelPrediction = modelQualityPrediction.find(pred => pred.displayName === label)
-      const labelScore = labelPrediction ? Number.parseFloat(labelPrediction.classification.score).toPrecision(3) : "--"
-      const tablePredictionData = tableBodyElement.querySelector(`td#${annotationName}_prediction_${label}`)
-      tablePredictionData.innerHTML = labelScore
-      if (labelScore > 0.5) {
-        tablePredictionData.parentElement.classList.add("modelPrediction")
-      }
-    })
-  }
+  const tableBodyElement = document.getElementById(`${annotationName}Select`)
+  annotation.labels.forEach(({
+    label
+  }) => {
+    const labelPrediction = modelQualityPrediction.find(pred => pred.label === label || pred.displayName === label) // pred.label is what local model sets, pred.displayName is what the getPathPrediction cloud function sends, so handling both.
+    const labelScore = labelPrediction ? (labelPrediction.classification?.score ? Number.parseFloat(labelPrediction.classification.score).toPrecision(2) : Number.parseFloat(labelPrediction.prob).toPrecision(3)) : "--"
+    const tablePredictionData = tableBodyElement.querySelector(`td#${annotationName}_prediction_${label}`)
+    tablePredictionData.innerHTML = labelScore
+    if (labelScore > 0.5) {
+      tablePredictionData.parentElement.classList.add("modelPrediction")
+    }
+  })
 }
 
 const getOthersAnnotations = (annotationName, fileAnnotations) => {
@@ -682,22 +687,28 @@ annotations.deactivateQualitySelectors = () => {
 const addClassificationToConfig = () => {
   let formIsValid = true
   let alertMessage = ""
+  let newAnnotation = {}
+  
   const annotationForm = document.getElementById("createClassificationForm")
 
   const annotationIdToEdit = parseInt(annotationForm.getAttribute("annotationId"))
-
-  const newAnnotation = {
-    "annotationId": annotationIdToEdit || Math.floor(1000000 + Math.random() * 9000000), //random 7 digit annotation ID
-    "displayName": "",
-    "annotationName": "",
-    "metaName": "",
-    "definition": "",
-    "enableComments": false,
-    "labelType": "",
-    "labels": [],
-    "createdBy": "",
-    "private": false,
+  if (annotationIdToEdit) {
+    const annotationConfig = path.datasetConfig.annotations.find(a => a.annotationId === annotationIdToEdit)
+    newAnnotation = JSON.parse(JSON.stringify(annotationConfig))
+  } else {
+    newAnnotation = {
+      "annotationId": annotationIdToEdit || Math.floor(1000000 + Math.random() * 9000000), //random 7 digit annotation ID
+      "displayName": "",
+      "annotationName": "",
+      "definition": "",
+      "enableComments": false,
+      "labelType": "",
+      "labels": [],
+      "createdBy": "",
+      "private": false,
+    }
   }
+
 
   annotationForm.querySelectorAll(".form-control").forEach(element => {
     if (element.name) {
@@ -844,6 +855,7 @@ const addClassificationToConfig = () => {
     newAnnotation["createdAt"] = Date.now()
     newAnnotation["createdByUserId"] = window.localStorage.userId
     newAnnotation["createdByUsername"] = window.localStorage.userId
+    newAnnotation["metaName"] = `${newAnnotation["displayName"]}_${newAnnotation["annotationId"]}_annotations`
     updateConfigInBox("annotations", "append", newAnnotation)
   }
 
@@ -969,7 +981,7 @@ const updateConfigInBox = async (changedProperty = "annotations", operation, del
 
     const newConfigFormData = new FormData()
     const configFileAttributes = {
-      "name": `_${datasetConfigFileName}`
+      "name": datasetConfigFileName
     }
     const newConfigBlob = new Blob([JSON.stringify(datasetConfig)], {
       type: "application/json"

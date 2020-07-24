@@ -137,7 +137,9 @@
             </div>
           </div>
           <div class="tab-pane fade" id="model" role="tabpanel" aria-labelledby="model-tab">
-            <div class="tabContainer tabContainerWithMargin"></div>
+            <div class="tabContainer tabContainerWithMargin">
+              <button class="btn btn-primary" onclick="path.annotateFolder(hashParams.folder)" disabled>Predict For Current Folder</button>
+            </div>
           </div>
           <div class="tab-pane fade" id="collaborate" role="tabpanel" aria-labelledby="collaborate-tab">
             <div class="tabContainer tabContainerWithMargin jumbotron">
@@ -290,7 +292,7 @@
   </div>
 </body>
 <!-- <script src="opencv.js" async></script> -->
-<!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js"></script> -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js"></script>
 
 </html>

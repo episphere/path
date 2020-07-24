@@ -46,8 +46,8 @@ const box = async () => {
     // console.log(window.localStorage.box)
     if (window.localStorage.box) {
       const boxCreds = JSON.parse(window.localStorage.box)
-      if (boxCreds["access_token"] && boxCreds["token_expiry"]) {
-        if (boxCreds["token_expiry"] < Date.now()) {
+      if (boxCreds["access_token"] && boxCreds["expires_in"]) {
+        if (boxCreds["created_at"] + ((boxCreds["expires_in"] - 2 * 60) * 1000) < Date.now()) {
           try {
             await getAccessToken('refresh_token', boxCreds["refresh_token"])
           } catch (err) {
@@ -84,17 +84,29 @@ const box = async () => {
   }
 
   const storeCredsToLS = (boxCreds) => {
-    const expiry = (boxCreds["expires_in"] - 2 * 60) * 1000 + Date.now()
     const newCreds = {
-      'access_token': boxCreds["access_token"],
-      'token_expiry': expiry,
-      'refresh_token': boxCreds["refresh_token"]
+      'created_at': Date.now(),
+      ...boxCreds
     }
     window.localStorage.box = JSON.stringify(newCreds)
+    storeCredsToIndexedDB(newCreds)
+  }
+
+  const storeCredsToIndexedDB = (boxCreds) => {
+    path.indexedDB.transaction("oauth", "readwrite").objectStore("oauth").put(boxCreds, 1)
+    if (box.refreshTokenBeforeExpiry) {
+      clearTimeout(box.refreshTokenBeforeExpiry)
+    }
+
+    console.log("Resetting Refresh Timeout for ", new Date(boxCreds.created_at + ((boxCreds.expires_in - 2 * 60) * 1000)))
+    box.refreshTokenBeforeExpiry = setTimeout(() => {
+      console.log("REFRESH SUCCESSFUL")
+      box.isLoggedIn()
+    }, (boxCreds.expires_in - 2 * 60) * 1000)
   }
 
   const triggerLoginEvent = async () => {
-    utils.boxRequest = async (url, opts = {}, returnJson=true) => {
+    utils.boxRequest = async (url, opts={}, returnJson=true) => {
       await box.isLoggedIn()
       const boxHeaders = {}
       boxHeaders['Authorization'] = `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`
@@ -109,6 +121,13 @@ const box = async () => {
     }
     const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
     document.dispatchEvent(boxLoginEvent)
+    
+    console.log("Initializing Refresh Timeout")
+    box.refreshTokenBeforeExpiry = setTimeout(() => {
+      console.log("REFRESH SUCCESSFUL")
+      box.isLoggedIn()
+    }, (JSON.parse(window.localStorage.box)["expires_in"] - 2 * 60) * 1000)
+
   }
 
   if (await box.isLoggedIn()) {
@@ -331,10 +350,6 @@ box.setupEpiboxConfig = async (epiBoxFolderId, application=APPNAME) => {
   await box.uploadFile(newUserConfigFD)
 }
 
-box.selectDataset = async (folderId) => {
-  
-}
-
 box.getUserConfig = async () => {
   // Gets the application configuration file from the _epibox folder in the user's root directory. First checks the epiboxUserConfig for an entry
   // corresponding to the application. If present, reads and returns the file id in the entry; if absent, creates the entire hierarchy of folders
@@ -523,7 +538,7 @@ box.changeLastUsedDataset = async (datasetFolderId) => {
     path.userConfig.lastUsedDataset = datasetFolderId
     path.userConfig.preferences.datasetAccessLog = path.userConfig.preferences.datasetAccessLog || {}
     path.userConfig.preferences.datasetAccessLog[datasetFolderId] = Date.now()
-    
+
     const newConfigBlob = new Blob([JSON.stringify(path.userConfig)], {
       type: "application/json"
     })
