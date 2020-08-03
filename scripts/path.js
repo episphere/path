@@ -206,7 +206,7 @@ path.setupEventListeners = () => {
     document.getElementById("username").innerText = `Welcome ${username.split(" ")[0]}!`
 
     path.userConfig = await box.getUserConfig()
-    document.getElementById("datasetSelectSpan").style.display = "flex"
+    
     if (path.userConfig.lastUsedDataset && path.userConfig.lastUsedDataset !== -1) {
     
       path.selectDataset(path.userConfig.lastUsedDataset)
@@ -343,6 +343,7 @@ const populateDatasetSelectDropdown = async (selectedDatasetId) => {
     })
   }
   datasetSelectDropdownBtn.removeAttribute("disabled")
+  document.getElementById("datasetSelectSpan").style.display = "flex"
 }
 
 const loadDefaultImage = async () => {
