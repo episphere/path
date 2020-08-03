@@ -206,18 +206,18 @@ path.setupEventListeners = () => {
     document.getElementById("username").innerText = `Welcome ${username.split(" ")[0]}!`
 
     path.userConfig = await box.getUserConfig()
-    
-    if (path.userConfig.lastUsedDataset !== -1) {
+    document.getElementById("datasetSelectSpan").style.display = "flex"
+    if (path.userConfig.lastUsedDataset && path.userConfig.lastUsedDataset !== -1) {
     
       path.selectDataset(path.userConfig.lastUsedDataset)
     
     } else if(!window.localStorage.selectDatasetModalShown || (window.localStorage.selectDatasetModalShown - Date.now() > 15*60*1000)) {
-    
       const selectDatasetModal = new Modal(document.getElementById("selectDatasetModal"))
       selectDatasetModal.show()
       window.localStorage.selectDatasetModalShown = Date.now()
-    
+      
     }
+    populateDatasetSelectDropdown()
     loadHashParams()
     // await thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
     // if (path.datasetConfig) {
@@ -261,7 +261,7 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
   let datasetConfig = {
     annotations: []
   }
-  if (datasetFolderId != -1) {
+  if (datasetFolderId && datasetFolderId != -1) {
     datasetConfig = await box.getDatasetConfig(datasetFolderId)
     if (datasetConfig) {
       const annotations = datasetConfig.annotations.filter(annotation => !annotation.private || (annotation.private && annotation.createdBy === window.localStorage.userId))
@@ -271,7 +271,6 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
     datasetSelectDropdownBtn.innerHTML = `
        ${datasetConfig.datasetFolderName} <i class="fas fa-caret-down"></i>
     `
-    document.getElementById("datasetSelectSpan").style.display = "flex"
   }
   path.datasetConfig = datasetConfig
   if (hashParams.image) {
@@ -279,7 +278,6 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
     annotations.showAnnotationOptions(path.datasetConfig.annotations, true, forceRedraw)
     thumbnails.reBorderThumbnails()
   }
-  populateDatasetSelectDropdown(datasetFolderId)
   
   if (path.datasetConfig && path.datasetConfig.models && path.datasetConfig.models.trainedModels?.length > 0) {
     const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Loading AI Model..." : "Loading AI Models..."
