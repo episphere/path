@@ -273,6 +273,8 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
     `
   }
   path.datasetConfig = datasetConfig
+  datasetSelectDropdownBtn.removeAttribute("disabled")
+  
   if (hashParams.image) {
     const forceRedraw = true
     annotations.showAnnotationOptions(path.datasetConfig.annotations, true, forceRedraw)
