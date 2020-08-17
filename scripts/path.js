@@ -211,7 +211,7 @@ path.setupEventListeners = () => {
     
       path.selectDataset(path.userConfig.lastUsedDataset)
     
-    } else if(!window.localStorage.selectDatasetModalShown || (window.localStorage.selectDatasetModalShown - Date.now() > 15*60*1000)) {
+    } else if(!window.localStorage.selectDatasetModalShown || (Date.now() - window.localStorage.selectDatasetModalShown > 10*60*1000)) {
       const selectDatasetModal = new Modal(document.getElementById("selectDatasetModal"))
       selectDatasetModal.show()
       window.localStorage.selectDatasetModalShown = Date.now()

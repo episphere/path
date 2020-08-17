@@ -65,11 +65,11 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
   
       annotationCard += `
             </div>
-            <div class="dropdown classificationMenu" id="${annotationName}_classificationMenu">
+            <div class="dropdown dropleft classificationMenu" id="${annotationName}_classificationMenu">
               <button class="btn btn-light dropdown-toggle classificationMenuToggle" role="button" id="${annotationName}_classificationMenuToggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                 <i class="fas fa-ellipsis-v"></i>
               </button>
-              <div class="dropdown-menu dropdown-menu-right classificationMenuDropdown">
+              <div class="dropdown-menu classificationMenuDropdown">
                 <div class="classificationMenuButtons">
                   <button class="btn btn-light classificationMenuOption" role="button" id="${annotationName}_editClassification" title="Edit" onclick="editClassificationConfig(${annotationId})"  aria-haspopup="true" aria-expanded="false">
                     <i class="fas fa-pencil-alt"></i> &nbsp;Edit Config
@@ -688,12 +688,16 @@ const addClassificationToConfig = () => {
   let formIsValid = true
   let alertMessage = ""
   let newAnnotation = {}
+  let isEditing = false
+  let oldAnnotation = {} // To compare if anything changed when an edit was made
   
   const annotationForm = document.getElementById("createClassificationForm")
 
   const annotationIdToEdit = parseInt(annotationForm.getAttribute("annotationId"))
   if (annotationIdToEdit) {
     const annotationConfig = path.datasetConfig.annotations.find(a => a.annotationId === annotationIdToEdit)
+    isEditing = true
+    oldAnnotation = JSON.parse(JSON.stringify(annotationConfig))
     newAnnotation = JSON.parse(JSON.stringify(annotationConfig))
   } else {
     newAnnotation = {
@@ -733,7 +737,7 @@ const addClassificationToConfig = () => {
 
             break
           }
-
+          
           newAnnotation["displayName"] = element.value
 
           newAnnotation["annotationName"] = element.value.split(" ").map((word, ind) => {
@@ -762,18 +766,18 @@ const addClassificationToConfig = () => {
             }
           } else {
             const alreadyDefinedLabels = newAnnotation.labels.map(label => label.displayText)
-            if (alreadyDefinedLabels.indexOf(element.value) != -1) {
+            if (alreadyDefinedLabels.indexOf(element.value) != -1 && !isEditing) {
               formIsValid = false
               alertMessage = alertMessage || "Labels must have unique values!"
               element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
               document.getElementById(`labelDisplayText_${alreadyDefinedLabels.indexOf(element.value)}`).style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)"
               break
             }
-
+            
             const labelTextIndex = parseInt(element.id.split("_")[1])
             newAnnotation.labels[labelTextIndex] = newAnnotation.labels[labelTextIndex] ? {
-              "displayText": element.value,
-              ...newAnnotation.labels[labelTextIndex]
+              ...newAnnotation.labels[labelTextIndex],
+              "displayText": element.value
             } : {
               "displayText": element.value
             }
@@ -797,7 +801,7 @@ const addClassificationToConfig = () => {
 
           } else {
             const alreadyDefinedLabels = newAnnotation.labels.map(label => label.label)
-            if (alreadyDefinedLabels.indexOf(element.value) != -1) {
+            if (alreadyDefinedLabels.indexOf(element.value) != -1 && !isEditing) {
               formIsValid = false
               alertMessage = alertMessage || "Labels must have unique values!"
               element.style.boxShadow = "0px 0px 10px rgba(200, 0, 0, 0.85)";
@@ -807,10 +811,10 @@ const addClassificationToConfig = () => {
 
             const labelValueIndex = parseInt(element.id.split("_")[1])
             newAnnotation.labels[labelValueIndex] = newAnnotation.labels[labelValueIndex] ? {
-              "label": element.value,
-              ...newAnnotation.labels[labelValueIndex]
+              ...newAnnotation.labels[labelValueIndex],
+              "label": element.value
             } : {
-              "displayText": element.value
+              "label": element.value
             }
           }
 
@@ -841,9 +845,32 @@ const addClassificationToConfig = () => {
     }
   })
 
+  if (isEditing) {
+    const labelDisplayTexts = newAnnotation.labels.map(label => label.displayText)
+    const labelValues = newAnnotation.labels.map(label => label.label)
+    if (labelDisplayTexts.length > (new Set(labelDisplayTexts)).size || labelValues.length > (new Set(labelValues)).size) {
+      formIsValid = false
+      alertMessage = alertMessage || "Labels must have unique values!"
+    }
+  }
+
   if (!formIsValid) {
     alert(alertMessage)
     return
+  }
+
+  if (isEditing) {
+    let formHasChanged = false
+    Object.keys(oldAnnotation).forEach(key => {
+      if (key !== "labels") {
+        formHasChanged = formHasChanged || oldAnnotation[key] !== newAnnotation[key]
+      } else {
+        formHasChanged = formHasChanged || oldAnnotation[key].length !== newAnnotation[key].length || oldAnnotation[key].filter(oldLabel => newAnnotation[key].findIndex(newLabel => newLabel.displayText === oldLabel.displayText && newLabel.label === oldLabel.label) === -1).length > 0
+      }
+    })
+    if (!formHasChanged) {
+      return
+    }
   }
 
   if (annotationIdToEdit) {
@@ -888,6 +915,9 @@ const editClassificationConfig = (annotationId) => {
           case "labelType":
             element.value = annotationToEdit[element.name]
             displayLabelsSectionInModal(element)
+
+          // case "label":
+
 
           case "enableComments":
             element.checked = annotationToEdit.enableComments

@@ -17,6 +17,7 @@
   <script src="scripts/annotations.js"></script>
   <script src="scripts/thumbnails.js"></script>
   <script src="scripts/tools.js"></script>
+  <script src="scripts/models.js"></script>
   <link rel="stylesheet" href="path.css">
   <script type="text/javascript" src="https://app.box.com/js/static/select.js" async></script>
   <script src="https://togetherjs.com/togetherjs-min.js" async></script>
@@ -138,7 +139,9 @@
           </div>
           <div class="tab-pane fade" id="model" role="tabpanel" aria-labelledby="model-tab">
             <div class="tabContainer tabContainerWithMargin">
-              <button class="btn btn-primary" onclick="path.annotateFolder(hashParams.folder)" disabled>Predict For Current Folder</button>
+              <div class="accordion" id="modelsAccordion">
+              </div>
+              <!-- <button class="btn btn-primary" onclick="path.annotateFolder(hashParams.folder)" disabled>Predict For Current Folder</button> -->
             </div>
           </div>
           <div class="tab-pane fade" id="collaborate" role="tabpanel" aria-labelledby="collaborate-tab">
@@ -253,7 +256,7 @@
             </button>
           </div>
           <div class="modal-body">
-            <p>Start by selecting your <em>Dataset Folder</em> from the dropdown or by clicking on the&nbsp; <i class="fas fa-ellipsis-v"></i>&nbsp; icon against your dataset folder in <a href="" data-dismiss="modal"><u style="color:cornflowerblue">My Box</u></a>!</p>
+            <p>Start by selecting your dataset folder from the <b>Datasets</b> dropdown or by clicking on the&nbsp; <i class="fas fa-ellipsis-v"></i>&nbsp; icon against the folder in <a href="" data-dismiss="modal"><u style="color:cornflowerblue">My Box</u></a>!</p>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-primary" data-dismiss="modal">Okay</button>

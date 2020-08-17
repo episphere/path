@@ -565,7 +565,7 @@ canvas {
   color: lightslategray;
 }
 
-.dropdown-toggle.classificationMenuToggle::after {
+.dropdown-toggle.classificationMenuToggle::before {
   display: none;
 }
 
