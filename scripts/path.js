@@ -153,10 +153,11 @@ const path = async () => {
   loadDefaultImage()
   path.loadModules()
 
-  path.predictionWorker = new Worker('scripts/modelPrediction.js')
+  const basePath = window.location.pathname === "/" ? "" : window.location.pathname
+  path.predictionWorker = new Worker(`${basePath}/scripts/modelPrediction.js`)
   path.modelsLoaded = {}
   
-  path.tiffWorker = new Worker('scripts/processImage.js')
+  path.tiffWorker = new Worker(`${basePath}/scripts/processImage.js`)
   path.tiffUnsupportedAlertShown = false
 }
 
