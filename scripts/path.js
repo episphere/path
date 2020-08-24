@@ -6,6 +6,8 @@ const indexedDBConfig = {
   dbName: "boxCreds",
   objectStoreName: "oauth"
 }
+
+const basePath = window.location.pathname === "/" ? "" : window.location.pathname
 let configFileId = window.location.hash.includes("covid") ? 644912149213 : 627997326641
 // const configFileId = 627997326641
 const containsEmojiRegex = new RegExp("(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])")
@@ -152,10 +154,6 @@ const path = async () => {
   loadHashParams()  
   loadDefaultImage()
   path.loadModules()
-
-  const basePath = window.location.pathname === "/" ? "" : window.location.pathname
-  path.predictionWorker = new Worker(`${basePath}/scripts/modelPrediction.js`)
-  path.modelsLoaded = {}
   
   path.tiffWorker = new Worker(`${basePath}/scripts/processImage.js`)
   path.tiffUnsupportedAlertShown = false
@@ -285,20 +283,22 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
   if (path.datasetConfig && path.datasetConfig.models && path.datasetConfig.models.trainedModels?.length > 0) {
     const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Loading AI Model..." : "Loading AI Models..."
     utils.showToast(toastMessage)
-    path.predictionWorker.postMessage({
-      "op": "loadModels", 
-      "body": {
-        "modelsConfig": path.datasetConfig.models
-      }
-    })
-    path.predictionWorker.onmessage = (message) => {
-      if (message.data.annotationId && message.data.modelLoaded) {
-        path.modelsLoaded[message.data.annotationId] = true
-      } if (Object.keys(path.modelsLoaded).length === path.datasetConfig.models.trainedModels.length) {
-        const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Model loaded successfully!" : "Models loaded successfully!"
-        utils.showToast(toastMessage)
-      }
-    }
+    // path.predictionWorker.postMessage({
+    //   "op": "loadModels", 
+    //   "body": {
+    //     "modelsConfig": path.datasetConfig.models
+    //   }
+    // })
+    models.populateAccordion(path.datasetConfig.models, false)
+    models.loadModels(path.datasetConfig.models)
+    // path.predictionWorker.onmessage = (message) => {
+    //   if (message.data.annotationId && message.data.modelLoaded) {
+    //     path.modelsLoaded[message.data.annotationId] = true
+    //   } if (Object.keys(path.modelsLoaded).length === path.datasetConfig.models.trainedModels.length) {
+    //     const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Model loaded successfully!" : "Models loaded successfully!"
+    //     utils.showToast(toastMessage)
+    //   }
+    // }
   }
 }
 
@@ -663,111 +663,6 @@ const startCollaboration = () => {
   return false
 }
 
-const getModelPrediction = (annotationId, annotationType, imageId=hashParams.image, forceModel=false) => {
-  
-  return new Promise(async (resolve) => {
-    const updatePredictionInBox = (imageId, prediction, annotationName) => {
-      annotations["model"] = prediction
-      const boxMetadataPath = `/${annotationName}`
-      box.updateMetadata(imageId, boxMetadataPath, JSON.stringify(annotations)).then(newMetadata => {
-        window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-      })
-    }
-    let annotations = JSON.parse(window.localStorage.fileMetadata)[annotationType]
-    annotations = annotations ? JSON.parse(annotations) : {}
-    if (!forceModel && annotations["model"]) {
-      if (annotations["model"][0].classification) {
-        const prediction = [{
-          'label': annotations["model"][0].displayName,
-          'prob': annotations["model"][0].classification.score
-        }]
-        // updatePredictionInBox(imageId, prediction, annotationType)
-        resolve(prediction)
-      } else {
-        resolve(annotations["model"])
-      }
-    } else if (path.predictionWorker && path.modelsLoaded[annotationId]) {
-      let imageBitmap = []
-      if (imageId === hashParams.image) {
-        const offscreenCV = new OffscreenCanvas(path.tmaImage.width, path.tmaImage.height)
-        const offscreenCtx = offscreenCV.getContext('2d')
-        offscreenCtx.drawImage(path.tmaImage, 0, 0, path.tmaImage.width, path.tmaImage.height)
-        imageBitmap = offscreenCV.transferToImageBitmap()
-        path.predictionWorker.postMessage({
-          'op': "predict",
-          'body': {
-            'annotationId': annotationId,
-            'tmaImageData': {
-              imageBitmap,
-              'width': path.tmaImage.width,
-              'height': path.tmaImage.height
-            }
-          }
-        }, [imageBitmap])
-      } else {
-        const fileContent = await box.getFileContent(imageId)
-        const tempImage = new Image()
-        tempImage.crossOrigin = "anonymous"
-        tempImage.src = fileContent.url
-        tempImage.onload = (() => {
-          const offscreenCV = new OffscreenCanvas(tempImage.width, tempImage.height)
-          const offscreenCtx = offscreenCV.getContext('2d')
-          offscreenCtx.drawImage(tempImage, 0, 0, tempImage.width, tempImage.height)
-          imageBitmap = offscreenCV.transferToImageBitmap()
-          path.predictionWorker.postMessage({
-            'op': "predict",
-            'body': {
-              'annotationId': annotationId,
-              'tmaImageData': {
-                imageBitmap,
-                'width': tempImage.width,
-                'height': tempImage.height
-              }
-            }
-          }, [imageBitmap])
-        })
-      }
-      
-  
-      path.predictionWorker.onmessage = (e) => {
-        resolve(e.data)
-        // updatePredictionInBox(imageId, e.data, annotationType)
-      }
-    } else {
-      resolve(null)
-      // const payload = {
-      //   annotationType,
-      //   "image": path.tmaCanvas.toDataURL().split("base64,")[1]
-      // }
-      
-      // prediction = await utils.request("https://us-central1-nih-nci-dceg-episphere-dev.cloudfunctions.net/getPathPrediction", {
-      //   method: "POST",
-      //   headers: {
-      //     "Content-Type": "application/json"
-      //   },
-      //   body: JSON.stringify(payload)
-      // }, false)
-      // .then(res => {
-      //   return res.json()
-      // })
-      // .catch(err => {})
-  
-    }
-  })
-
-
-  // const getBase64FromImage = (image) => {
-  //   const tmpCanvas = document.createElement("canvas")
-  //   tmpCanvas.width = image.width
-  //   tmpCanvas.height = image.height
-  //   const tmpCtx = tmpCanvas.getContext("2d")
-  //   tmpCtx.drawImage(image, 0, 0, image.width, image.height)
-  //   return tmpCanvas.toDataURL().split("base64,")[1]
-  // }
-
-  
-}
-
 // const loadLocalModel = async () => {
 //   // path.model = await tf.automl.loadImageClassification("./model/model.json")
 //   path.model = await tf.automl.loadImageClassification("./model/covidModel/model.json")
@@ -785,7 +680,7 @@ path.annotateFolder = async (folderId=hashParams.folder, annotationName) => {
   console.time("Prediction")
   for (let image of images.entries) {
     if (image.type === "file" && utils.isValidImage(image.name)) {
-      const preds = await getModelPrediction(annotation.annotationId, annotationName, image.id, true)
+      const preds = await models.getModelPrediction(annotation.annotationId, annotationName, image.id, true)
       const maxPred = preds.reduce((maxLabel, pred) => {
         if (!maxLabel.prob || maxLabel.prob < pred.prob) {
           maxLabel = pred

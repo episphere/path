@@ -119,7 +119,7 @@ const box = async () => {
       }
       
     }
-    const boxLoginEvent = new CustomEvent("boxLoggedIn", {})
+    const boxLoginEvent = new Event("boxLoggedIn")
     document.dispatchEvent(boxLoginEvent)
     
     console.log("Initializing Refresh Timeout")

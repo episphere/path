@@ -70,18 +70,20 @@ onmessage = async (evt) => {
   const { op, ...data } = evt.data
   // console.log("Message received from main thread!")
   switch (op) {
-    case 'loadModels':
-      const { modelsConfig } = data.body
-      modelsConfig.trainedModels.forEach(async (modelCfg) => {
-        const { correspondingAnnotation, configFileId, weightFiles, dictionaryFileId } = modelCfg
-        const modelConfig = await getFileContentFromBox(configFileId, "json")
-        const handler = new BoxHandler(modelConfig, weightFiles)
-        const graphModel = await tf.loadGraphModel(handler)
-        const dictionary = await getFileContentFromBox(dictionaryFileId, "text")
-        const model = new tf.automl.ImageClassificationModel(graphModel, dictionary.trim().split('\n'))
-        models[correspondingAnnotation] = model
-        postMessage({"annotationId": correspondingAnnotation, "modelLoaded": true})
-      })
+    case 'loadModel':
+      const { modelConfig } = data.body
+      const { correspondingAnnotation, configFileId, weightFiles, dictionaryFileId } = modelConfig
+      const modelArch = await getFileContentFromBox(configFileId, "json")
+      const handler = new BoxHandler(modelArch, weightFiles)
+      const graphModel = await tf.loadGraphModel(handler)
+      const dictionary = await getFileContentFromBox(dictionaryFileId, "text")
+      const model = new tf.automl.ImageClassificationModel(graphModel, dictionary.trim().split('\n'))
+      models[correspondingAnnotation] = {
+        'modelId': modelConfig.id,
+        'modelVersion': modelConfig.version,
+        model
+      }
+      postMessage({ op, "annotationId": correspondingAnnotation, "modelLoaded": true})
       break
     
     case 'predict':
@@ -89,13 +91,18 @@ onmessage = async (evt) => {
       const offscreenCV = new OffscreenCanvas(width, height)
       const offscreentCtx = offscreenCV.getContext('2d')
       offscreentCtx.drawImage(imageBitmap, 0, 0)
-      const pred = await models[annotationId].classify(offscreenCV)
-      postMessage(pred)
+      const prediction = await models[annotationId].model.classify(offscreenCV)
+      postMessage({
+        op,
+        prediction,
+        'modelId': models[annotationId].modelId,
+        'modelVersion': models[annotationId].modelVersion
+      })
       break
 
     case 'test':
       return new Promise(resolve => {
-        setTimeout(()=> resolve(data), 5000)
+        setTimeout(()=> resolve(), 5000)
 
       })
       

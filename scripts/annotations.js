@@ -270,7 +270,7 @@ const showQualitySelectors = async (annotation) => {
 
 const loadModelPredictions = async () => {
   for (const annotation of path.datasetConfig.annotations) {
-    const modelQualityPrediction = await getModelPrediction(annotation.annotationId, annotation.metaName)
+    const modelQualityPrediction = await models.getModelPrediction(annotation.annotationId, annotation.metaName)
     if (modelQualityPrediction) {
       displayModelPrediction(modelQualityPrediction, annotation)
     }
