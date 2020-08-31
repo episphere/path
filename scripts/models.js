@@ -1,28 +1,30 @@
 const models = {}
 
-models.predictionWorker = new Worker(`${basePath}/scripts/modelPrediction.js`)
-models.modelsLoaded = {}
-
-models.predictionWorker.onmessage = (e) => {
-  const {op, ...dataFromWorker} = e.data
-  switch(op) {
-    case 'loadModel': 
-      const { annotationId, modelLoaded } = dataFromWorker
-      if (modelLoaded) {
-        const annotationConfig = path.datasetConfig.annotations.find(annot => annot.annotationId === annotationId)
-        models.modelsLoaded[dataFromWorker.annotationId] = true
-        utils.showToast(`Model Loaded for ${annotationConfig.displayName}`)
-      }
-      break
-
-    case 'predict':
-      const predictionEvent = new CustomEvent("modelPrediction", {
-        detail: dataFromWorker
-      })
-      document.dispatchEvent(predictionEvent)
-      break
+models.loadWorker = () => {
+  models.predictionWorker = new Worker(`${basePath}/scripts/modelPrediction.js`)
+  models.modelsLoaded = {}
+  models.predictionWorker.onmessage = (e) => {
+    const {op, ...dataFromWorker} = e.data
+    switch(op) {
+      case 'loadModel': 
+        const { annotationId, modelLoaded } = dataFromWorker
+        if (modelLoaded) {
+          const annotationConfig = path.datasetConfig.annotations.find(annot => annot.annotationId === annotationId)
+          models.modelsLoaded[dataFromWorker.annotationId] = true
+          utils.showToast(`Model Loaded for ${annotationConfig.displayName}`)
+        }
+        break
+  
+      case 'predict':
+        const predictionEvent = new CustomEvent("modelPrediction", {
+          detail: dataFromWorker
+        })
+        document.dispatchEvent(predictionEvent)
+        break
+    }
   }
 }
+
 
 models.loadModels = (modelsConfig) => {
   // models.predictionWorker.onMessage
@@ -133,9 +135,9 @@ models.populateAccordion = (modelsConfig, forceRedraw=false) => {
 
 models.getModelPrediction = (annotationId, annotationType, imageId=hashParams.image, forceModel=false) => {
   return new Promise(async (resolve) => {
-    let annotations = JSON.parse(window.localStorage.fileMetadata)[annotationType]
-    annotations = annotations ? JSON.parse(annotations) : {}
-    
+    const metadata = imageId === hashParams.image ? JSON.parse(window.localStorage.fileMetadata) :  await box.getMetadata(imageId, "file")
+    const annotations = metadata[annotationType] ? JSON.parse(metadata[annotationType]) : {}
+
     const updatePredictionInBox = (imageId, modelPrediction, annotationName) => {
       if (annotations["model"]) {
         if (!annotations["model"][0]?.modelId) {

@@ -149,6 +149,7 @@ const path = async () => {
   path.tmaImage = new Image()
   path.setupEventListeners()
   path.indexedDB = await path.setupIndexedDB()
+  models.loadWorker()
   
   await box()
   loadHashParams()  
@@ -214,7 +215,6 @@ path.setupEventListeners = () => {
       const selectDatasetModal = new Modal(document.getElementById("selectDatasetModal"))
       selectDatasetModal.show()
       window.localStorage.selectDatasetModalShown = Date.now()
-      
     }
     populateDatasetSelectDropdown()
     loadHashParams()
@@ -233,10 +233,10 @@ path.setupEventListeners = () => {
   })
 
   const addClassificationModal = document.getElementById("addClassificationModal")
-  addClassificationModal.addEventListener("show.bs.modal", (evt) => {
+  addClassificationModal.addEventListener("show.bs.modal", () => {
     document.getElementById("datasetFolderId").value = path.datasetConfig.datasetFolderId ? path.datasetConfig.datasetFolderId : "INVALID"
   })
-  addClassificationModal.addEventListener("hidden.bs.modal", (evt) => {
+  addClassificationModal.addEventListener("hidden.bs.modal", () => {
     annotations.resetAddClassificationModal()
   })
 

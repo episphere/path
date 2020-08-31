@@ -243,21 +243,25 @@ box.getThumbnail = async (id) => {
 
 box.getMetadata = async (id, type) => {
   const metadataAPI = `${box.endpoints['data'][type]}/${id}/${box.endpoints['subEndpoints']['metadata']}`
-  let metadata = await utils.boxRequest(metadataAPI)
-  if (metadata.status === 404) {
-    metadata = await box.createMetadata(id, type) // Returns 409 for some reason, but works :/ Probably a bug in the Box API
+  let metadata = {}
+  try {
+    metadata = await utils.boxRequest(metadataAPI)
+  } catch (e) {
+    if (e.message === "404") {
+      metadata = await box.createMetadata(id, type)
+    }
   }
   return metadata
 }
 
-box.createMetadata = async (id, type) => {
+box.createMetadata = async (id, type, body=JSON.stringify({})) => {
   const metadataAPI = `${box.endpoints['data'][type]}/${id}/${box.endpoints['subEndpoints']['metadata']}`
   return utils.boxRequest(metadataAPI, {
     'method': "POST",
     'headers': {
       'Content-Type': "application/json"
     },
-    'body': JSON.stringify({})
+    'body': body
   })
 }
 
@@ -270,20 +274,25 @@ box.uploadFile = (updateData, id) => {
   })
 }
 
-box.updateMetadata = (id, path, updateData) => {
+box.updateMetadata = async (id, path, updateData) => {
   const updatePatch = [{
     'op': "add",
     path,
     'value': updateData
   }]
-
-  return utils.boxRequest(`${box.endpoints['data']["file"]}/${id}/${box.endpoints['subEndpoints']['metadata']}`, {
-    'method': "PUT",
-    'headers': {
-      'Content-Type': "application/json-patch+json"
-    },
-    'body': JSON.stringify(updatePatch)
-  })
+  try {
+    await utils.boxRequest(`${box.endpoints['data']["file"]}/${id}/${box.endpoints['subEndpoints']['metadata']}`, {
+      'method': "PUT",
+      'headers': {
+        'Content-Type': "application/json-patch+json"
+      },
+      'body': JSON.stringify(updatePatch)
+    })
+  } catch (e) {
+    if (e.message === "404") {
+      await box.createMetadata(id, "file")
+    }
+  }
 
 }
 

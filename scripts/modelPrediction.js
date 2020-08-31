@@ -9,6 +9,7 @@ const models = {}
 let workerDB = {}
 indexedDB.open(indexedDBConfig.dbName).onsuccess = (evt) => {
   workerDB = evt.target.result
+  // console.log(workerDB)
 }
 
 const utils = {
