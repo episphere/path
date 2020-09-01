@@ -1,5 +1,3 @@
-const JPEG_REPRESENTATIONS_FOLDER_ID = 108721514647
-
 const getFileContentsFromBox = (token, id) => {
   const contentEndpoint = `https://api.box.com/2.0/files/${id}/content`
   return fetch(contentEndpoint, {
@@ -45,7 +43,7 @@ onerror = (err) => {
 
 onmessage = async (evt) => {
   importScripts("../external/tiff.min.js")
-  const { boxAccessToken, imageId, name, size } = evt.data
+  const { boxAccessToken, imageId, jpegRepresentationsFolderId, name, size } = evt.data
 
   if (size) {
     Tiff.initialize({
@@ -74,7 +72,7 @@ onmessage = async (evt) => {
   const fileAttributes = {
     'name': name.split(".tiff")[0].trim() + `_${Date.now()}` + ".jpg",
     'parent': {
-      'id': JPEG_REPRESENTATIONS_FOLDER_ID
+      'id': jpegRepresentationsFolderId
     }
   }
 

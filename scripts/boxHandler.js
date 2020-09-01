@@ -466,7 +466,7 @@ box.getDatasetConfig = async (datasetFolderId, forceCreateNew = false) => {
       appFolderEntry = epiBoxContents.entries.find(entry => entry.name === appFolderName)
       if (!appFolderEntry) {
         // Create _epiPath folder if it doesn't exist
-        appFolderEntry  = await box.createFolder(appFolderName, epiBoxFolderId)
+        appFolderEntry = await box.createFolder(appFolderName, epiBoxFolderId)
       }
     }
   
@@ -491,6 +491,7 @@ box.getDatasetConfig = async (datasetFolderId, forceCreateNew = false) => {
         
         const datasetConfigTemplate = await utils.request(configTemplates.datasetConfig, {}, true)
         datasetConfigTemplate.datasetFolderId = datasetFolderId
+        datasetConfigTemplate.datasetConfigFolderId = appFolderId
         datasetConfigTemplate.datasetFolderName = datasetEpiBoxEntry.path_collection.entries[datasetEpiBoxEntry.path_collection.entries.length - 1].name
         const newConfigBlob = new Blob([JSON.stringify(datasetConfigTemplate)], {
           type: "application/json"

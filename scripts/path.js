@@ -445,11 +445,20 @@ const loadImageFromBox = async (id, url) => {
               if (url) {
                 await loadImgFromBoxFile(null, url)
               }
+
+              if (!path.datasetConfig.jpegRepresentationsFolderId || path.datasetConfig.jpegRepresentationsFolderId === -1) {
+                const jpegRepresentationsFolderEntry = await box.createFolder("jpegRepresentations", path.datasetConfig.datasetConfigFolderId)
+                const objectToAdd = {
+                  jpegRepresentationsFolderId: jpegRepresentationsFolderEntry.id
+                }
+                box.addToDatasetConfig(objectToAdd)
+              }
   
               if (typeof OffscreenCanvas === "function") {
                 path.tiffWorker.postMessage({
                   'boxAccessToken': JSON.parse(window.localStorage.box)["access_token"],
                   'imageId': id,
+                  'jpegRepresentationsFolderId': path.datasetConfig.jpegRepresentationsFolderId,
                   name,
                   size
                 })
