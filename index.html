@@ -5,7 +5,7 @@
   <title>EpiPath TMAs</title>
   <!-- <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"></script> -->
   <script type="text/javascript"
-    src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap.native/2.0.27/bootstrap-native-v4.min.js" async></script>
+    src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap.native/3.0.13/bootstrap-native.min.js" async></script>
   <!-- <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script> -->
   <!-- <script src="bsn_temp.js "></script> -->
   <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
@@ -18,6 +18,7 @@
   <script src="scripts/thumbnails.js"></script>
   <script src="scripts/tools.js"></script>
   <script src="scripts/models.js"></script>
+  <script src="scripts/datasetTab.js"></script>
   <link rel="stylesheet" href="path.css">
   <script type="text/javascript" src="https://app.box.com/js/static/select.js" async></script>
   <script src="https://togetherjs.com/togetherjs-min.js" async></script>
@@ -97,11 +98,11 @@
           </li>
           <li class="nav-item">
             <a class="nav-link" id="annotations-tab" data-toggle="tab" href="#annotations" role="tab"
-              aria-controls="annotations" aria-selected="false">Annotations</a>
+            aria-controls="annotations" aria-selected="false">Annotations</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" id="model-tab" data-toggle="tab" href="#model" role="tab"
-              aria-controls="model" aria-selected="false">AI Models</a>
+            <a class="nav-link" id="dataset-tab" data-toggle="tab" href="#dataset" role="tab"
+              aria-controls="dataset" aria-selected="false">Dataset</a>
           </li>
           <li class="nav-item">
             <a class="nav-link" id="collaborate-tab" data-toggle="tab" href="#collaborate" role="tab"
@@ -138,7 +139,7 @@
               <button type="button" class="btn btn-link" id="addClassificationBtn" data-toggle="modal" data-target="#addClassificationModal" disabled>+ Add Classifications</button>
             </div>
           </div>
-          <div class="tab-pane fade" id="model" role="tabpanel" aria-labelledby="model-tab">
+          <div class="tab-pane fade" id="dataset" role="tabpanel" aria-labelledby="model-tab">
             <div class="tabContainer tabContainerWithMargin">
               <div class="accordion" id="modelsAccordion">
               </div>
@@ -296,7 +297,7 @@
   </div>
 </body>
 <!-- <script src="opencv.js" async></script> -->
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.4.0/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js"></script>
 
 </html>
