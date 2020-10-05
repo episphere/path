@@ -7,10 +7,14 @@ const indexedDBConfig = {
 const models = {}
 
 let workerDB = {}
-indexedDB.open(indexedDBConfig.dbName).onsuccess = (evt) => {
-  workerDB = evt.target.result
-  // console.log(workerDB)
-}
+
+const fetchIndexedDBInstance = () => new Promise(resolve => {
+  indexedDB.open(indexedDBConfig.dbName).onsuccess = (evt) => {
+    workerDB = evt.target.result
+    resolve()
+    // console.log(workerDB)
+  }
+})
 
 const utils = {
   request: (url, opts) => 
@@ -101,12 +105,6 @@ onmessage = async (evt) => {
       })
       break
 
-    case 'test':
-      return new Promise(resolve => {
-        setTimeout(()=> resolve(), 5000)
-
-      })
-      
   }
   // const tmaImage = tf.tensor3d(evt.data)
   // postMessage(pred)
@@ -114,7 +112,8 @@ onmessage = async (evt) => {
 }
 
 const getFileContentFromBox = (id, fileType="json") => {
-  return new Promise(resolve => {
+  return new Promise(async (resolve) => {
+    await fetchIndexedDBInstance()
     workerDB.transaction("oauth", "readwrite").objectStore("oauth").get(1).onsuccess = async (evt) => {
       const accessToken = evt.target.result.access_token
       const contentEndpoint = `https://api.box.com/2.0/files/${id}/content`
