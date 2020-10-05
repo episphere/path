@@ -93,7 +93,7 @@ myBox.loadFileManager = async (id = boxRootFolderId, forceRedraw) => {
           </div>
           <div class="fileMgrOptions">
             <div>
-              <label for="fileMgrHideFilenameCheckbox" style="color: royalblue; margin-bottom:0;">Hide Filenames&nbsp;&nbsp;</label>
+              <label for="fileMgrHideFilenameCheckbox" style="color:royalblue; margin-bottom:0;">Hide Filenames&nbsp;&nbsp;</label>
               <input type="checkbox" id="fileMgrHideFilenameCheckbox" class="form-group" style="margin-bottom:0;" onchange="myBox.hideFilenames(this)"></input>
             </div>
           </div>
@@ -101,8 +101,8 @@ myBox.loadFileManager = async (id = boxRootFolderId, forceRedraw) => {
       `
       optionsToggleDiv.innerHTML = optionsToggle
       fileMgrOptions.appendChild(optionsToggleDiv)
-      new Collapse(document.getElementById("fileMgrOptionsToggle"))
-      new Dropdown(document.getElementById("fileMgrSortOption"))
+      new BSN.Collapse(document.getElementById("fileMgrOptionsToggle"))
+      new BSN.Dropdown(document.getElementById("fileMgrSortOption"))
 
       if (hashParams.sort) {
         const sortButtonToActivate = document.getElementById("fileMgrSortValues").querySelector(`button[value=${hashParams.sort}]`)
@@ -154,7 +154,9 @@ myBox.loadFolderTree = (folderData) => {
   if (folderData && folderData.item_status === "active") {
     let {
       item_collection: {
-        entries
+        entries,
+        limit,
+        total_count
       }
     } = folderData
 
@@ -171,7 +173,7 @@ myBox.loadFolderTree = (folderData) => {
         entries.sort(()=> 0.5-Math.random())
       }
       if (hideFilenamesSelected) {
-        entries = entries.map(file => {
+        entries = entries.map(entry => {
           if (entry.type === "file") {
             entry.name = entry.id
           }
@@ -180,7 +182,11 @@ myBox.loadFolderTree = (folderData) => {
       }
 
       parentElement.firstChild && parentElement.removeChild(parentElement.firstChild) // Removes Empty Directory element if present. 
-      const folderSubDiv = myBox.populateFolderTree(entries, id)
+      const currentFolderDiv = document.createElement("div")
+      currentFolderDiv.setAttribute("class", `boxFileMgr_folderTree`)
+      currentFolderDiv.setAttribute("id", `boxFileMgr_folderTree_${id}`)
+      const moreFiles = limit < total_count
+      const folderSubDiv = myBox.populateFolderTree(entries, currentFolderDiv, moreFiles)
       // hideLoader(loaderElementId)
 
       parentElement.style.height = window.innerHeight - parentElement.getBoundingClientRect().y - 40 // 40 seems to be the initial width of the canvas
@@ -193,7 +199,7 @@ myBox.loadFolderTree = (folderData) => {
 
       // To Enable Dropdown for folders
       const folderOptionsTogglers = document.querySelectorAll(".dropdown.boxFolderOptionsDiv")
-      folderOptionsTogglers.forEach(folderOptionDiv => new Dropdown(folderOptionDiv))
+      folderOptionsTogglers.forEach(folderOptionDiv => new BSN.Dropdown(folderOptionDiv))
 
     } else if (entries.length === 0) {
       parentElement.style.textAlign = "center"
@@ -205,12 +211,12 @@ myBox.loadFolderTree = (folderData) => {
   }
 }
 
-myBox.populateFolderTree = (entries, id) => {
-  const currentFolderDiv = document.createElement("div")
-  currentFolderDiv.setAttribute("class", `boxFileMgr_folderTree`)
-  currentFolderDiv.setAttribute("id", `boxFileMgr_folderTree_${id}`)
-  
-  entries.forEach(entry => {
+myBox.populateFolderTree = (entries, currentFolderDiv, moreFiles=false) => {
+  const addMoreFilesToFolderTree = () => {
+    console.log(currentFolderDiv.querySelectorAll("div.boxFileMgr_subFolder"))
+  }
+
+  const addFileElementToFolderTree = (entry, currentFolderDiv) => {
     // Do not show _epibox and _app folders
     if (entry.name !== `_${EPIBOX}` && entry.name !== `_${APPNAME}`) {
       const entryBtnDiv = document.createElement("div")
@@ -285,7 +291,6 @@ myBox.populateFolderTree = (entries, id) => {
         } else if (entry.type === "file" && utils.isValidImage(entry.name)) {
           if (entry.id !== hashParams.image) {
             path.selectImage(entry.id)
-            myBox.highlightImage(entry.id)
           }
         }
       }
@@ -294,7 +299,23 @@ myBox.populateFolderTree = (entries, id) => {
       currentFolderDiv.appendChild(entryBtnDiv)
       currentFolderDiv.appendChild(document.createElement("hr"))
     }
-  })
+  }
+
+  entries.forEach(entry => addFileElementToFolderTree(entry, currentFolderDiv))
+
+  if (moreFiles) {
+    const moreFilesBtnDiv = document.createElement("div")
+    moreFilesBtnDiv.setAttribute("class", "boxMoreFilesDiv")
+    moreFilesBtnDiv.setAttribute("id", `moreFilesDiv`)
+    const moreFilesBtn = document.createElement("button")
+    moreFilesBtn.setAttribute("class", "btn btn-outline-info")
+    moreFilesBtn.setAttribute("id", "moreFilesBtn")
+    moreFilesBtn.setAttribute("type", "button")
+    moreFilesBtn.innerText = "+ More Files"
+    moreFilesBtn.onclick = () => addMoreFilesToFolderTree(currentFolderDiv)
+    moreFilesBtnDiv.appendChild(moreFilesBtn)
+    currentFolderDiv.appendChild(moreFilesBtnDiv)
+  }
   // currentFolderDiv.appendChild(folderTree)
   return currentFolderDiv
 }

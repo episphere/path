@@ -284,6 +284,18 @@ canvas {
   margin: auto 1.5rem auto 0;
 }
 
+.boxMoreFilesDiv {
+  width: 100%;
+  text-align: center;
+}
+
+.boxMoreFilesDiv>button {
+  width: 100%;
+  padding-top: 0.7rem;
+  padding-bottom: 0.7rem;
+  font-size: 16px;
+}
+
 .boxFolderOptionsToggle {
   width: fit-content;
   height: fit-content;
