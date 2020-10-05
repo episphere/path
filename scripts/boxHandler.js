@@ -233,7 +233,7 @@ box.getFileContent = async (id, isFileJSON=false) => {
 }
 
 box.getThumbnail = async (id) => {
-  const sizeParams = "min_width=50&min_height=50&max_width=100&max_height=100"
+  const sizeParams = "min_width=50&min_height=50&max_width=160&max_height=160"
   let thumbnailEndpoint = `${box.endpoints['data']['file']}/${id}/${box.endpoints['subEndpoints']['thumbnail']}`
   thumbnailEndpoint += `?${sizeParams}`
   const thumbnailResp = await utils.boxRequest(thumbnailEndpoint, {}, false)
@@ -280,8 +280,9 @@ box.updateMetadata = async (id, path, updateData) => {
     path,
     'value': updateData
   }]
+  let metadata = {}
   try {
-    await utils.boxRequest(`${box.endpoints['data']["file"]}/${id}/${box.endpoints['subEndpoints']['metadata']}`, {
+    metadata = await utils.boxRequest(`${box.endpoints['data']["file"]}/${id}/${box.endpoints['subEndpoints']['metadata']}`, {
       'method': "PUT",
       'headers': {
         'Content-Type': "application/json-patch+json"
@@ -290,10 +291,10 @@ box.updateMetadata = async (id, path, updateData) => {
     })
   } catch (e) {
     if (e.message === "404") {
-      await box.createMetadata(id, "file")
+      metadata = await box.createMetadata(id, "file")
     }
   }
-
+  return metadata
 }
 
 box.getRepresentation = async (url) => {
@@ -432,7 +433,7 @@ box.getUserConfig = async () => {
   return userConfig
 }
 
-box.getDatasetConfig = async (datasetFolderId, forceCreateNew = false) => {
+box.getDatasetConfig = async (datasetFolderId, forceCreateNew=false) => {
   let datasetConfig = {}
   
   const availableDataset = path.userConfig.datasetsUsed.find(dataset => dataset.folderId === datasetFolderId)
