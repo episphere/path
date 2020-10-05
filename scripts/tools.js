@@ -43,7 +43,7 @@ tools.addLocalFileButton = async () => {
   }
 
   addFileBtn.setAttribute("title", "Add Local File")
-  new Tooltip(addFileBtn, {
+  new BSN.Tooltip(addFileBtn, {
     'placement': "bottom",
     'animation': "slideNfade",
     'delay': 50
@@ -73,7 +73,7 @@ tools.segmentButton = () => {
   segmentDiv.appendChild(segmentBtn)
   path.toolsDiv.appendChild(segmentDiv)
 
-  new Tooltip(segmentDiv, {
+  new BSN.Tooltip(segmentDiv, {
     'placement': "bottom",
     'animation': "slideNfade",
     'delay': 50
@@ -291,7 +291,7 @@ tools.zoomButton = () => {
   zoomToolDiv.appendChild(zoomBtnDiv)
   zoomToolDiv.appendChild(zoomOptionsDiv)
 
-  new Dropdown(zoomOptionsBtn, true);
+  new BSN.Dropdown(zoomOptionsBtn, true);
 
   path.toolsDiv.appendChild(zoomToolDiv)
 }

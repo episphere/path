@@ -135,11 +135,11 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
         `
       annotationCardDiv.innerHTML += annotationCard
       annotationsAccordion.appendChild(annotationCardDiv)
-      new Collapse(document.getElementById(`${annotationName}Toggle`))
-      new Dropdown(document.getElementById(`${annotationName}_classificationMenu`))
+      new BSN.Collapse(document.getElementById(`${annotationName}Toggle`))
+      new BSN.Dropdown(document.getElementById(`${annotationName}_classificationMenu`))
   
       if (definition) {
-        new Popover(document.getElementById(`${annotationName}_definitionPopup`), {
+        new BSN.Popover(document.getElementById(`${annotationName}_definitionPopup`), {
           placement: "right",
           animation: "slidenfade",
           delay: 100,
@@ -152,7 +152,7 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
       if (enableComments) {
   
         const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
-        new Collapse(toggleCommentsButton)
+        new BSN.Collapse(toggleCommentsButton)
         const commentsCollapseDiv = document.getElementById(`${annotationName}_allComments`)
         commentsCollapseDiv.addEventListener("show.bs.collapse", (evt) => {
           toggleCommentsButton.innerHTML = "- Hide All Comments"
@@ -231,7 +231,7 @@ const showQualitySelectors = async (annotation) => {
       qualityButton.innerText = displayText
       if (tooltip) {
         qualityButton.setAttribute("title", tooltip)
-        new Tooltip(qualityButton, {
+        new BSN.Tooltip(qualityButton, {
           'placement': "right",
           'animation': "slideNfade",
           'delay': 100,
@@ -568,14 +568,14 @@ const populateComments = (annotationName) => {
 
         userCommentIds.forEach(commentId => {
           const commentMenu = document.getElementById(`${annotationName}_commentMenu_${commentId}`)
-          new Dropdown(commentMenu)
+          new BSN.Dropdown(commentMenu)
 
-          new Tooltip(document.getElementById(`${annotationName}_editComment_${commentId}`), {
+          new BSN.Tooltip(document.getElementById(`${annotationName}_editComment_${commentId}`), {
             'placement': "bottom",
             'animation': "slideNfade",
             'delay': 50
           })
-          new Tooltip(document.getElementById(`${annotationName}_deleteComment_${commentId}`), {
+          new BSN.Tooltip(document.getElementById(`${annotationName}_deleteComment_${commentId}`), {
             'placement': "bottom",
             'animation': "slideNfade",
             'delay': 50

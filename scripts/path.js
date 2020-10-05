@@ -149,7 +149,6 @@ const path = async () => {
   path.tmaImage = new Image()
   path.setupEventListeners()
   path.indexedDB = await path.setupIndexedDB()
-  models.loadWorker()
   
   await box()
   loadHashParams()  
@@ -212,7 +211,7 @@ path.setupEventListeners = () => {
       path.selectDataset(path.userConfig.lastUsedDataset)
     
     } else if(!window.localStorage.selectDatasetModalShown || (Date.now() - window.localStorage.selectDatasetModalShown > 10*60*1000)) {
-      const selectDatasetModal = new Modal(document.getElementById("selectDatasetModal"))
+      const selectDatasetModal = new BSN.Modal(document.getElementById("selectDatasetModal"))
       selectDatasetModal.show()
       window.localStorage.selectDatasetModalShown = Date.now()
     }
@@ -289,8 +288,8 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
     //     "modelsConfig": path.datasetConfig.models
     //   }
     // })
-    models.populateAccordion(path.datasetConfig.models, false)
-    models.loadModels(path.datasetConfig.models)
+    dataset.populateAccordion(path.datasetConfig.models, false)
+    dataset.loadModels(path.datasetConfig.models)
     // path.predictionWorker.onmessage = (message) => {
     //   if (message.data.annotationId && message.data.modelLoaded) {
     //     path.modelsLoaded[message.data.annotationId] = true
