@@ -341,7 +341,7 @@ const populateDatasetSelectDropdown = async (selectedDatasetId) => {
         datasetOptionBtn.setAttribute("class", "btn btn-link")
         datasetOptionBtn.innerText = datasetFolder.name
         datasetOptionBtn.onclick = () => {
-          const previouslySelectedDatasetOptonBtn = datasetSelectDropdownDiv.querySelector("button[selected=true]")
+          const previouslySelectedDatasetOptionBtn = datasetSelectDropdownDiv.querySelector("button[selected=true]")
           previouslySelectedDatasetOptionBtn.removeAttribute("selected")
           datasetOptionBtn.setAttribute("selected", "true")
           datasetOptionBtn.setAttribute("class", "btn btn-primary")
