@@ -1,4 +1,4 @@
-importScripts("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.1/dist/tf.min.js", "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js")
+importScripts("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js", "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js")
 const indexedDBConfig = {
   dbName: "boxCreds",
   objectStoreName: "oauth"
@@ -92,7 +92,14 @@ onmessage = async (evt) => {
       break
     
     case 'predict':
-      const { annotationId, tmaImageData: { imageBitmap, width, height } } = data.body
+      const { annotationId } = data.body
+      let { tmaImageData: { imageBitmap, width, height } } = data.body
+      if (!imageBitmap && data.body.tmaImageData.imageId) {
+        const imageBlob = await getFileContentFromBox(data.body.tmaImageData.imageId, "blob")
+        imageBitmap = await createImageBitmap(imageBlob)
+        width = imageBitmap.width
+        height = imageBitmap.height
+      }
       const offscreenCV = new OffscreenCanvas(width, height)
       const offscreentCtx = offscreenCV.getContext('2d')
       offscreentCtx.drawImage(imageBitmap, 0, 0)
@@ -111,7 +118,7 @@ onmessage = async (evt) => {
   
 }
 
-const getFileContentFromBox = (id, fileType="json") => {
+const getFileContentFromBox = (id, responseType="json") => {
   return new Promise(async (resolve) => {
     await fetchIndexedDBInstance()
     workerDB.transaction("oauth", "readwrite").objectStore("oauth").get(1).onsuccess = async (evt) => {
@@ -122,10 +129,12 @@ const getFileContentFromBox = (id, fileType="json") => {
           'Authorization': `Bearer ${accessToken}`
         }
       })
-      if (fileType === "json") {
+      if (responseType === "json") {
         resp = await resp.json()
-      } else if (fileType === "buffer") {
+      } else if (responseType === "buffer") {
         resp = await resp.arrayBuffer()
+      } else if (responseType === "blob") {
+        resp = await resp.blob()
       } else {
         resp = await resp.text()
       }

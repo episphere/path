@@ -4,5 +4,9 @@
   "datasetFolderName": "",
   "annotations": [],
   "jpegRepresentationsFolderId": -1,
-  "models": {}
+  "wsiThumbnailsFolderId": -1,
+  "models": {
+    "parentFolderId": -1,
+    "trainedModels": []
+  }
 }

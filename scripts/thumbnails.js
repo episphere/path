@@ -9,7 +9,6 @@ thumbnails.showThumbnailPicker = async (offset = 0, limit=DEFAULT_THUMBNAILS_LIS
   const thumbnailPicker = document.getElementById("thumbnailPicker")
   thumbnailPicker.style.display = "flex"
   thumbnailPicker.style["flex-direction"] = "column"
-  console.log()
   thumbnailPicker.style.height = thumbnailPicker.parentElement ? thumbnailPicker.parentElement.getBoundingClientRect().height - window.pageYOffset - 40: window.innerHeight - window.pageYOffset - thumbnailPicker.getBoundingClientRect().y - 40
   thumbnailPicker.style.maxHeight = window.innerHeight - thumbnailPicker.parentElement.getBoundingClientRect().top - 80
 
@@ -23,34 +22,35 @@ thumbnails.showThumbnailPicker = async (offset = 0, limit=DEFAULT_THUMBNAILS_LIS
     var {
       total_count,
       entries: thumbnailImages
-    } = await box.getFolderContents(currentThumbnailsFolder, limit, offset)
-    
+    } = await box.getFolderContents(currentThumbnailsFolder, limit, offset, ["metadata.global.properties"])
+
     currentThumbnailsList = thumbnailImages.map(thumbnailImage => thumbnailImage.id)
     if (thumbnailImages) {
       thumbnails.addThumbnails(thumbnailPicker, thumbnailImages)
       thumbnails.addThumbnailPageSelector(thumbnailPicker, total_count, limit, offset)
+      annotations.showNextImageButton()
     }
   }
-  let allFilesInFolder = JSON.parse(window.localStorage.allFilesInFolder)
-  if (allFilesInFolder[window.localStorage.currentThumbnailsFolder] && allFilesInFolder[window.localStorage.currentThumbnailsFolder].length < total_count) {
-    const populateAllFilesInFolder = async (prevEntries = [], offset = 0) => {
-      const folderContents = await box.getFolderContents(window.localStorage.currentThumbnailsFolder, total_count, offset)
-      const entries = prevEntries.concat(folderContents.entries)
-      if (entries.length < total_count) {
-        return populateAllFilesInFolder(entries, entries.length)
-      }
-      const onlyImages = []
-      entries.forEach(entry => {
-        if (entry.type === "file" && utils.isValidImage(entry.name)) {
-          onlyImages.push(entry.id)
-        }
-      })
-      const allFilesInFolderObj = allFilesInFolder
-      allFilesInFolderObj[window.localStorage.currentThumbnailsFolder] = onlyImages
-      window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
-    }
+  // let allFilesInFolder = JSON.parse(window.localStorage.allFilesInFolder)
+  // if (allFilesInFolder[window.localStorage.currentThumbnailsFolder] && allFilesInFolder[window.localStorage.currentThumbnailsFolder].length < total_count) {
+  //   const populateAllFilesInFolder = async (prevEntries = [], offset = 0) => {
+  //     const folderContents = await box.getFolderContents(window.localStorage.currentThumbnailsFolder, total_count, offset)
+  //     const entries = prevEntries.concat(folderContents.entries)
+  //     if (entries.length < total_count) {
+  //       return populateAllFilesInFolder(entries, entries.length)
+  //     }
+  //     const onlyImages = []
+  //     entries.forEach(entry => {
+  //       if (entry.type === "file" && utils.isValidImage(entry.name)) {
+  //         onlyImages.push(entry.id)
+  //       }
+  //     })
+  //     const allFilesInFolderObj = allFilesInFolder
+  //     allFilesInFolderObj[window.localStorage.currentThumbnailsFolder] = onlyImages
+  //     window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
+  //   }
     // populateAllFilesInFolder([], 0)
-  }
+  // }
   thumbnails.highlightThumbnail(hashParams.image)
 }
 
@@ -71,13 +71,14 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
   thumbnailImages.forEach((thumbnailImage) => {
     if (thumbnailImage.type === "file" && utils.isValidImage(thumbnailImage.name)) {
       const {
-        id: thumbnailId,
-        name
+        id,
+        name,
+        metadata
       } = thumbnailImage
       const thumbnailDiv = document.createElement("div")
       thumbnailDiv.setAttribute("class", "thumbnailDiv")
       const thumbnailImg = document.createElement("img")
-      thumbnailImg.setAttribute("id", `thumbnail_${thumbnailId}`)
+      thumbnailImg.setAttribute("id", `thumbnail_${id}`)
       thumbnailImg.setAttribute("class", "imagePickerThumbnail")
       thumbnailImg.setAttribute("loading", "lazy")
 
@@ -95,16 +96,85 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
       
       thumbnailDiv.appendChild(thumbnailNameText)
       thumbnailsListDiv.appendChild(thumbnailDiv)
-      thumbnailDiv.onclick = () => path.selectImage(thumbnailId)
+      thumbnailDiv.onclick = () => path.selectImage(id)
       
-      box.getThumbnail(thumbnailId).then(res => {
-        thumbnailImg.setAttribute("src", res)
-      })
-      thumbnails.getAnnotationsForBorder(thumbnailId)
+      const thumbnailMetadata = metadata?.global?.properties
+      thumbnails.loadThumbnail(id, name, thumbnailImg,  thumbnailMetadata)
+      // thumbnails.getAnnotationsForBorder(thumbnailId)
     }
   })
 
   thumbnailPicker.insertBefore(thumbnailsListDiv, thumbnailPicker.firstElementChild)
+}
+
+thumbnails.loadThumbnail = async (id, name, thumbnailImgElement, thumbnailMetadata={}, forceCreateNew=false) => {
+  if (!forceCreateNew && thumbnailMetadata && thumbnailMetadata.wsiThumbnail && utils.isWSI(name)) {
+    
+    const { thumbnailImageId: wsiThumbnailId } = JSON.parse(thumbnailMetadata.wsiThumbnail)
+    box.getFileContent(wsiThumbnailId, false, true).then(thumbnailURL => {
+      thumbnailImgElement.setAttribute("src", thumbnailURL)
+    }).catch(e => {
+      console.log(e)
+      if (e.message === "404") {
+        thumbnails.loadThumbnail(id, name, thumbnailImgElement, thumbnailMetadata, true)
+      }
+    })
+  
+  } else {
+
+    box.getThumbnail(id).then(res => {
+      thumbnailImgElement.setAttribute("src", res)
+    }).catch(err => {
+
+      if(err.message === "404" && utils.isWSI(name)) {
+        path.processImageWorker.postMessage({
+          'op': "wsiThumbnail",
+          'data': {
+            'imageId': id,
+            'name': name,
+            'wsiThumbnailsFolderId': path.datasetConfig.wsiThumbnailsFolderId
+          }
+        })
+        
+        const consumeGeneratedThumbnail =  (evt) => {
+          const { op, data: { imageId, thumbnailURL, thumbnailSavedToBox }} = evt.data
+          if (op === "wsiThumbnail" && imageId === id) {
+            thumbnailImgElement.setAttribute("src", thumbnailURL)
+            path.processImageWorker.removeEventListener('message', consumeGeneratedThumbnail)
+            if (!thumbnailSavedToBox) {
+              setTimeout(() => retrySaveThumbnailToBox(thumbnailURL, name), 2*1000)
+            }
+          }
+        }
+
+        const retrySaveThumbnailToBox = async (thumbnailURL, thumbnailName) => {
+          if (path.datasetConfig && (!path.datasetConfig.wsiThumbnailsFolderId || path.datasetConfig.wsiThumbnailsFolderId === -1)) {
+            const wsiThumbnailsFolderEntry = await box.createFolder("wsiThumbnails", path.datasetConfig.datasetConfigFolderId)
+            const objectToAdd = {
+              wsiThumbnailsFolderId: wsiThumbnailsFolderEntry.id
+            }
+            await box.addToDatasetConfig(objectToAdd)
+          }
+
+          path.processImageWorker.postMessage({
+            'op': "retrySaveThumbnail",
+            'data': {
+              'imageId': id,
+              'imageURL': thumbnailURL,
+              'name': thumbnailName,
+              'wsiThumbnailsFolderId': path.datasetConfig.wsiThumbnailsFolderId
+            }
+          })
+        }
+
+        path.processImageWorker.addEventListener('message', consumeGeneratedThumbnail)
+
+      } else {
+        console.log(`Problem loading thumbnail for file ${id}`, err)
+      }
+    })
+
+  }
 }
 
 thumbnails.addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offset) => {
@@ -239,16 +309,17 @@ thumbnails.isThumbnailsLastPage = () => {
 
 thumbnails.checkAndDisableButtons = (pageNum, totalPages) => {
   const [thumbnailPrevPageBtn, thumbnailNextPageBtn] = document.getElementById("thumbnailPageSelector").querySelectorAll("button")
+  thumbnailPrevPageBtn.removeAttribute("disabled")
+  thumbnailNextPageBtn.removeAttribute("disabled")
+
   if (pageNum === 1) {
     thumbnailPrevPageBtn.setAttribute("disabled", "true")
-    thumbnailNextPageBtn.removeAttribute("disabled")
-  } else if (pageNum === totalPages) {
-    thumbnailNextPageBtn.setAttribute("disabled", "true")
-    thumbnailPrevPageBtn.removeAttribute("disabled")
-  } else {
-    thumbnailPrevPageBtn.removeAttribute("disabled")
-    thumbnailNextPageBtn.removeAttribute("disabled")
   }
+
+  if (pageNum === totalPages) {
+    thumbnailNextPageBtn.setAttribute("disabled", "true")
+  }
+
 }
 
 thumbnails.highlightThumbnail = (id) => {

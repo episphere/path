@@ -1,6 +1,6 @@
 body {
   font-family: sans-serif;
-  margin: 0 3rem 0 3rem;
+  margin: 0 1rem 0 1rem;
 }
 
 h2 {
@@ -156,10 +156,15 @@ canvas {
   bottom: 0;
 }
 
-#canvasParent {
+#tmaCanvasParent {
   position: relative;
 }
 
+#wsiCanvasParent {
+  position: relative;
+  background: black;
+  display: none;
+}
 
 #canvasWithPickers {
   position: relative;
@@ -555,6 +560,10 @@ canvas {
 .commentMenuButtons {
   display: flex;
   flex-direction: row;
+}
+
+.wsiAnnotation {
+  outline: 1px solid red;
 }
 
 .fa-info-circle {

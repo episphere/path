@@ -1,8 +1,8 @@
-const epiBoxFolderName = "_epibox"
+const epiBoxFolderName = `_${EPIBOX}`
 const appFolderName = `_${APPNAME}`
 const datasetConfigFolderName = `_${APPNAME}`
 const epiBoxConfigFileName = "_epiboxUserConfig.json"
-const appConfigFileName = "_userConfig.json"
+const userConfigFileName = "_userConfig.json"
 const datasetConfigFileName = "_datasetConfig.json"
 const configTemplates = {
   'epiBoxConfig': "https://episphere.github.io/path/assets/epiBoxConfigTemplate.json",
@@ -223,22 +223,31 @@ box.getAllFolderContents = async (folderId, fields=[]) => {
   return folderContents
 }
 
-box.getFileContent = async (id, isFileJSON=false) => {
+box.getFileContent = async (id, isFileJSON=false, urlOnly=false, opts={}) => {
   const contentEndpoint = `${box.endpoints['data']['file']}/${id}/${box.endpoints['subEndpoints']['content']}`
-  return utils.boxRequest(contentEndpoint, {
-    'headers': {
-      'Authorization': `Bearer ${JSON.parse(window.localStorage.box)["access_token"]}`
-    }
-  }, isFileJSON)
+  if (urlOnly) {
+    const ac = new AbortController()
+    const signal = ac.signal
+    opts["signal"] = signal
+    const fileContent = await utils.boxRequest(contentEndpoint, opts, isFileJSON)
+    ac.abort()
+    return fileContent.url
+  } else {
+    return utils.boxRequest(contentEndpoint, opts, isFileJSON)
+  }
 }
 
 box.getThumbnail = async (id) => {
   const sizeParams = "min_width=50&min_height=50&max_width=160&max_height=160"
   let thumbnailEndpoint = `${box.endpoints['data']['file']}/${id}/${box.endpoints['subEndpoints']['thumbnail']}`
   thumbnailEndpoint += `?${sizeParams}`
-  const thumbnailResp = await utils.boxRequest(thumbnailEndpoint, {}, false)
-  const thumbnailBlob = await thumbnailResp.blob()
-  return URL.createObjectURL(thumbnailBlob)
+  try {
+    const thumbnailResp = await utils.boxRequest(thumbnailEndpoint, {}, false)
+    const thumbnailBlob = await thumbnailResp.blob()
+    return URL.createObjectURL(thumbnailBlob)
+  } catch (e) {
+    throw Error(e.message)
+  }
 }
 
 box.getMetadata = async (id, type) => {
@@ -255,7 +264,7 @@ box.getMetadata = async (id, type) => {
 }
 
 box.createMetadata = async (id, type, body=JSON.stringify({})) => {
-  const metadataAPI = `${box.endpoints['data'][type]}/${id}/${box.endpoints['subEndpoints']['metadata']}`
+  const metadataAPI = `${box.endpoints['data'][type ]}/${id}/${box.endpoints['subEndpoints']['metadata']}`
   return utils.boxRequest(metadataAPI, {
     'method': "POST",
     'headers': {
@@ -291,7 +300,8 @@ box.updateMetadata = async (id, path, updateData) => {
     })
   } catch (e) {
     if (e.message === "404") {
-      metadata = await box.createMetadata(id, "file")
+      await box.createMetadata(id, "file")
+      await box.updateMetadata(id, path, updateData)
     }
   }
   return metadata
@@ -393,11 +403,11 @@ box.getUserConfig = async () => {
 
   const appFolderId = appFolderEntry.id
   let userConfig = {}
-  const { entries: appEntries } = await box.search(appConfigFileName, "file", [appFolderId], 1)
-  let appConfigFileEntry = appEntries.find(file => file.name === appConfigFileName)
+  const { entries: appEntries } = await box.search(userConfigFileName, "file", [appFolderId], 1)
+  let appConfigFileEntry = appEntries.find(file => file.name === userConfigFileName)
   if (!appConfigFileEntry) {
     const appFolderContents = await box.getAllFolderContents(appFolderId) // To handle case where config file was very recently created, so doesn't show up in search response yet.
-    appConfigFileEntry = appFolderContents.entries.find(entry => entry.name === appConfigFileName)
+    appConfigFileEntry = appFolderContents.entries.find(entry => entry.name === userConfigFileName)
     
     if (appConfigFileEntry) {
       userConfig = await box.getFileContent(appConfigFileEntry.id, true)
@@ -405,7 +415,7 @@ box.getUserConfig = async () => {
       // Creates user config file if it doesn't exist.
       const newUserConfigFD = new FormData()
       const configFileAttributes = {
-        "name": appConfigFileName,
+        "name": userConfigFileName,
         "parent": {
           "id": appFolderId
         }
@@ -433,19 +443,63 @@ box.getUserConfig = async () => {
   return userConfig
 }
 
-box.getDatasetConfig = async (datasetFolderId, forceCreateNew=false) => {
-  let datasetConfig = {}
+box.createDatasetConfig = async (datasetFolderId, appFolderId, datasetFolderName, datasetConfigTemplate) => {
+  const newDatasetConfigFD = new FormData()
+  const configFileAttributes = {
+    "name": datasetConfigFileName,
+    "parent": {
+      "id": appFolderId
+    }
+  }
+  if (!datasetConfig) {
+    datasetConfigTemplate = await utils.request(configTemplates.datasetConfig, {}, true)
+  }
   
+  datasetConfigTemplate.datasetFolderId = datasetFolderId
+  datasetConfigTemplate.datasetConfigFolderId = appFolderId
+  datasetConfigTemplate.datasetFolderName = datasetFolderName
+  
+  const jpegRepresentationsFolderEntry = await box.createFolder("jpegRepresentations", appFolderId)
+  datasetConfigTemplate.jpegRepresentationsFolderId = jpegRepresentationsFolderEntry.id
+  const wsiThumbnailsFolderEntry = await box.createFolder("wsiThumbnails", appFolderId)
+  datasetConfigTemplate.wsiThumbnailsFolderId = wsiThumbnailsFolderEntry.id
+  const modelsParentFolderEntry = await box.createFolder("models", appFolderId)
+  datasetConfigTemplate.models.parentFolderId = modelsParentFolderEntry.id
+
+  const newConfigBlob = new Blob([JSON.stringify(datasetConfigTemplate)], {
+    type: "application/json"
+  })
+  newDatasetConfigFD.append("attributes", JSON.stringify(configFileAttributes))
+  newDatasetConfigFD.append("file", newConfigBlob)
+
+  const configFileUploadResp = await box.uploadFile(newDatasetConfigFD)
+  appConfigFileEntry = configFileUploadResp.entries[0]
+  datasetConfig = datasetConfigTemplate
+  
+  await box.addDatasetToAppConfig(datasetFolderId, appConfigFileEntry.id)
+  
+  box.changeLastUsedDataset(datasetFolderId)
+  box.currentDatasetConfigFileId = appConfigFileEntry.id
+  
+  return datasetConfig
+}
+
+box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(async (resolve) => {
+  let datasetConfig = {}
   const availableDataset = path.userConfig.datasetsUsed.find(dataset => dataset.folderId === datasetFolderId)
   if (availableDataset && !forceCreateNew) {
     try {
       datasetConfig = await box.getFileContent(availableDataset.configFileId, true)
+      
+      resolve(datasetConfig)
+      box.changeLastUsedDataset(datasetFolderId)
+      box.currentDatasetConfigFileId = availableDataset.configFileId
+        
     } catch (e) {
       if (e.message === "404") {
-        return box.getDatasetConfig(datasetFolderId, true)
+        resolve(box.getDatasetConfig(datasetFolderId, true))
       }
     }
-    box.currentDatasetConfigFileId = availableDataset.configFileId
   } else {
     
     const { entries: datasetEntries } = await box.search(epiBoxFolderName, "folder", [datasetFolderId], 1000, ["path_collection"])
@@ -481,53 +535,88 @@ box.getDatasetConfig = async (datasetFolderId, forceCreateNew=false) => {
       if (appConfigFileEntry) {
         datasetConfig = await box.getFileContent(appConfigFileEntry.id, true)
       } else {
-        // Creates user config file if it doesn't exist.
-        const newDatasetConfigFD = new FormData()
-        const configFileAttributes = {
-          "name": datasetConfigFileName,
-          "parent": {
-            "id": appFolderId
-          }
-        }
-        
-        const datasetConfigTemplate = await utils.request(configTemplates.datasetConfig, {}, true)
-        datasetConfigTemplate.datasetFolderId = datasetFolderId
-        datasetConfigTemplate.datasetConfigFolderId = appFolderId
-        datasetConfigTemplate.datasetFolderName = datasetEpiBoxEntry.path_collection.entries[datasetEpiBoxEntry.path_collection.entries.length - 1].name
-        const newConfigBlob = new Blob([JSON.stringify(datasetConfigTemplate)], {
-          type: "application/json"
-        })
-  
-        newDatasetConfigFD.append("attributes", JSON.stringify(configFileAttributes))
-        newDatasetConfigFD.append("file", newConfigBlob)
-  
-        const configFileUploadResp = await box.uploadFile(newDatasetConfigFD)
-        appConfigFileEntry = configFileUploadResp.entries[0]
-        datasetConfig = datasetConfigTemplate
+        // Creates dataset config file if it doesn't exist.
+        const datasetFolderName = datasetEpiBoxEntry.path_collection.entries[datasetEpiBoxEntry.path_collection.entries.length - 1].name
+        datasetConfig = await box.createDatasetConfig(datasetFolderId, appFolderId, datasetFolderName)
+        resolve(datasetConfig)
+      
       }
+    
     } else {
       datasetConfig = await box.getFileContent(appConfigFileEntry.id, true)
-    }
-    box.currentDatasetConfigFileId = appConfigFileEntry.id
-    await box.addDatasetToAppConfig(datasetFolderId)
-  }
+      console.log(datasetFolderId, datasetConfig.datasetFolderId)
+      if (datasetFolderId != datasetConfig.datasetFolderId) {
+        if (!path.root.querySelector("div#copiedDatasetModal")) {
+          const copiedDatasetModalDiv = document.createElement("div")
+          copiedDatasetModalDiv.setAttribute("id", "copiedDatasetModal")
+          copiedDatasetModalDiv.setAttribute("class", "modal")
+          copiedDatasetModalDiv.setAttribute("role", "dialog")
+          copiedDatasetModalDiv.setAttribute("tabindex", "-1")
   
-  box.changeLastUsedDataset(datasetFolderId)
+          const copyDatasetButton = document.createElement("button")
+          copyDatasetButton.setAttribute("type", "button")
+          copyDatasetButton.setAttribute("class", "btn btn-secondary")
+          copyDatasetButton.setAttribute("data-dismiss", "modal")
+          copyDatasetButton.innerText = "Keep"
+          copyDatasetButton.onclick = async () => {
+            const datasetFolderName = datasetEpiBoxEntry.path_collection.entries[datasetEpiBoxEntry.path_collection.entries.length - 1].name
+            datasetConfig = await box.copyDataset(datasetConfig, datasetFolderId, appFolderId, datasetFolderName)
+            resolve(datasetConfig)
+          }
+          
+          const createNewDatasetButton = document.createElement("button")
+          createNewDatasetButton.setAttribute("type", "button")
+          createNewDatasetButton.setAttribute("class", "btn btn-primary")
+          createNewDatasetButton.setAttribute("data-dismiss", "modal")
+          createNewDatasetButton.innerText = "Create New"
+          createNewDatasetButton.onclick = async () => {
+            const datasetFolderName = datasetEpiBoxEntry.path_collection.entries[datasetEpiBoxEntry.path_collection.entries.length - 1].name
+            datasetConfig = await box.createDatasetConfig(datasetFolderId, appFolderId, datasetFolderName)
+            resolve(datasetConfig)
+          }
+          
+          copiedDatasetModalDiv.innerHTML += `
+            <div class="modal-dialog" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Copy Dataset?</h5>
+                  <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                  </button>
+                </div>
+                <div class="modal-body">
+                  <p>This dataset seems to have been configured for a different folder. Press Keep to retain the configuration as it is, or press Create New to set up a completely new dataset.</p>
+                </div>
+                <div class="modal-footer">
+                  ${copyDatasetButton.outerHTML}
+                  ${createNewDatasetButton.outerHTML}
+                </div>
+              </div>
+            </div>
+          `
+          path.root.appendChild(copiedDatasetModalDiv)
+          const copiedDatasetModal = new BSN.Modal(copiedDatasetModalDiv)
+          copiedDatasetModal.show()
+        }
+      }
+    }
+  }
+})
 
-  return datasetConfig
-
-}
-
-box.addDatasetToAppConfig = async (datasetFolderId) => {
+box.addDatasetToAppConfig = async (datasetFolderId, configFileId) => {
   const newUserConfigFD = new FormData()
   const configFileAttributes = {
-    "name": appConfigFileName
+    "name": userConfigFileName
   }
-  
-  path.userConfig.datasetsUsed.push({
-    'folderId': datasetFolderId,
-    'configFileId': box.currentDatasetConfigFileId
-  })
+  const preExistingDatasetIndex = path.userConfig.datasetsUsed.findIndex(dataset => dataset.folderId === datasetFolderId)
+  if (preExistingDatasetIndex) {
+    path.userConfig.datasetsUsed[preExistingDatasetIndex].configFileId = configFileId
+  } else {
+    path.userConfig.datasetsUsed.push({
+      'folderId': datasetFolderId,
+      'configFileId': configFileId
+    })
+  }
 
   const newConfigBlob = new Blob([JSON.stringify(path.userConfig)], {
     type: "application/json"
@@ -539,11 +628,11 @@ box.addDatasetToAppConfig = async (datasetFolderId) => {
   await box.uploadFile(newUserConfigFD, box.appConfigFileId)
 }
 
-box.changeLastUsedDataset = async (datasetFolderId) => {
+box.changeLastUsedDataset = (datasetFolderId) => {
   if (path.userConfig.lastUsedDataset !== datasetFolderId) {
     const newUserConfigFD = new FormData()
     const configFileAttributes = {
-      "name": appConfigFileName
+      "name": userConfigFileName
     }
     
     path.userConfig.lastUsedDataset = datasetFolderId
@@ -557,11 +646,11 @@ box.changeLastUsedDataset = async (datasetFolderId) => {
     newUserConfigFD.append("attributes", JSON.stringify(configFileAttributes))
     newUserConfigFD.append("file", newConfigBlob)
   
-    await box.uploadFile(newUserConfigFD, box.appConfigFileId)
+    box.uploadFile(newUserConfigFD, box.appConfigFileId)
   }
 }
 
-box.addToDatasetConfig = async (objectToAdd) => {
+box.addToDatasetConfig = (objectToAdd) => {
   const newDatasetConfigFD = new FormData()
   const configFileAttributes = {
     "name": datasetConfigFileName
@@ -575,5 +664,5 @@ box.addToDatasetConfig = async (objectToAdd) => {
   newDatasetConfigFD.append("attributes", JSON.stringify(configFileAttributes))
   newDatasetConfigFD.append("file", newConfigBlob)
   
-  await box.uploadFile(newDatasetConfigFD, box.currentDatasetConfigFileId)
+  box.uploadFile(newDatasetConfigFD, box.currentDatasetConfigFileId)
 }

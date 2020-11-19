@@ -184,7 +184,7 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
     }
   })
   loadModelPredictions()
-  showNextImageButton()
+  // annotations.showNextImageButton()
   document.getElementById("addClassificationBtn").removeAttribute("disabled")
 }
 
@@ -315,7 +315,7 @@ const getOthersAnnotations = (annotationName, fileAnnotations) => {
   othersAnnotationsDiv.innerHTML = othersAnnotationsText
 }
 
-const showNextImageButton = (metadata) => {
+annotations.showNextImageButton = (metadata) => {
   const nextImageMessage = document.getElementById("nextImageMessage")
   nextImageMessage.innerHTML = ``
   if (path.datasetConfig.annotations.length > 0) {
@@ -330,43 +330,43 @@ const showNextImageButton = (metadata) => {
     nextImageButton.setAttribute("class", "btn btn-link")
     nextImageButton.innerHTML = "Next Image >>"
   
-    const allFilesInCurrentFolder = JSON.parse(window.localStorage.allFilesInFolder)[window.localStorage.currentFolder] || []
+    // const allFilesInCurrentFolder = JSON.parse(window.localStorage.allFilesInFolder)[window.localStorage.currentFolder] || []
   
-    if (allFilesInCurrentFolder.length > 0) {
-      const currentImageIndex = allFilesInCurrentFolder.indexOf(hashParams.image.toString())
-      if (currentImageIndex === allFilesInCurrentFolder.length - 1) {
-        return
-      }
+    // if (allFilesInCurrentFolder.length > 0) {
+    //   const currentImageIndex = allFilesInCurrentFolder.indexOf(hashParams.image.toString())
+    //   if (currentImageIndex === allFilesInCurrentFolder.length - 1) {
+    //     return
+    //   }
   
-      nextImageButton.onclick = async (_) => {
-        if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
-          const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
-          thumbnailCurrentPageText.stepUp()
-          thumbnailCurrentPageText.dispatchEvent(new Event("change"))
-        }
-        path.selectImage(allFilesInCurrentFolder[currentImageIndex + 1])
-      }
+    //   nextImageButton.onclick = async (_) => {
+    //     if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
+    //       const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
+    //       thumbnailCurrentPageText.stepUp()
+    //       thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+    //     }
+    //     path.selectImage(allFilesInCurrentFolder[currentImageIndex + 1])
+    //   }
   
-    } else {
+    // } else {
       // Fallback for first load where allFilesInFolder is yet to be populated, since doing that takes a lot of time.
-      const currentImageIndex = currentThumbnailsList.indexOf(hashParams.image.toString())
-      if (currentImageIndex === currentThumbnailsList.length - 1 && thumbnails.isThumbnailsLastPage()) {
-        return
-      }
-  
-      nextImageButton.onclick = async (_) => {
-        if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
-          const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
-          thumbnailCurrentPageText.stepUp()
-          thumbnailCurrentPageText.dispatchEvent(new Event("change"))
-          setTimeout(() => { // Needs to wait for new thumbnails list to be loaded. Very ugly, need rethinking later.
-            path.selectImage(currentThumbnailsList[0])
-          }, 3000)
-        } else {
-          path.selectImage(currentThumbnailsList[currentImageIndex + 1])
-        }
+    const currentImageIndex = currentThumbnailsList.indexOf(hashParams.image.toString())
+    if (currentImageIndex === currentThumbnailsList.length - 1 && thumbnails.isThumbnailsLastPage()) {
+      return
+    }
+
+    nextImageButton.onclick = async (_) => {
+      if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
+        const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
+        thumbnailCurrentPageText.stepUp()
+        thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+        setTimeout(() => { // Needs to wait for new thumbnails list to be loaded. Very ugly, need rethinking later.
+          path.selectImage(currentThumbnailsList[0])
+        }, 3000)
+      } else {
+        path.selectImage(currentThumbnailsList[currentImageIndex + 1])
       }
     }
+    // }
     nextImageMessage.appendChild(nextImageButton)
   }
 }
@@ -415,7 +415,7 @@ const selectQuality = async (annotation, qualitySelected) => {
 
       if (imageId === hashParams.image) {
         activateQualitySelector(annotationName, fileAnnotations)
-        showNextImageButton(newMetadata)
+        annotations.showNextImageButton(newMetadata)
       }
     } else {
       utils.showToast("Error occurred during annotation, please try again later!")

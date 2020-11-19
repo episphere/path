@@ -2,7 +2,7 @@ const dataset = {}
 dataset.predictionWorkers = {}
 
 dataset.loadModels = (modelsConfig) => {
-  Object.entries(dataset.predictionWorkers).forEach(([annotationId, predictionWorker]) => predictionWorker.terminate())
+  Object.values(dataset.predictionWorkers).forEach((predictionWorker) => predictionWorker.terminate())
   dataset.modelsLoaded = {}
   modelsConfig.trainedModels.forEach(modelConfig => {
     dataset.predictionWorkers[modelConfig.correspondingAnnotation] = new Worker(`${basePath}/scripts/modelPrediction.js`, {
