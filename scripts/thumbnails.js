@@ -1,36 +1,43 @@
-var currentThumbnailsList = []
 const DEFAULT_THUMBNAILS_LIST_LENGTH = 20
 
 const thumbnails = async () => {
   window.localStorage.currentThumbnailsOffset = window.localStorage.currentThumbnailsOffset || "0"
 }
 
-thumbnails.showThumbnailPicker = async (offset = 0, limit=DEFAULT_THUMBNAILS_LIST_LENGTH) => {
+thumbnails.showThumbnailPicker = async (offset="0", limit=DEFAULT_THUMBNAILS_LIST_LENGTH, forceReload=false) => {
+  const {
+    currentThumbnailsFolder
+  } = window.localStorage
   const thumbnailPicker = document.getElementById("thumbnailPicker")
-  thumbnailPicker.style.display = "flex"
-  thumbnailPicker.style["flex-direction"] = "column"
-  thumbnailPicker.style.height = thumbnailPicker.parentElement ? thumbnailPicker.parentElement.getBoundingClientRect().height - window.pageYOffset - 40: window.innerHeight - window.pageYOffset - thumbnailPicker.getBoundingClientRect().y - 40
-  thumbnailPicker.style.maxHeight = window.innerHeight - thumbnailPicker.parentElement.getBoundingClientRect().top - 80
+  // thumbnailPicker.style.height = window.innerHeight - thumbnailPicker.parentElement.getBoundingClientRect().top - 80
+  // thumbnailPicker.style.maxHeight = window.innerHeight - thumbnailPicker.parentElement.getBoundingClientRect().top - 80
+  if (forceReload || (currentThumbnailsFolder && (thumbnailPicker.childElementCount === 0 || thumbnailPicker.getAttribute("folder") !== currentThumbnailsFolder || window.localStorage.currentThumbnailsOffset !== offset))) {
+    if (thumbnails.areLoading) {
+      // Defer repeated calls to load thumbnails by 10 seconds each time.
+      setTimeout(() => thumbnails.showThumbnailPicker(offset, limit, forceReload), 10000)
+      return
+    }
 
-  if (thumbnailPicker.childElementCount === 0 || thumbnailPicker.getAttribute("folder") !== window.localStorage.currentThumbnailsFolder || window.localStorage.currentThumbnailsOffset !== offset) {
     thumbnailPicker.setAttribute("folder", window.localStorage.currentThumbnailsFolder)
     window.localStorage.currentThumbnailsOffset = offset
-
-    const {
-      currentThumbnailsFolder
-    } = window.localStorage
+    
+    thumbnails.areLoading = true // Mutex to avoid reloading thumbnails while first call has already gone out.
     var {
       total_count,
       entries: thumbnailImages
     } = await box.getFolderContents(currentThumbnailsFolder, limit, offset, ["metadata.global.properties"])
+    thumbnails.areLoading = false
+    
+    if (thumbnailImages.length === 0 && total_count !== 0) {
+      return thumbnails.showThumbnailPicker(0, DEFAULT_THUMBNAILS_LIST_LENGTH)
+    }
 
-    currentThumbnailsList = thumbnailImages.map(thumbnailImage => thumbnailImage.id)
     if (thumbnailImages) {
       thumbnails.addThumbnails(thumbnailPicker, thumbnailImages)
       thumbnails.addThumbnailPageSelector(thumbnailPicker, total_count, limit, offset)
-      annotations.showNextImageButton()
     }
   }
+
   // let allFilesInFolder = JSON.parse(window.localStorage.allFilesInFolder)
   // if (allFilesInFolder[window.localStorage.currentThumbnailsFolder] && allFilesInFolder[window.localStorage.currentThumbnailsFolder].length < total_count) {
   //   const populateAllFilesInFolder = async (prevEntries = [], offset = 0) => {
@@ -58,6 +65,17 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
   let thumbnailsListDiv = document.getElementById("thumbnailsList")
 
   if (thumbnailsListDiv) {
+    const alreadyRenderedThumbnails = thumbnailsListDiv.querySelectorAll("img.imagePickerThumbnail")
+    const thumbnailIDsToRender = thumbnailImages.map(entry => entry.id)
+    let areThumbnailsAlreadyLoaded = true
+    alreadyRenderedThumbnails.forEach(thumbnailElement => {
+      if (thumbnailIDsToRender.indexOf(thumbnailElement.getAttribute("entry_id")) === -1) {
+        areThumbnailsAlreadyLoaded = false
+      }
+    })
+    if (areThumbnailsAlreadyLoaded) {
+      return
+    }
     thumbnailPicker.removeChild(thumbnailsListDiv)
     while (thumbnailsListDiv.firstElementChild) {
       thumbnailsListDiv.removeChild(thumbnailsListDiv.firstElementChild)
@@ -67,6 +85,7 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
     thumbnailsListDiv.setAttribute("id", "thumbnailsList")
   }
   thumbnailsListDiv.scrollTop = 0
+  thumbnailPicker.insertBefore(thumbnailsListDiv, thumbnailPicker.firstElementChild)
 
   thumbnailImages.forEach((thumbnailImage) => {
     if (thumbnailImage.type === "file" && utils.isValidImage(thumbnailImage.name)) {
@@ -79,6 +98,7 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
       thumbnailDiv.setAttribute("class", "thumbnailDiv")
       const thumbnailImg = document.createElement("img")
       thumbnailImg.setAttribute("id", `thumbnail_${id}`)
+      thumbnailImg.setAttribute("entry_id", id)
       thumbnailImg.setAttribute("class", "imagePickerThumbnail")
       thumbnailImg.setAttribute("loading", "lazy")
 
@@ -104,7 +124,6 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
     }
   })
 
-  thumbnailPicker.insertBefore(thumbnailsListDiv, thumbnailPicker.firstElementChild)
 }
 
 thumbnails.loadThumbnail = async (id, name, thumbnailImgElement, thumbnailMetadata={}, forceCreateNew=false) => {
@@ -121,54 +140,63 @@ thumbnails.loadThumbnail = async (id, name, thumbnailImgElement, thumbnailMetada
     })
   
   } else {
-
+    if (!forceCreateNew && document.getElementById(`thumbnail_${id}`).src.length > 0) {
+      return
+    }
     box.getThumbnail(id).then(res => {
       thumbnailImgElement.setAttribute("src", res)
     }).catch(err => {
-
-      if(err.message === "404" && utils.isWSI(name)) {
-        path.processImageWorker.postMessage({
-          'op': "wsiThumbnail",
-          'data': {
-            'imageId': id,
-            'name': name,
-            'wsiThumbnailsFolderId': path.datasetConfig.wsiThumbnailsFolderId
-          }
-        })
-        
-        const consumeGeneratedThumbnail =  (evt) => {
-          const { op, data: { imageId, thumbnailURL, thumbnailSavedToBox }} = evt.data
-          if (op === "wsiThumbnail" && imageId === id) {
-            thumbnailImgElement.setAttribute("src", thumbnailURL)
-            path.processImageWorker.removeEventListener('message', consumeGeneratedThumbnail)
-            if (!thumbnailSavedToBox) {
-              setTimeout(() => retrySaveThumbnailToBox(thumbnailURL, name), 2*1000)
+      if(utils.isWSI(name)){
+        const handleWSIThumbnailGeneration = () => {
+          if (path.datasetConfig) {
+            path.processImageWorker.postMessage({
+              'op': "wsiThumbnail",
+              'data': {
+                'imageId': id,
+                'name': name,
+                'wsiThumbnailsFolderId': path.datasetConfig.wsiThumbnailsFolderId
+              }
+            })
+            
+            const consumeGeneratedThumbnail =  (evt) => {
+              const { op, data: { imageId, thumbnailURL, thumbnailSavedToBox }} = evt.data
+              if (op === "wsiThumbnail" && imageId === id) {
+                thumbnailImgElement.setAttribute("src", thumbnailURL)
+                path.processImageWorker.removeEventListener('message', consumeGeneratedThumbnail)
+                if (!thumbnailSavedToBox) {
+                  setTimeout(() => retrySaveThumbnailToBox(thumbnailURL, name), 2*1000)
+                }
+              }
             }
+  
+            const retrySaveThumbnailToBox = async (thumbnailURL, thumbnailName) => {
+              if (path.datasetConfig && (!path.datasetConfig.wsiThumbnailsFolderId || path.datasetConfig.wsiThumbnailsFolderId === -1)) {
+                const wsiThumbnailsFolderEntry = await box.createFolder("wsiThumbnails", path.datasetConfig.datasetConfigFolderId)
+                const objectToAdd = {
+                  wsiThumbnailsFolderId: wsiThumbnailsFolderEntry.id
+                }
+                await box.addToDatasetConfig(objectToAdd)
+              }
+  
+              path.processImageWorker.postMessage({
+                'op': "retrySaveThumbnail",
+                'data': {
+                  'imageId': id,
+                  'imageURL': thumbnailURL,
+                  'name': thumbnailName,
+                  'wsiThumbnailsFolderId': path.datasetConfig.wsiThumbnailsFolderId
+                }
+              })
+            }
+  
+            path.processImageWorker.addEventListener('message', consumeGeneratedThumbnail)
+          } else {
+            document.addEventListener("datasetConfigSet", handleWSIThumbnailGeneration, {
+              once: true
+            })
           }
         }
-
-        const retrySaveThumbnailToBox = async (thumbnailURL, thumbnailName) => {
-          if (path.datasetConfig && (!path.datasetConfig.wsiThumbnailsFolderId || path.datasetConfig.wsiThumbnailsFolderId === -1)) {
-            const wsiThumbnailsFolderEntry = await box.createFolder("wsiThumbnails", path.datasetConfig.datasetConfigFolderId)
-            const objectToAdd = {
-              wsiThumbnailsFolderId: wsiThumbnailsFolderEntry.id
-            }
-            await box.addToDatasetConfig(objectToAdd)
-          }
-
-          path.processImageWorker.postMessage({
-            'op': "retrySaveThumbnail",
-            'data': {
-              'imageId': id,
-              'imageURL': thumbnailURL,
-              'name': thumbnailName,
-              'wsiThumbnailsFolderId': path.datasetConfig.wsiThumbnailsFolderId
-            }
-          })
-        }
-
-        path.processImageWorker.addEventListener('message', consumeGeneratedThumbnail)
-
+        handleWSIThumbnailGeneration()
       } else {
         console.log(`Problem loading thumbnail for file ${id}`, err)
       }
@@ -229,6 +257,7 @@ thumbnails.addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offse
         value
       }
     }) => {
+      console.log(value)
       value = parseInt(value)
       changeThumbnails(value)
     }
@@ -267,23 +296,8 @@ thumbnails.getAnnotationsForBorder = (thumbnailId) => {
   })
 }
 
-thumbnails.getNumCompletedAnnotations = (metadata) => {
-  let numAnnotationsCompleted = 0
-  if (path.datasetConfig && path.datasetConfig.annotations) {
-    numAnnotationsCompleted = path.datasetConfig.annotations.reduce((total, {
-      metaName
-    }) => {
-      if (metadata[metaName] && window.localStorage.userId in JSON.parse(metadata[metaName])) {
-        total += 1
-      }
-      return total
-    }, 0)
-  }
-  return numAnnotationsCompleted
-}
-
 thumbnails.borderByAnnotations = (thumbnailId, metadata = JSON.parse(window.localStorage.fileMetadata)) => {
-  const numAnnotationsCompleted = thumbnails.getNumCompletedAnnotations(metadata)
+  const numAnnotationsCompleted = annotations.getNumCompletedAnnotations(metadata)
   const thumbnailImg = document.getElementById(`thumbnail_${thumbnailId}`)
   if (numAnnotationsCompleted === 0) {
     thumbnailImg.classList.remove("annotationsCompletedThumbnail")

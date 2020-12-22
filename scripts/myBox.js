@@ -189,17 +189,15 @@ myBox.loadFolderTree = (folderData) => {
       const folderSubDiv = myBox.populateFolderTree(entries, currentFolderDiv, moreFiles)
       // hideLoader(loaderElementId)
 
-      parentElement.style.height = window.innerHeight - parentElement.getBoundingClientRect().y - 40 // 40 seems to be the initial width of the canvas
-
-      folderSubDiv.style.height = "100%"
-      folderSubDiv.style.width = "100%"
-      folderSubDiv.style.overflowY = "scroll"
+      // parentElement.style.height = window.innerHeight - parentElement.getBoundingClientRect().y - 40 // 40 seems to be the initial width of the canvas
 
       parentElement.appendChild(folderSubDiv)
-
+      if (path.userConfig && path.userConfig.lastUsedDataset && path.userConfig.lastUsedDataset !== -1) {
+        myBox.highlightSelectedDatasetFolder(path.userConfig.lastUsedDataset)  
+      }
       // To Enable Dropdown for folders
       const folderOptionsTogglers = document.querySelectorAll(".dropdown.boxFolderOptionsDiv")
-      folderOptionsTogglers.forEach(folderOptionDiv => new BSN.Dropdown(folderOptionDiv))
+      folderOptionsTogglers.forEach(folderOptionDiv => new BSN.Dropdown(folderOptionDiv) )
 
     } else if (entries.length === 0) {
       parentElement.style.textAlign = "center"
@@ -207,7 +205,6 @@ myBox.loadFolderTree = (folderData) => {
       parentElement.innerHTML = `<span><br/><i style="font-size:1.1rem">-- Empty Folder --</i></span>`
       // parentElement.innerText = `-- Empty Folder --`
     }
-    parentElement.style.maxHeight = window.innerHeight - window.pageYOffset - thumbnailPicker.parentElement.getBoundingClientRect().top - 40
   }
 }
 
@@ -226,22 +223,20 @@ myBox.populateFolderTree = (entries, currentFolderDiv, moreFiles=false) => {
       entryBtn.setAttribute("class", "btn btn-link")
       entryBtn.setAttribute("entryId", entry.id)
       entryBtn.setAttribute("type", "button")
-      const entryIcon = document.createElement("i")
+      let entryIcon = ""
       if (entry.type === "folder") {
-        entryIcon.setAttribute("class", "fas fa-folder")
+        entryIcon = `<i class="fas fa-folder">&nbsp&nbsp</i>`
       } else if (entry.type === "file") {
         if (utils.isValidImage(entry.name)) {
-          entryIcon.setAttribute("class", "fas fa-file-image")
+          entryIcon = `<i class="fas fa-file-image">&nbsp&nbsp</i>`
         } else {
-          entryIcon.setAttribute("class", "fas fa-file")
+          entryIcon = `<i class="fas fa-file">&nbsp&nbsp</i>`
         }
         if (entry.id === hashParams.image) {
           entryBtnDiv.classList.add("selectedImage")
         }
       }
-      entryIcon.innerHTML = "&nbsp&nbsp"
-      entryBtn.appendChild(entryIcon)
-      entryBtn.innerHTML += entry.name
+      entryBtn.innerHTML = `${entryIcon}${entry.name}`
       // const loaderImage = document.createElement("img")
       // loaderImage.setAttribute("src", `${window.location.origin}${window.location.pathname}/images/loader_sm.gif`)
       // loaderImage.setAttribute("class", "boxFileMgr_loader")
@@ -254,34 +249,30 @@ myBox.populateFolderTree = (entries, currentFolderDiv, moreFiles=false) => {
         entryBtnOptionsDiv.setAttribute("class", "boxFolderOptionsDiv")
         entryBtnOptionsDiv.setAttribute("id", `${entry.id}_folderOptions`)
         
-        if (entry.id !== path.userConfig.lastUsedDataset) {
-          entryBtnOptionsDiv.classList.add("dropdown")
-          entryBtnOptionsDiv.innerHTML = `<button class="btn btn-light dropdown-toggle boxFolderOptionsToggle" role="button" id="${entry.id}_folderOptionsToggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-            <i class="fas fa-ellipsis-v"></i>
-          </button>
-          `
-          const entryBtnDropdownDiv = document.createElement("div")
-          entryBtnDropdownDiv.setAttribute("class", "dropdown-menu dropdown-menu-right boxFolderOptionsDropdown")
-          const entryBtnDropdownOptionsDiv = document.createElement("div")
-          entryBtnDropdownOptionsDiv.setAttribute("class", "boxFolderOptions")
-            
-          const entryBtnDropdownToggleBtn = document.createElement("button")
-          entryBtnDropdownToggleBtn.setAttribute("class", "btn btn-light boxFolderOption")
-          entryBtnDropdownToggleBtn.setAttribute("id", `${entry.id}_selectDataset`)
-          entryBtnDropdownToggleBtn.onclick = () => {
-            entryBtnOptionsDiv.innerHTML = `<img src="https://episphere.github.io/path/external/images/loader_folder.gif" style="width:2rem;"></img>`
-            path.selectDataset(entry.id)
-            path.selectFolder(entry.id)
-          }
-          entryBtnDropdownToggleBtn.innerHTML = ` <i class="fas fa-pencil-alt"></i> &nbsp;Use as Dataset`
+        entryBtnOptionsDiv.classList.add("dropdown")
+        entryBtnOptionsDiv.innerHTML = `<button class="btn btn-light dropdown-toggle boxFolderOptionsToggle" role="button" id="${entry.id}_folderOptionsToggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <i class="fas fa-ellipsis-v"></i>
+        </button>
+        `
+        const entryBtnDropdownDiv = document.createElement("div")
+        entryBtnDropdownDiv.setAttribute("class", "dropdown-menu dropdown-menu-right boxFolderOptionsDropdown")
+        const entryBtnDropdownOptionsDiv = document.createElement("div")
+        entryBtnDropdownOptionsDiv.setAttribute("class", "boxFolderOptions")
           
-          entryBtnDropdownOptionsDiv.appendChild(entryBtnDropdownToggleBtn)
-          entryBtnDropdownDiv.appendChild(entryBtnDropdownOptionsDiv)
-          entryBtnOptionsDiv.appendChild(entryBtnDropdownDiv)
-          
-        } else {
-          entryBtnOptionsDiv.innerHTML = `<i class="far fa-check-circle"></i>`
+        const entryBtnDropdownToggleBtn = document.createElement("button")
+        entryBtnDropdownToggleBtn.setAttribute("class", "btn btn-light boxFolderOption")
+        entryBtnDropdownToggleBtn.setAttribute("id", `${entry.id}_selectDataset`)
+        entryBtnDropdownToggleBtn.onclick = () => {
+          entryBtnOptionsDiv.innerHTML = `<img src="https://episphere.github.io/path/external/images/loader_folder.gif" style="width:2rem;"></img>`
+          path.selectDataset(entry.id)
+          path.selectFolder(entry.id)
         }
+        entryBtnDropdownToggleBtn.innerHTML = ` <i class="fas fa-pencil-alt"></i> &nbsp;Use as Dataset`
+        
+        entryBtnDropdownOptionsDiv.appendChild(entryBtnDropdownToggleBtn)
+        entryBtnDropdownDiv.appendChild(entryBtnDropdownOptionsDiv)
+        entryBtnOptionsDiv.appendChild(entryBtnDropdownDiv)
+          
         entryBtnDiv.appendChild(entryBtnOptionsDiv)
       }
       
@@ -320,6 +311,14 @@ myBox.populateFolderTree = (entries, currentFolderDiv, moreFiles=false) => {
   return currentFolderDiv
 }
 
+myBox.highlightSelectedDatasetFolder = (id) => {
+  const entryBtnOptionsDiv = document.getElementById(`${id}_folderOptions`)
+  if (entryBtnOptionsDiv) {
+    entryBtnOptionsDiv.classList.remove("dropdown")
+    entryBtnOptionsDiv.innerHTML = `<i class="far fa-check-circle"></i>`
+  }
+}
+
 myBox.highlightImage = (id) => {
   const previouslySelectedImage = document.getElementById("boxFileManager").querySelector("div.selectedImage")
   const newlySelectedImage = document.getElementById(`boxFileMgr_subFolder_${id}`)
@@ -350,4 +349,13 @@ myBox.setFileSortingPreference = async (preference) => {
       }
     }
   }
+}
+
+myBox.showLoginMessage = () => {
+  const boxFolderTree = document.getElementById("boxFolderTree")
+  boxFolderTree.innerHTML = `
+  <span id="loginToBoxMessage" style="margin: 2rem auto; color: gray; font-size: 18px;">
+    <i style="text-align: center;">-- Please <a href="#" onclick="document.getElementById('boxLoginBtn').click(); return false;">Login to Box</a> first! --</i>
+  </span>
+  `
 }

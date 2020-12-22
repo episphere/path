@@ -21,17 +21,23 @@ dataset.loadModels = (modelsConfig) => {
           break
     
         case 'predict':
-          const predictionEvent = new CustomEvent("modelPrediction", {
+          const predictionEvent = new CustomEvent("tmaPrediction", {
             detail: dataFromWorker
           })
           document.dispatchEvent(predictionEvent)
           break
+
+        case 'predictWSI':
+        case 'getPreviousPreds':
+        case 'stop':
+          const { body } = dataFromWorker
+          wsi.handleMessage(body, op)
       }
     }
     dataset.predictionWorkers[modelConfig.correspondingAnnotation].postMessage({
       "op": "loadModel",
       "body": {
-        "modelConfig": modelConfig
+        modelConfig
       }
     })
 
@@ -124,7 +130,7 @@ dataset.populateAccordion = (modelsConfig, forceRedraw=false) => {
             </div>
           </div>
         `
-        classificationsCardDiv.innerHTML += classificationCard
+        classificationsCardDiv.insertAdjacentHTML("beforeend", classificationCard)
         modelsAccordion.appendChild(classificationsCardDiv)
         new BSN.Collapse(document.getElementById(`${annotationName}ModelsToggle`))
       }

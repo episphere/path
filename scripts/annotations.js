@@ -133,7 +133,7 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
           </div>
         </div>
         `
-      annotationCardDiv.innerHTML += annotationCard
+      annotationCardDiv.insertAdjacentHTML("beforeend", annotationCard)
       annotationsAccordion.appendChild(annotationCardDiv)
       new BSN.Collapse(document.getElementById(`${annotationName}Toggle`))
       new BSN.Dropdown(document.getElementById(`${annotationName}_classificationMenu`))
@@ -178,17 +178,17 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
         }
       }
     }
-    showQualitySelectors(annotation)
+    annotations.showQualitySelectors(annotation)
     if (enableComments) {
-      populateComments(annotationName)
+      annotations.populateComments(annotationName)
     }
   })
-  loadModelPredictions()
-  // annotations.showNextImageButton()
+  annotations.loadModelPredictions()
+  annotations.showNextImageButton()
   document.getElementById("addClassificationBtn").removeAttribute("disabled")
 }
 
-const showQualitySelectors = async (annotation) => {
+annotations.showQualitySelectors = async (annotation) => {
   const {
     annotationName,
     metaName,
@@ -263,14 +263,14 @@ const showQualitySelectors = async (annotation) => {
   const previousPredictionScores = selectTableBody.querySelectorAll("td.predictionScore")
   previousPredictionScores.forEach(el => el.innerText = "--")
 
-  activateQualitySelector(annotationName, fileAnnotations)
+  annotations.activateQualitySelector(annotationName, fileAnnotations)
   getOthersAnnotations(annotationName, fileAnnotations)
   annotationDiv.style.borderBottom = "1px solid rgba(0,0,0,.125)"
 }
 
-const loadModelPredictions = async () => {
+annotations.loadModelPredictions = async () => {
   for (const annotation of path.datasetConfig.annotations) {
-    const modelQualityPrediction = await models.getModelPrediction(annotation.annotationId, annotation.metaName)
+    const modelQualityPrediction = !path.isWSI && await models.getTMAPrediction(annotation.annotationId, annotation.metaName)
     if (modelQualityPrediction) {
       displayModelPrediction(modelQualityPrediction, annotation)
     }
@@ -315,59 +315,71 @@ const getOthersAnnotations = (annotationName, fileAnnotations) => {
   othersAnnotationsDiv.innerHTML = othersAnnotationsText
 }
 
-annotations.showNextImageButton = (metadata) => {
-  const nextImageMessage = document.getElementById("nextImageMessage")
-  nextImageMessage.innerHTML = ``
-  if (path.datasetConfig.annotations.length > 0) {
-    metadata = metadata || JSON.parse(window.localStorage.fileMetadata)
-    const numAnnotationsCompleted = thumbnails.getNumCompletedAnnotations(metadata)
-    const nextImageText = `<b><span style='color:darkorchid'>${numAnnotationsCompleted}</span> / ${path.datasetConfig.annotations.length} Annotations Completed!</b>`
-    nextImageMessage.innerHTML = nextImageText
-  
-    const nextImageButton = document.getElementById("nextImageBtn") || document.createElement("button")
-    nextImageButton.setAttribute("type", "button")
-    nextImageButton.setAttribute("id", "nextImageBtn")
-    nextImageButton.setAttribute("class", "btn btn-link")
-    nextImageButton.innerHTML = "Next Image >>"
-  
-    // const allFilesInCurrentFolder = JSON.parse(window.localStorage.allFilesInFolder)[window.localStorage.currentFolder] || []
-  
-    // if (allFilesInCurrentFolder.length > 0) {
-    //   const currentImageIndex = allFilesInCurrentFolder.indexOf(hashParams.image.toString())
-    //   if (currentImageIndex === allFilesInCurrentFolder.length - 1) {
-    //     return
-    //   }
-  
-    //   nextImageButton.onclick = async (_) => {
-    //     if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
-    //       const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
-    //       thumbnailCurrentPageText.stepUp()
-    //       thumbnailCurrentPageText.dispatchEvent(new Event("change"))
-    //     }
-    //     path.selectImage(allFilesInCurrentFolder[currentImageIndex + 1])
-    //   }
-  
-    // } else {
-      // Fallback for first load where allFilesInFolder is yet to be populated, since doing that takes a lot of time.
-    const currentImageIndex = currentThumbnailsList.indexOf(hashParams.image.toString())
-    if (currentImageIndex === currentThumbnailsList.length - 1 && thumbnails.isThumbnailsLastPage()) {
-      return
-    }
+annotations.getNumCompletedAnnotations = (metadata) => {
+  let numAnnotationsCompleted = 0
+  if (path.datasetConfig && path.datasetConfig.annotations) {
+    numAnnotationsCompleted = path.datasetConfig.annotations.reduce((total, {
+      metaName
+    }) => {
+      if (metadata[metaName] && window.localStorage.userId in JSON.parse(metadata[metaName])) {
+        total += 1
+      }
+      return total
+    }, 0)
+  }
+  return numAnnotationsCompleted
+}
 
-    nextImageButton.onclick = async (_) => {
-      if (hashParams.image === currentThumbnailsList[currentThumbnailsList.length - 1]) {
-        const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
-        thumbnailCurrentPageText.stepUp()
-        thumbnailCurrentPageText.dispatchEvent(new Event("change"))
-        setTimeout(() => { // Needs to wait for new thumbnails list to be loaded. Very ugly, need rethinking later.
-          path.selectImage(currentThumbnailsList[0])
-        }, 3000)
-      } else {
-        path.selectImage(currentThumbnailsList[currentImageIndex + 1])
+annotations.showNextImageButton = (metadata) => {
+  const areThumbnailsLoaded = !!document.getElementById("thumbnailsList")
+  if (areThumbnailsLoaded) { // Check for when path.selectDataset completes before canvas is loaded, and thumbnails don't exist yet.
+    const nextImageMessage = document.getElementById("nextImageMessage")
+    nextImageMessage.innerHTML = ``
+   
+    if (path.datasetConfig.annotations.length > 0) {
+      metadata = metadata || JSON.parse(window.localStorage.fileMetadata)
+      const numAnnotationsCompleted = annotations.getNumCompletedAnnotations(metadata)
+      const nextImageText = `<b><span style='color:darkorchid'>${numAnnotationsCompleted}</span> / ${path.datasetConfig.annotations.length} Annotations Completed!</b>`
+      nextImageMessage.innerHTML = nextImageText
+    
+      const nextImageButton = document.getElementById("nextImageBtn") || document.createElement("button")
+      nextImageButton.setAttribute("type", "button")
+      nextImageButton.setAttribute("id", "nextImageBtn")
+      nextImageButton.setAttribute("class", "btn btn-link")
+      nextImageButton.innerHTML = "Next Image >>"
+    
+      const isLastImageInThumbnailsList = (imageId=hashParams.image.toString()) => document.querySelector("div.thumbnailDiv:last-of-type>img.imagePickerThumbnail").getAttribute("entry_id") === imageId
+      
+      nextImageButton.onclick = async (_) => {
+       
+        if (isLastImageInThumbnailsList(hashParams.image.toString())) {
+          const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
+          thumbnailCurrentPageText.stepUp()
+          thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+          
+          setTimeout(() => { // Needs to wait for new thumbnails list to be loaded. Very ugly, need rethinking later.
+            path.selectImage(document.querySelector("img.imagePickerThumbnail").getAttribute("entry_id"))
+          }, 1000)     
+       
+        } else {
+          const thumbnailElements = document.querySelectorAll("img.imagePickerThumbnail")
+          let nextImageIndex = -1
+          thumbnailElements.forEach((el,ind) => {
+            if (el.classList.contains("selectedThumbnail")) {
+              nextImageIndex = ind + 1
+            }
+          })
+        
+          path.selectImage(thumbnailElements[nextImageIndex].getAttribute("entry_id"))
+        }
+      }
+  
+      nextImageMessage.appendChild(nextImageButton)
+    
+      if (isLastImageInThumbnailsList(hashParams.image.toString()) && thumbnails.isThumbnailsLastPage()) {
+        nextImageButton.setAttribute("disabled", "true")
       }
     }
-    // }
-    nextImageMessage.appendChild(nextImageButton)
   }
 }
 
@@ -414,7 +426,7 @@ const selectQuality = async (annotation, qualitySelected) => {
       thumbnails.borderByAnnotations(hashParams.image, newMetadata)
 
       if (imageId === hashParams.image) {
-        activateQualitySelector(annotationName, fileAnnotations)
+        annotations.activateQualitySelector(annotationName, fileAnnotations)
         annotations.showNextImageButton(newMetadata)
       }
     } else {
@@ -452,10 +464,10 @@ const submitAnnotationComment = (annotationName) => {
     annotationComments.push(newCommentMetadata)
   }
 
-  updateCommentsInBox(annotationName, annotationComments, true)
+  annotations.updateCommentsInBox(annotationName, annotationComments, true)
 }
 
-const updateCommentsInBox = async (annotationName, annotationComments, newComment=false) => {
+annotations.updateCommentsInBox = async (annotationName, annotationComments, newComment=false) => {
   const boxMetadataPath = `/${annotationName}_comments`
   try {
     const newMetadata = await box.updateMetadata(hashParams.image, boxMetadataPath, JSON.stringify(annotationComments))
@@ -468,7 +480,7 @@ const updateCommentsInBox = async (annotationName, annotationComments, newCommen
     }
 
     window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-    populateComments(annotationName)
+    annotations.populateComments(annotationName)
 
     const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
     if (toggleCommentsButton.classList.contains("collapsed") && newComment) {
@@ -484,7 +496,7 @@ const updateCommentsInBox = async (annotationName, annotationComments, newCommen
   }
 }
 
-const populateComments = (annotationName) => {
+annotations.populateComments = (annotationName) => {
   const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
   const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
   const commentsCard = document.getElementById(`${annotationName}_allCommentsCard`)
@@ -504,7 +516,7 @@ const populateComments = (annotationName) => {
         return commentWithId
       })
       if (JSON.stringify(annotationComments) !== JSON.stringify(commentsSortedByTime)) {
-        updateCommentsInBox(annotationName, commentsSortedByTime)
+        annotations.updateCommentsInBox(annotationName, commentsSortedByTime)
       }
 
       const visibleComments = commentsSortedByTime.filter(comment => comment.userId === window.localStorage.userId || !comment.isPrivate)
@@ -645,7 +657,7 @@ const deleteAnnotationComment = async (annotationName, commentId) => {
     if (annotationComments) {
       const commentsAfterDelete = annotationComments.filter(comment => comment["commentId"] !== commentId)
       if (commentsAfterDelete.length !== annotationComments.length) {
-        updateCommentsInBox(annotationName, commentsAfterDelete)
+        annotations.updateCommentsInBox(annotationName, commentsAfterDelete)
       }
     }
   }
@@ -658,7 +670,7 @@ const cancelEditComment = async (annotationName) => {
   document.getElementById(`${annotationName}_submitComment`).setAttribute("disabled", "true")
 }
 
-const activateQualitySelector = (annotationName, fileAnnotations) => {
+annotations.activateQualitySelector = (annotationName, fileAnnotations) => {
   const selectTable = document.getElementById(`${annotationName}Select`)
   const currentlyActiveButton = selectTable.querySelector("button.active")
   if (currentlyActiveButton) {

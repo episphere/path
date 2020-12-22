@@ -5,7 +5,7 @@
   <title>EpiPath TMAs</title>
   <!-- <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"></script> -->
   <script type="text/javascript"
-    src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap.native/3.0.13/bootstrap-native.min.js" async></script>
+    src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap.native/3.0.14/bootstrap-native.min.js" async></script>
   <!-- <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script> -->
   <!-- <script src="bsn_temp.js "></script> -->
   <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
@@ -28,19 +28,18 @@
 
 <body>
   <div class="container-fluid" id="tmaPath">
-    <span>
-      <h2>epiPath </h2>
-      <a href="https://github.com/episphere/path" target="_blank" style="font-size:small">[code]</a>
-      <a href="https://github.com/episphere/path/issues" target="_blank" style="font-size:small">[issues]</a>
-      <a href="https://gitter.im/episphere/epipath" target="_blank" style="font-size:small">[gitter]</a>
-      <a href="https://youtu.be/z59jToy2TxE" target="_blank" style="font-size:small;color:red">[YouTube]</a>
-    </span>
-    <span id="loginSpan">
-      <p id="digiPathTitle"> Digital Pathology EpiSphere</p>
+    <span id="appHeader">
+      <span id="appName">
+        <h2>epiPath </h2>
+        <a href="https://github.com/episphere/path" target="_blank" style="font-size:small">[code]</a>
+        <a href="https://github.com/episphere/path/issues" target="_blank" style="font-size:small">[issues]</a>
+        <a href="https://gitter.im/episphere/epipath" target="_blank" style="font-size:small">[gitter]</a>
+        <a href="https://youtu.be/z59jToy2TxE" target="_blank" style="font-size:small;color:red">[YouTube]</a>
+      </span>
       <span id="datasetSelectSpan">
-        <label style="margin: auto 0;"> <p>Dataset: </p></label>
+        <label style="margin: auto 0;"><p>Dataset: </p></label>
         <div id="datasetSelectDropdown" class="dropdown">
-          <button id="datasetSelectDropdownBtn" class="btn btn-outline-primary" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <button id="datasetSelectDropdownBtn" class="btn btn-outline-primary" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" disabled="true" aria-disabled="true">
             Select... <i class="fas fa-caret-down"></i>
           </button>
           <div class="dropdown-menu" id="datasetSelectDropdownDiv" aria-labelledby="datasetSelectDropdown">
@@ -50,70 +49,58 @@
       </span>
       <div id="boxLogin">
         <button id="boxLoginBtn" class='btn btn-primary' style="display: none;">Login To Box</button>
-        <p id="username"></p>
+        <p id="username" style="display: none;"></p>
       </div>
     </span>
     <hr style="margin-top: 0.3rem;" />
-    <!-- <div id="loadingText">
-      <p>Loading OpenCV.js...</p>
-    </div> -->
-    <!-- <hr style="margin-top: 0rem;" /> -->
     <div id="imageDiv">
       <div id="toolsOuterDiv">
         <h5 id="toolsHeader">Tools</h5>
         <div id="toolsDiv"></div>
       </div>
-      <!-- <div id="selectMarkersOuterDiv">
-        <h5>From B-CAST</h5>
-        <div class="form-group" id="selectMarkersDiv">
-          <h6><label for="select_markers">B-CAST Marker:</label></h6>
-          <select id="select_markers" class="form-control"></select>
-        </div>
-      </div> -->
       <div id="canvasWithPickers">
-        <div id="canvasDiv">
-          <nav aria-label="breadcrumb">
-            <span id="imgHeader"></span>
-          </nav>
-          <div class="loaderDiv" id="imgLoaderDiv">
-            <img src="external/images/loader.gif" class="loaderImg" id="loaderImg">
+        <nav aria-label="breadcrumb">
+          <span id="imgHeader"></span>
+        </nav>
+        <div id="canvasWithThumbnails">
+          <div id="canvasDiv">
+            <div class="loaderDiv" id="imgLoaderDiv">
+              <img src="external/images/loader.gif" class="loaderImg" id="loaderImg">
+            </div>
+            <div id="tmaCanvasParent">
+              <canvas id="tmaCanvas"></canvas>
+            </div>
+            <div id="wsiCanvasParent"></div>
           </div>
-          <div id="tmaCanvasParent">
-            <canvas id="tmaCanvas"></canvas>
+          <div id="thumbnailPickerParent">
+            <div id="thumbnailPicker"></div>
           </div>
-          <div id="wsiCanvasParent"></div>
-        </div>
-        <div id="thumbnailPicker" style="display: none">
         </div>
       </div>
-      <!-- <div class="canvasDiv">
-          <h5 id="imgHeader">Output</h4>
-            <div>
-              <canvas id="outputCanvas"></canvas>
-            </div>
-          </div> -->
       <div id="tabsContainer">
-        <ul class="nav nav-tabs" id="tabs" role="tablist">
-          <li class="nav-item">
-            <a class="nav-link active" id="box-tab" data-toggle="tab" href="#myBox" role="tab" aria-controls="box"
-              aria-selected="true" style="border-left: none;">My Box</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" id="annotations-tab" data-toggle="tab" href="#annotations" role="tab"
-            aria-controls="annotations" aria-selected="false">Annotations</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" id="dataset-tab" data-toggle="tab" href="#dataset" role="tab"
-              aria-controls="dataset" aria-selected="false">Dataset</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" id="collaborate-tab" data-toggle="tab" href="#collaborate" role="tab"
-              aria-controls="collaborate" aria-selected="false">Collaborate</a>
-          </li>
-        </ul>
+        <div id="tabsList">
+          <ul class="nav nav-tabs" id="tabs" role="tablist">
+            <li class="nav-item">
+              <a class="nav-link no-bottom-border active" id="box-tab" data-toggle="tab" href="#myBox" role="tab" aria-controls="box"
+                aria-selected="true" style="border-left: none;">My Box</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link no-bottom-border" id="annotations-tab" data-toggle="tab" href="#annotations" role="tab"
+              aria-controls="annotations" aria-selected="false">Annotations</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link no-bottom-border" id="dataset-tab" data-toggle="tab" href="#dataset" role="tab"
+                aria-controls="dataset" aria-selected="false">Dataset</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link no-bottom-border" id="collaborate-tab" data-toggle="tab" href="#collaborate" role="tab"
+                aria-controls="collaborate" aria-selected="false">Collaborate</a>
+            </li>
+          </ul>
+        </div>
         <div class="tab-content" id="tabsContent">
           <div class="tab-pane fade show active" id="myBox" role="tabpanel" aria-labelledby="box-tab">
-            <div class="tabContainer" id="boxFileManager" folderId="">
+            <div class="tabContainer" id="boxFileManager">
               <div id="fileMgrLoaderDiv" class="loaderDiv">
                 <img src="external/images/loader.gif" id="fileMgrLoader" class="loaderImg" />
               </div>
@@ -298,8 +285,8 @@
   </div> -->
   </div>
 </body>
-<!-- <script src="opencv.js" async></script> -->
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.7.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/2.4.2/openseadragon.min.js"></script>
+<script src="https://docs.opencv.org/master/opencv.js" async></script>
+<!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.7.0/dist/tf.min.js"></script> -->
+<!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js"></script> -->
+<script src="https://cdn.jsdelivr.net/npm/openseadragon@latest/build/openseadragon/openseadragon.min.js"></script>
 </html>

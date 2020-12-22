@@ -30,7 +30,6 @@ tools.addLocalFileButton = async () => {
       document.getElementById("imgHeader").innerHTML = `<h5>${files[0].name}</h5>`
       if (hashParams.image) {
         path.selectImage(null)
-        window.localStorage.currentImage = ""
         window.localStorage.currentFolder = ""
       }
       path.isImageFromBox = false
@@ -53,19 +52,26 @@ tools.addLocalFileButton = async () => {
 }
 
 tools.segmentButton = () => {
+  let clicked = false
   const segmentDiv = document.createElement("div")
   segmentDiv.setAttribute("class", "tool")
   segmentDiv.setAttribute("title", "Under Development!")
 
   const segmentBtn = document.createElement("button")
   segmentBtn.setAttribute("class", "btn btn-outline-primary")
-  segmentBtn.setAttribute("disabled", "")
+  // segmentBtn.setAttribute("disabled", "")
 
   const segmentIcon = document.createElement("i")
   segmentIcon.setAttribute("class", "fas fa-qrcode")
   segmentBtn.onclick = () => {
     clicked = !clicked
-    watershedSegment(path.tmaCanvas, path.tmaCanvas, clicked)
+    if (clicked) {
+      segmentBtn.classList.replace("btn-outline-primary", "btn-primary")
+    } else {
+      segmentBtn.classList.replace("btn-primary", "btn-outline-primary")
+    }
+    const currentlyVisibleCanvas = path.isWSI ? path.wsiViewer.canvas.firstElementChild : path.tmaCanvas
+    watershedSegment(currentlyVisibleCanvas, currentlyVisibleCanvas, clicked)
   }
   // const segmentLabel = document.createElement("label")
   // segmentLabel.appendChild(document.createTextNode(`Segment Image`))
@@ -107,7 +113,7 @@ const watershedSegment = (canvas, outputCanvas, checked) => {
     cv.distanceTransform(opening, distTrans, cv.DIST_L2, 5)
     cv.normalize(distTrans, distTrans, 1, 0, cv.NORM_INF)
     // get foreground
-    cv.threshold(distTrans, foreground, 0.005 * 1, 255, cv.THRESH_BINARY)
+    cv.threshold(distTrans, foreground, 0.0005 * 1, 255, cv.THRESH_BINARY)
     foreground.convertTo(foreground, cv.CV_8U, 1, 0)
     cv.subtract(background, foreground, unknown)
 
@@ -128,9 +134,9 @@ const watershedSegment = (canvas, outputCanvas, checked) => {
     for (let i = 0; i < markers.rows; i++) {
       for (let j = 0; j < markers.cols; j++) {
         if (markers.ucharPtr(i, j)[0] == 255) {
-          src.ucharPtr(i, j)[0] = 255 // R
+          src.ucharPtr(i, j)[0] = 0 // R
           src.ucharPtr(i, j)[1] = 0 // G
-          src.ucharPtr(i, j)[2] = 0 // B
+          src.ucharPtr(i, j)[2] = 255 // B
         }
       }
     }

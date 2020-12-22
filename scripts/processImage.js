@@ -1,68 +1,76 @@
 const tileServerBasePath = "https://dl-test-tma.uc.r.appspot.com/iiif"
 
-const boxCreds = {}
-
 const indexedDBConfig = {
   dbName: "boxCreds",
   objectStoreName: "oauth"
 }
-let workerDB = {}
+let workerDB
 
 const fetchIndexedDBInstance = () => new Promise(resolve => {
   indexedDB.open(indexedDBConfig.dbName).onsuccess = (evt) => {
-    workerDB = evt.target.result
-    resolve()
-    // console.log(workerDB)
+    resolve(evt.target.result)
   }
 })
 
-const getFileContentsFromBox = (id, opts={}) => {
+const getFileContentsFromBox = (id, opts={}) => new Promise(resolve => {
   const contentEndpoint = `https://api.box.com/2.0/files/${id}/content`
-  opts['headers'] = {
-    'Authorization': `Bearer ${boxCreds.accessToken}`
+  workerDB.transaction("oauth", "readwrite").objectStore("oauth").get(1).onsuccess = (evt) => {
+    const { access_token: accessToken } = evt.target.result
+    opts['headers'] = {
+      'Authorization': `Bearer ${accessToken}`
+    }
+    resolve(fetch(contentEndpoint, opts))
   }
-  return fetch(contentEndpoint, opts)
-}
+})
 
-const uploadFile = (updateData) => {
-	const uploadEndpoint = "https://upload.box.com/api/2.0/files/content"
-	return fetch(uploadEndpoint, {
-    'method': "POST",
-    'headers': {
-      'Authorization': `Bearer ${boxCreds.accessToken}`
-    },
-	  'body': updateData
-	})
-}
+const uploadFile = (updateData) => new Promise(resolve => {
+  const uploadEndpoint = "https://upload.box.com/api/2.0/files/content"
+  workerDB.transaction("oauth", "readwrite").objectStore("oauth").get(1).onsuccess = (evt) => {
+    const { access_token: accessToken } = evt.target.result
+    resolve(fetch(uploadEndpoint, {
+      'method': "POST",
+      'headers': {
+        'Authorization': `Bearer ${accessToken}`
+      },
+      'body': updateData
+    }))
+  }
+})
 
-const createMetadata = (id, body) => {
+const createMetadata = (id, body) => new Promise(resolve => {
   const metadataAPI = `https://api.box.com/2.0/files/${id}/metadata/global/properties`
-  return fetch(metadataAPI, {
-    'method': "POST",
-    'headers': {
-      'Content-Type': "application/json",
-      'Authorization': `Bearer ${boxCreds.accessToken}`
-    },
-    'body': JSON.stringify(body)
-  })
-}
+  workerDB.transaction("oauth", "readwrite").objectStore("oauth").get(1).onsuccess = (evt) => {
+    const { access_token: accessToken } = evt.target.result
+    resolve(fetch(metadataAPI, {
+      'method': "POST",
+      'headers': {
+        'Content-Type': "application/json",
+        'Authorization': `Bearer ${accessToken}`
+      },
+      'body': JSON.stringify(body)
+    }))
+  }
+})
 
-const updateMetadata = (id, path, updateData) => {
+const updateMetadata = (id, path, updateData) => new Promise(resolve => {
 	const updatePatch = [{
 	  'op': "add",
 	  path,
 	  'value': updateData
-	}]
-
-	return fetch(`https://api.box.com/2.0/files/${id}/metadata/global/properties`, {
-	  'method': "PUT",
-	  'headers': {
-      'Content-Type': "application/json-patch+json",
-      'Authorization': `Bearer ${boxCreds.accessToken}`
-	  },
-	  'body': JSON.stringify(updatePatch)
-	})
-}
+  }]
+  
+  workerDB.transaction("oauth", "readwrite").objectStore("oauth").get(1).onsuccess = (evt) => {
+    const { access_token: accessToken } = evt.target.result
+    resolve(fetch(`https://api.box.com/2.0/files/${id}/metadata/global/properties`, {
+      'method': "PUT",
+      'headers': {
+        'Content-Type': "application/json-patch+json",
+        'Authorization': `Bearer ${accessToken}`
+      },
+      'body': JSON.stringify(updatePatch)
+    }))
+  }
+})
 
 const handleTIFFConversion = async (imageId, jpegRepresentationsFolderId, name, size) => {
   importScripts("../external/tiff.min.js")
@@ -261,10 +269,7 @@ onmessage = async (evt) => {
 }
 
 main = async () => {
-  await fetchIndexedDBInstance()
-  workerDB.transaction("oauth", "readwrite").objectStore("oauth").get(1).onsuccess = async (evt) => {
-    boxCreds.accessToken = evt.target.result.access_token
-  }
+  workerDB = await fetchIndexedDBInstance()
 }
 
 main()

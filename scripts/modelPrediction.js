@@ -1,69 +1,44 @@
 importScripts("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js", "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js")
-const indexedDBConfig = {
-  dbName: "boxCreds",
-  objectStoreName: "oauth"
-}
+importScripts("/scripts/modelWorkerUtils.js")
+
+const MAX_PARALLEL_REQUESTS = 5
+const childWorkers = []
 
 const models = {}
+const wsiFileTypes = [".svs", ".ndpi"]
+const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff", ...wsiFileTypes]
+const minTileWidth = 256
+const minTileHeight = 256
 
-let workerDB = {}
+let stopPreds = false
 
-const fetchIndexedDBInstance = () => new Promise(resolve => {
-  indexedDB.open(indexedDBConfig.dbName).onsuccess = (evt) => {
-    workerDB = evt.target.result
-    resolve()
-    // console.log(workerDB)
-  }
-})
-
-const utils = {
-  request: (url, opts) => 
-    fetch(url, opts)
-    .then(res => {
-      if (res.ok) {
-        return res
-      } else {
-        throw Error(res.status)
-      } 
+utils = {
+  ...utils,
+  isValidImage: (name) => {
+    let isValid = false
+    
+    validFileTypes.forEach(fileType => {
+      if (name.endsWith(fileType)) {
+        isValid = true
+      }
     })
-}
+    
+    return isValid
+  },
 
-class BoxHandler {
-  constructor (configJSON, weightFiles) {
-    this.configJSON = configJSON
-    this.weightFiles = weightFiles
-  }
-  async load() {
-    // Returns a ModelArtifacts Object. https://github.com/tensorflow/tfjs/blob/81225adc2fcf6fcf633b4119e4b89a3bf55be824/tfjs-core/src/io/types.ts#L226
-    let weightData = new ArrayBuffer()
-    for (const file of this.configJSON.weightsManifest[0].paths) {
-      const fileIdInBox = this.weightFiles[file]
-      const weightsBinary = await getFileContentFromBox(fileIdInBox, "buffer")
-      const tempWeightData = new Uint8Array(weightData.byteLength + weightsBinary.byteLength)
-      tempWeightData.set(new Uint8Array(weightData), 0)
-      tempWeightData.set(new Uint8Array(weightsBinary), weightData.byteLength)
-      weightData = tempWeightData.buffer
-    }
-    const modelArtifacts = {
-      modelTopology: this.configJSON.modelTopology,
-      format: this.configJSON.format,
-      generatedBy: this.configJSON.generatedBy,
-      convertedBy: this.configJSON.convertedBy,
-      userDefinedMetadata: this.configJSON.userDefinedMetadata,
-      weightSpecs: this.configJSON.weightsManifest[0].weights,
-      weightData
-    }
-    return modelArtifacts
-  }
-  async save() {
-    // Returns a ModelArtifactsInfo Object. https://github.com/tensorflow/tfjs/blob/81225adc2fcf6fcf633b4119e4b89a3bf55be824/tfjs-core/src/io/types.ts#L150
-    return {
-      dateSaved: new Date(),
-      modelTopologyType: 'JSON'
-    }
-  }
-}
+  isWSI: (name) => {
+    let isWSI = false
+    
+    wsiFileTypes.forEach(fileType => {
+      if (name.endsWith(fileType)) {
+        isWSI = true
+      }
+    })
 
+    return isWSI
+  }
+  
+}
 
 const loadLocalModel = async () => {
 
@@ -73,15 +48,16 @@ const loadLocalModel = async () => {
 
 onmessage = async (evt) => {
   const { op, ...data } = evt.data
+  let annotationId, imageId, prediction, modelConfig
   // console.log("Message received from main thread!")
   switch (op) {
     case 'loadModel':
-      const { modelConfig } = data.body
+      modelConfig = data.body.modelConfig
       const { correspondingAnnotation, configFileId, weightFiles, dictionaryFileId } = modelConfig
-      const modelArch = await getFileContentFromBox(configFileId, "json")
+      const modelArch = await getFileContentFromBox(configFileId, false, "json")
       const handler = new BoxHandler(modelArch, weightFiles)
       const graphModel = await tf.loadGraphModel(handler)
-      const dictionary = await getFileContentFromBox(dictionaryFileId, "text")
+      const dictionary = await getFileContentFromBox(dictionaryFileId, false, "text")
       const model = new tf.automl.ImageClassificationModel(graphModel, dictionary.trim().split('\n'))
       models[correspondingAnnotation] = {
         'modelId': modelConfig.id,
@@ -92,55 +68,352 @@ onmessage = async (evt) => {
       break
     
     case 'predict':
-      const { annotationId } = data.body
-      let { tmaImageData: { imageBitmap, width, height } } = data.body
-      if (!imageBitmap && data.body.tmaImageData.imageId) {
-        const imageBlob = await getFileContentFromBox(data.body.tmaImageData.imageId, "blob")
-        imageBitmap = await createImageBitmap(imageBlob)
-        width = imageBitmap.width
-        height = imageBitmap.height
+      annotationId = data.body.annotationId
+      imageId = data.body.imageData.imageId
+      let { imageData: { imageBitmap, width, height } } = data.body
+      if (!imageBitmap && imageId) {
+        const { name } = await getDataFromBox(imageId, "file")
+        if (utils.isValidImage(name)) {
+          const imageBlob = await getFileContentFromBox(imageId, false, "blob")
+          imageBitmap = await createImageBitmap(imageBlob)
+          width = imageBitmap.width
+          height = imageBitmap.height
+        }
       }
+      
       const offscreenCV = new OffscreenCanvas(width, height)
       const offscreentCtx = offscreenCV.getContext('2d')
       offscreentCtx.drawImage(imageBitmap, 0, 0)
-      const prediction = await models[annotationId].model.classify(offscreenCV)
+      prediction = await models[annotationId].model.classify(offscreenCV)
+      
       postMessage({
         op,
         prediction,
+        imageId,
         'modelId': models[annotationId].modelId,
         'modelVersion': models[annotationId].modelVersion
       })
       break
+      
+    case 'predictWSI':
+      stopPreds = false
+      annotationId = data.body.annotationId
+      prediction = await getAllWSIDataFromIndexedDB(annotationId)
+      imageId = data.body.imageData.imageId
+      let { imageInfo, predictionBounds, wsiPredsFileId } = data.body.imageData
+      
+      const tileServerBasePath = "https://dl-test-tma.uc.r.appspot.com/iiif"
+      
+      const wsiTilePrediction = async (tileInfo) => {
+        const { imageId, imageURL, x, y, width, height, attemptNum } = tileInfo
+        const indexedDBRecord = await getWSIDataFromIndexedDB({x, y, width, height}, annotationId)
+        if (indexedDBRecord) {
+          return {
+            annotationId,
+            imageId,
+            ...indexedDBRecord,
+            'success': true,
+            'fromLocalDB': true
+          }
+        } else if (x >= 0 && y >= 0 && width >= 0 && height >= 0) {
+          const tileServerRequest = `${tileServerBasePath}/?iiif=${imageURL}/${x},${y},${width},${height}/${width},/0/default.jpg`
+          try {
+            const tileBlob = await (await fetch(tileServerRequest)).blob()
+            const tileImageBitmap = await createImageBitmap(tileBlob)
+            
+            if (tileImageBitmap) {
+              const offscreenCV = new OffscreenCanvas(tileImageBitmap.width, tileImageBitmap.height)
+              const offscreenCtx = offscreenCV.getContext('2d')
+              offscreenCtx.drawImage(tileImageBitmap, 0, 0)
+              const imgData = offscreenCtx.getImageData(0, 0, tileImageBitmap.width, tileImageBitmap.height)
+              
+              if (imgData.data.filter(pixelIntensity => pixelIntensity < 220).length > 100) {
+                const prediction = await models[annotationId].model.classify(offscreenCV)
+                return {
+                  annotationId,
+                  imageId,
+                  x,
+                  y,
+                  width,
+                  height,
+                  prediction,
+                  'success': true
+                }
+           
+              } else {
+                return {
+                  annotationId,
+                  imageId,
+                  x,
+                  y,
+                  width,
+                  height,
+                  'isTileBlank': true,
+                  'success': true,
+                }
+              }
+            
+            } else {
+              // postMessage({
+              //   op,
+              //   'body': {
+              //     x,
+              //     y,
+              //     width,
+              //     height,
+              //     'success': false,
+              //     'message': "Error occurred getting the tile image bitmap!"
+              //   }
+              // })
+            }
+      
+          } catch (e) {
+            console.log(e)
+            throw Error(e)
+          }
+        }
+      }
+      
+      
+      let lastURLRefreshTime = null
+      if (imageId) {
+        let url = await getFileContentFromBox(imageId, true)
+        lastURLRefreshTime = Date.now()
+        
+        if (!imageInfo) {
+          const p = `${tileServerBasePath}/?iiif=${url}`
+          const infoURL = `${p}/info.json`
+          imageInfo = await (await fetch(infoURL)).json()
+        }
+        let { startX:initialX=0, startY:initialY=0, endX:finalX=imageInfo.width, endY:finalY=imageInfo.height, tileDimensions=minTileWidth } = predictionBounds
+        
+        postMessage({
+          op,
+          'body': {
+            'message': "Starting predictions on WSI Tiles",
+            imageId
+          }
+        })
+        
+        // childWorkers.forEach(worker => worker.terminate())
+        
+        let currentX = -1
+        let currentY = -1
+        let currentTileWidth = -1
+        let currentTileHeight = -1
+        let currentLevel = 0
+        let isRightMostTile = false
+        let isBottomMostTile = false
+        let wsiDone = false
+        let activeCalls = 0
 
+        const getNextTileInfo = (imageId) => {
+          if (currentX === -1 && currentY === -1 && currentTileWidth === -1 && currentTileHeight === -1) {
+            currentX = initialX
+            currentY = initialY
+            currentTileWidth = initialX + tileDimensions <= finalX ? tileDimensions : minTileWidth
+            currentTileHeight = initialY + tileDimensions <= finalY ? tileDimensions : minTileHeight
+            
+          } else {
+            currentX += currentTileWidth
+
+            if (isRightMostTile) {
+              currentTileWidth = Math.floor(tileDimensions/Math.pow(2, currentLevel))
+              currentTileHeight = Math.floor(tileDimensions/Math.pow(2, currentLevel))
+              currentX = initialX
+              currentY += currentTileHeight
+              isRightMostTile = false
+
+              if (isBottomMostTile) {
+                currentLevel += 1
+                currentTileWidth = Math.floor(tileDimensions/Math.pow(2, currentLevel))
+                currentTileHeight = Math.floor(tileDimensions/Math.pow(2, currentLevel))
+                currentY = initialY
+                isBottomMostTile = false
+                
+                if (currentTileWidth < minTileWidth || currentTileHeight < minTileHeight) {
+                  wsiDone = true
+                  return
+                }
+                postMessage({
+                  op,
+                  'body': {
+                    'message': `Increasing tile magnification for model prediction.`,
+                    imageId
+                  }
+                })
+
+              } else if (currentY + currentTileHeight >= finalY) {
+                currentTileHeight = finalY - currentY
+                isBottomMostTile = true
+              }
+              
+            } else if (currentX + currentTileWidth >= finalX) {
+              currentTileWidth = finalX - currentX
+              isRightMostTile = true
+            }
+          }
+          
+          const nextTileInfo = {
+            annotationId,
+            imageId,
+            'imageURL': url,
+            'x': currentX,
+            'y': currentY,
+            'width': currentTileWidth,
+            'height': currentTileHeight
+          }
+          
+          return nextTileInfo
+        }
+
+        const makePrediction = (tileInfo, attemptNum=1) => {
+
+          postMessage({
+            op,
+            'body': {
+              'processing': true,
+              'annotationId': tileInfo.annotationId,
+              'imageId': tileInfo.imageId,
+              'x': tileInfo.x,
+              'y': tileInfo.y,
+              'width': tileInfo.width,
+              'height': tileInfo.height,
+            }
+          })
+          if (!stopPreds && attemptNum <= 3) {
+            tileInfo['attemptNum'] = attemptNum
+            activeCalls += 1
+
+            wsiTilePrediction(tileInfo).then((data) => {
+              activeCalls -= 1
+            
+              if (data.success) {
+                if (!data.isTileBlank && !data.fromLocalDB) {
+                  const addObjToDb = {
+                    'x': data.x,
+                    'y': data.y,
+                    'width': data.width,
+                    'height': data.height,
+                    'prediction': data.prediction
+                  }
+                  
+                  insertWSIDataToIndexedDB(addObjToDb, annotationId).then(result => {
+                    if (result && result.length === indexedDBConfig['wsi'].objectStoreOpts.keyPath.length) {
+                      prediction.push(addObjToDb)
+                      if (prediction.length % 30 === 0) {
+                        const formData = new FormData()
+                        const dataBlob = new Blob([JSON.stringify(prediction)], {
+                          type: "application/json"
+                        })
+                        formData.append("file", dataBlob)
+                        uploadFileToBox(formData, wsiPredsFileId)
+                      }
+                    } else {
+                      console.log(result)
+                    }
+                  }).catch(e => console.log(e))
+                }
+
+                postMessage({
+                  op,
+                  'body': {
+                    'success': true,
+                    ...data
+                  }
+                })
+              }
+           
+              const nextTileInfo = getNextTileInfo(tileInfo.imageId)
+              if (!wsiDone && !stopPreds) {
+                makePrediction(nextTileInfo)
+                return
+         
+              } else if (activeCalls === 0) {
+                postMessage({
+                  op,
+                  'body': {
+                    'imageId': tileInfo.imageId,
+                    'completed': true,
+                    'message': "Finished running the model!"
+                  }
+                })
+              }
+
+            }).catch(async (e) => {
+              activeCalls -= 1
+              console.log("Error making prediction for tile", JSON.stringify(tileInfo), e)
+              console.log("Retrying, attempt", attemptNum+1)
+
+              if (lastURLRefreshTime + 14*60*1000 < Date.now()) {
+                console.log("Box URL expired. Refreshing for further predictions.", Date())
+                url = await getFileContentFromBox(imageId, true)
+                lastURLRefreshTime = Date.now()
+                tileInfo['imageURL'] = url
+              }
+              makePrediction(tileInfo, attemptNum+1)
+            })
+     
+          } else if (!stopPreds) {
+            stopPreds = true
+            console.error("Image loading failed too many times! Further predictions cannot be made.")
+            postMessage({
+              op,
+              'body': {
+                'error': true,
+                'message': "Tile Loading Failed for WSI Prediction!",
+                imageId
+              }
+            })
+            return
+          }
+        }
+
+        for (let i = 0; i < MAX_PARALLEL_REQUESTS; i++) {
+          const tileInfo = getNextTileInfo(imageId)
+          makePrediction(tileInfo, 1)
+        }
+        
+      }
+      break
+
+    case 'getPreviousPreds':
+      // Get the prediction file for the WSI if it exists and load it into IndexedDB, otherwise
+      // create a new file and add to the WSI metadata.
+      annotationId = data.body.annotationId
+      imageId = data.body.imageData.imageId
+      const { modelId } = data.body
+      const { wsiPredsFiles } = data.body.imageData
+      const datasetConfig = data.body.datasetConfig
+
+      clearWSIDataFromIndexedDB()
+      const { previousPredictions, ...otherChanges } = await getPredsFromBox(imageId, annotationId, modelId, datasetConfig, wsiPredsFiles)
+      previousPredictions.forEach(pred => insertWSIDataToIndexedDB(pred, annotationId))
+      postMessage({
+        op,
+        'body': {
+          imageId,
+          annotationId,
+          modelId,
+          ...otherChanges,
+          'success': true
+        }
+      })
+      break
+      
+    case 'stop':
+      annotationId = data.body.annotationId
+      stopPreds = true
+      postMessage({
+        op,
+        'body': {
+          'success': true,
+          "message": "Workers Stopped"
+        }
+      })
   }
   // const tmaImage = tf.tensor3d(evt.data)
   // postMessage(pred)
-  
-}
-
-const getFileContentFromBox = (id, responseType="json") => {
-  return new Promise(async (resolve) => {
-    await fetchIndexedDBInstance()
-    workerDB.transaction("oauth", "readwrite").objectStore("oauth").get(1).onsuccess = async (evt) => {
-      const accessToken = evt.target.result.access_token
-      const contentEndpoint = `https://api.box.com/2.0/files/${id}/content`
-      let resp = await utils.request(contentEndpoint, {
-        'headers': {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      })
-      if (responseType === "json") {
-        resp = await resp.json()
-      } else if (responseType === "buffer") {
-        resp = await resp.arrayBuffer()
-      } else if (responseType === "blob") {
-        resp = await resp.blob()
-      } else {
-        resp = await resp.text()
-      }
-      resolve(resp)
-    }
-  })
 }
 
 loadLocalModel()

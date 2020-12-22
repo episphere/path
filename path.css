@@ -26,24 +26,52 @@ canvas {
   margin-top: 0.5rem;
 }
 
-#loginSpan {
+#appHeader {
   display: flex;
   flex-direction: row;
   justify-content: space-between;
+  margin: 0.6rem 0;
 }
 
-#loginSpan p {
+#appName {
+  height: fit-content;
+}
+
+/* #loginSpan {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+} */
+
+/* #loginSpan p {
   margin-bottom: 0.3rem;
+} */
+
+#boxLogin {
+  display: flex;
+  justify-content: flex-end;
+  width: 15%;
+  text-align: right;
+  margin-top: 0.5rem;
+}
+
+#username {
+  margin: auto 0;
+  
 }
 
 #datasetSelectSpan {
-  display: none;
+  display: flex;
   flex-direction: row; 
-  margin-top: -10px;
+  margin-top: 0.5rem;
+}
+
+#datasetSelectSpan p {
+  margin-bottom: 0;
 }
 
 #datasetSelectDropdown {
-  margin-left: 1rem;
+  margin: auto 0 auto 1rem;
 }
 
 #datasetSelectDropdownBtn {
@@ -62,8 +90,14 @@ canvas {
 }
 
 #datasetSelectDropdownDiv>button {
-  width: fit-content;
+  width: 100%;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
   text-align: left;
+}
+
+.datasetOptionBtn.selected  {
+  background: rgba(100,200,255,0.2);
 }
 
 #imgInputBtn {
@@ -98,16 +132,18 @@ canvas {
 
 #imageDiv {
   display: flex;
-  /* flex-direction: row; */
 }
 
 #toolsOuterDiv {
   visibility: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 #toolsDiv {
   display: flex;
   flex-direction: column;
+  height: 100%;
   margin-right: 0.5rem;
 }
 
@@ -125,6 +161,14 @@ canvas {
   width: fit-content;
 }
 
+.dropdown {
+  z-index: 10000000;
+}
+
+.tooltip {
+  z-index: 10000000;
+}
+
 .dropdown-toggle {
   height: 100%;
   padding-left:0.2rem;
@@ -132,7 +176,7 @@ canvas {
 }
 
 .dropdown-menu {
-  padding: 1rem;
+  padding: 0.5rem 0 0 0.5rem;
 }
 
 #scrollToZoom {
@@ -156,6 +200,10 @@ canvas {
   bottom: 0;
 }
 
+#imgHeader {
+  height: 6%;
+}
+
 #tmaCanvasParent {
   position: relative;
 }
@@ -163,18 +211,115 @@ canvas {
 #wsiCanvasParent {
   position: relative;
   background: black;
+  width: 100%;
+  height: 100%;
   display: none;
+}
+
+.wsiControlBtnParent {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.wsiControlBtnParent:hover {
+  background-color: black;
+}
+
+.wsiControlBtnParent.active {
+  background-color: black;
+}
+
+.wsiControlBtnParent.active i {
+  color: rgba(100,240,100,1)
+}
+
+.wsiControlBtnParent .form-check {
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+
+.wsiControlBtnParent .form-check>label {
+  width: 100%;
+  height: 100%;
+}
+
+.wsiControlBtnParent .form-check:last-child {
+  margin-bottom: 0.5rem;
+}
+
+.wsiControlBtnParent .form-check:hover {
+  background-color: rgba(190, 190, 255, 0.4);
+}
+
+.wsiControlBtn {
+  border: none;
+  padding: 0;
+  width: 51px;
+  height: 50px;
+  cursor: pointer;
+}
+
+.wsiControlBtn>i {
+  font-size: 28;
+  color: rgba(200, 200, 200, 1);
+}
+
+#runModelWSIDropdownDiv {
+  width: 12rem;
+}
+
+#runModelWSI_moreOptions {
+  padding-top:0;
+}
+
+#hideAnnotationsDropdownDiv {
+  width: 10.5rem;
+}
+
+#hideAnnotationsDropdownDiv, #runModelWSIDropdownDiv {
+  padding-right: 0.5rem;
+}
+
+#hideAnnotationsDropdownDiv>hr, #runModelWSIDropdownDiv>hr {
+  margin: 0.3rem 0;
+}
+
+#stopWSIModelButtonDiv {
+  display: none;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+#stopWSIModelBtn {
+  width: 100%;
+  height:100%;
 }
 
 #canvasWithPickers {
   position: relative;
 }
 
+#canvasWithThumbnails {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
+
+#thumbnailPickerParent {
+  position: relative;
+  width: 7rem;
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
+}
+
 #thumbnailPicker {
+  display: flex;
+  flex-direction: column;
   position: absolute;
-  right: 0;
-  margin: 2rem 1.2rem 0 0;
-  text-align: right;
+  top: 0;
+  right: 0px;
+  bottom: 0;
+  left: 0;
   z-index: 5;
 }
 
@@ -203,9 +348,10 @@ canvas {
 .thumbnailDiv {
   display: flex;
   flex-direction: column;
-  margin-right: 0.5rem;
   cursor: pointer;
   align-items:center;
+  margin-left: 0.2rem;
+  margin-right: 0.2rem;
 }
 
 .imagePickerThumbnail {
@@ -236,13 +382,63 @@ canvas {
   overflow: hidden;
 }
 
+#tabsContainer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  /* margin-left: 0.5rem; */
+  border-left: 1px solid lightgray;
+}
+
+#tabsContent {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  /* height: 93%; */
+  /* max-height: 78vh; */
+  border-top: 1px solid lightgray;
+}
+
 .tabContainer {
-  margin-left: 1.5rem;
-  max-height: 75vh;
+  height: 100%;
 }
 
 .tabContainerWithMargin {
   margin-top: 0.7rem;
+  padding-left: 1.5rem;
+}
+
+#collaborate>.jumbotron {
+  padding-left: 2rem;
+  margin-left: 1rem;
+  height: fit-content;
+}
+
+#tabsList {
+  display: flex;
+}
+
+#tabs {
+  height: fit-content;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.nav-item {
+  display: inline-block;
+  height: fit-content;
+}
+
+.nav-tabs {
+  border-bottom: none;
+}
+
+.tab-pane {
+  display: flex;
+  width: 100%;
+  height: 100%;
 }
 
 .card-header {
@@ -257,32 +453,43 @@ canvas {
 
 #boxFolderTree {
   position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  border-right: 1px solid lightgray;
+  height: 100%;
 }
 
-#boxFileManager hr {
+#datasetSelectDropdownDiv>hr, #boxFileManager hr {
   margin-top: 0;
   margin-bottom: 0;
 }
 
 #boxFolderTree hr {
-  width: 90%;
+  width: 94%;
+}
+
+.boxFileMgr_folderTree {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow-y: scroll;
 }
 
 .boxFileMgr_subFolder {
   display: flex;
   flex-direction: row;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding-left: 3%;
+  padding-right: 3%;
   justify-content: space-between;
 }
 
 .boxFileMgr_subFolder>button {
   width: 90%;
   text-align: left;
-  padding-top: 1.2rem;
-  padding-bottom: 1.2rem;
+  padding-top: 1rem;
+  padding-bottom: 1rem;
 }
 
 .boxFolderOptionsDiv {
@@ -562,8 +769,28 @@ canvas {
   flex-direction: row;
 }
 
-.wsiAnnotation {
+.wsiUserAnnotation {
   outline: 1px solid red;
+  box-shadow: 0px 0px 2px 2px lightpink;
+}
+
+.wsiModelAnnotation {
+  outline: 1px solid green;
+  box-shadow: 0px 0px 2px 2px lightgreen;
+}
+
+.wsiProcessing {
+  outline: 1px dashed royalblue;
+}
+
+.tileProcessing {
+  outline: 1px dotted lightseagreen;
+  background-color: rgba(240, 240, 240, 0.2);
+  transition: background .5s linear;
+}
+
+.tileProcessing.transition {
+  background-color: rgba(150, 250, 146, 0.5);
 }
 
 .fa-info-circle {
@@ -685,12 +912,15 @@ canvas {
   #canvasWithPickers {
     width: 55%;
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
+    margin-left: 1.5rem;
   }
 
   #canvasDiv {
-    width: 75%;
-    margin-left: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    width: calc(100% - 8rem);
+    height: 100%;
   }
 
   #tabsContainer {
@@ -704,7 +934,10 @@ canvas {
   }
 
   #canvasDiv {
+    display: flex;
+    flex-direction: column;
     width: 80%;
+    height: 100%;
   }
 
   #tabsContainer {

@@ -3,16 +3,36 @@ const APPNAME = "epiPath"
 
 const boxRootFolderId = "0"
 const indexedDBConfig = {
-  dbName: "boxCreds",
-  objectStoreName: "oauth"
+  'box': {
+    'dbName': "boxCreds",
+    'objectStoreName': "oauth",
+    'objectStoreOpts': {
+      'autoIncrement': true
+    }
+  },
+  'wsi': {
+    'dbName': "wsiPreds",
+    'objectStoreNamePrefix': "tilePredictions",
+    'objectStoreOpts': {
+      'keyPath': ["x", "y", "width", "height"]
+    },
+    'objectStoreIndex': {
+      'name': "tileCoords",
+      'keyPath': ["x", "y", "width", "height"],
+      'objectParameters': {
+        'unique': true
+      }
+    }
+  }
 }
+
 
 const basePath = window.location.pathname === "/" ? "" : window.location.pathname
 let configFileId = window.location.hash.includes("covid") ? 644912149213 : 627997326641
 // const configFileId = 627997326641
 const containsEmojiRegex = new RegExp("(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])")
-const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff", ".svs", ".ndpi"]
 const wsiFileTypes = [".svs", ".ndpi"]
+const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff", ...wsiFileTypes]
 
 const urlParams = {}
 const loadURLParams = () => {
@@ -26,7 +46,7 @@ if (typeof OffscreenCanvas !== "function") { // Alert for browsers without Offsc
   alert("This browser does not support all features required to run this application. Please use the Google Chrome browser for the best experience!")
 }
 
-var hashParams
+var hashParams = {}
 const loadHashParams = async () => {
   hashParams = {}
   if (window.location.hash.includes("=")) {
@@ -54,10 +74,10 @@ const loadHashParams = async () => {
     path.loadModules()
   }
   
-  if (await box.isLoggedIn()) {
+  if (box.isLoggedIn && await box.isLoggedIn()) {
  
-    if (hashParams.image && hashParams.image !== window.localStorage.currentImage) {
-      await loadImageFromBox(hashParams.image)
+    if (hashParams.image && hashParams.image !== path.tmaImage.getAttribute("entry_id")) {
+      loadImageFromBox(hashParams.image)
     }
   
     if (hashParams.folder) {
@@ -68,6 +88,10 @@ const loadHashParams = async () => {
       }
     } else {
       path.selectFolder(boxRootFolderId)
+    }
+
+    if (hashParams.wsiCenterX && hashParams.wsiCenterY && hashParams.wsiZoom) {
+      wsi.handlePanAndZoom(hashParams.wsiCenterX, hashParams.wsiCenterY, hashParams.wsiZoom)
     }
  
     if (!hashParams.sort) {
@@ -148,38 +172,58 @@ const qualityEnum = [{
 }]
 
 const path = async () => {
-  window.localStorage.currentImage = ""
   window.localStorage.currentFolder = ""
   window.localStorage.allFilesInFolder = window.localStorage.allFilesInFolder || JSON.stringify({})
   window.localStorage.fileMetadata = JSON.stringify({})
-
+  
   loadURLParams()
+  
   path.root = document.getElementById("tmaPath")
   path.imageDiv = document.getElementById("imageDiv")
+  path.imageDiv.style.height = window.innerHeight - path.imageDiv.getBoundingClientRect().top - 16
+  
   path.tmaCanvas = document.getElementById("tmaCanvas")
   path.tmaCanvasLoaded = false
-  path.wsiViewer = {}
-  path.wsiViewerDiv = document.getElementById("wsiCanvasParent")
+  
   path.toolsDiv = document.getElementById("toolsDiv")
   path.tmaImage = new Image()
-  path.setupEventListeners()
-  path.indexedDB = await path.setupIndexedDB()
   
-  await box()
-  loadHashParams()
-  loadDefaultImage()
-  path.loadModules()
+  path.wsiViewer = {}
+  path.wsiViewerDiv = document.getElementById("wsiCanvasParent")
+  
+  path.setupEventListeners()
+  path.boxCredsDB = await path.setupIndexedDB(...Object.values(indexedDBConfig['box']))
+  
+  path.processImageWorker = new Worker(`${basePath}/scripts/processImage.js`)
+  
+  box().then(() => {
+    path.setupAfterBoxLogin()
+    loadHashParams()
+    loadDefaultImage()
+    path.loadModules()
+  }).catch((e) => {
+    loadHashParams() // to handle case where user is not logged in but there is a hash string, so store the hashParams in localstorage.
+    myBox.showLoginMessage()
+    loadDefaultImage()
+  })
+  if (!path.options) {
+    path.loadOptions()
+  }
   
   path.tiffUnsupportedAlertShown = false
 }
 
-path.setupIndexedDB = () => {
+path.setupIndexedDB = (dbName, objectStoreName, objectStoreOpts={}, indexOpts={}) => {
+
   return new Promise(resolve => {
-    const dbRequest = window.indexedDB.open(indexedDBConfig.dbName)
+    const dbRequest = window.indexedDB.open(dbName)
     dbRequest.onupgradeneeded = () => {
       const db = dbRequest.result
-      if (!db.objectStoreNames.contains(indexedDBConfig.objectStoreName)) {
-        db.createObjectStore(indexedDBConfig.objectStoreName, {autoIncrement: true})
+      if (!db.objectStoreNames.contains(objectStoreName)) {
+        const objectStore = db.createObjectStore(objectStoreName, objectStoreOpts)
+        if (indexOpts) {
+          objectStore.createIndex(indexOpts.name, indexOpts.keyPath, indexOpts.objectParameters)
+        }
       }
       resolve(db)
     }
@@ -211,42 +255,33 @@ path.loadModules = async (modules) => {
   }
 }
 
-path.setupEventListeners = () => {
-  document.addEventListener("boxLoggedIn", async (e) => {
+path.setupAfterBoxLogin = async () => {
+  const username = await box.getUserProfile()
+  document.getElementById("boxLoginBtn").style.display = "none"
+  document.getElementById("username").innerText = `Welcome ${username.split(" ")[0]}!`
+  document.getElementById("username").style.display = "block"
+
+  if (hashParams.folder) {
+    myBox.loadFileManager(hashParams.folder)
+  }
   
-    const username = await box.getUserProfile()
-    document.getElementById("boxLoginBtn").style = "display: none"
-    document.getElementById("username").innerText = `Welcome ${username.split(" ")[0]}!`
+  path.userConfig = await box.getUserConfig()
+  if (path.userConfig.lastUsedDataset && path.userConfig.lastUsedDataset !== -1) {
+    
+    await path.selectDataset(path.userConfig.lastUsedDataset)
+  
+  } else if(!window.localStorage.selectDatasetModalShown || (Date.now() - window.localStorage.selectDatasetModalShown > 10*60*1000)) {
+    const selectDatasetModal = new BSN.Modal(document.getElementById("selectDatasetModal"))
+    selectDatasetModal.show()
+    window.localStorage.selectDatasetModalShown = Date.now()
+  }
+  thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
 
-    path.userConfig = await box.getUserConfig()
-    
-    if (path.userConfig.lastUsedDataset && path.userConfig.lastUsedDataset !== -1) {
-    
-      await path.selectDataset(path.userConfig.lastUsedDataset)
-    
-    } else if(!window.localStorage.selectDatasetModalShown || (Date.now() - window.localStorage.selectDatasetModalShown > 10*60*1000)) {
-      const selectDatasetModal = new BSN.Modal(document.getElementById("selectDatasetModal"))
-      selectDatasetModal.show()
-      window.localStorage.selectDatasetModalShown = Date.now()
-    }
-    populateDatasetSelectDropdown()
-    loadHashParams()
+  populateDatasetSelectDropdown()
+}
 
-    path.processImageWorker = new Worker(`${basePath}/scripts/processImage.js`)
-    // await thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
-    // if (path.datasetConfig) {
-    //   path.datasetConfig.annotations.forEach((classType) => annotations.createTables(classType))
-    // }
-    
-    // if (hashParams.useWorker) {
-    
-    
-    // }
-    // if (window.location.host.includes("localhost")) {
-    //   loadLocalModel()
-    // }
-  })
-
+path.setupEventListeners = () => {
+  
   const addClassificationModal = document.getElementById("addClassificationModal")
   addClassificationModal.addEventListener("show.bs.modal", () => {
     document.getElementById("datasetFolderId").value = path.datasetConfig.datasetFolderId ? path.datasetConfig.datasetFolderId : "INVALID"
@@ -263,6 +298,10 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
   if (!path.datasetConfig || (path.datasetConfig && path.datasetConfig.datasetFolderId !== datasetFolderId)) {
     const datasetSelectDropdownBtn = document.getElementById("datasetSelectDropdownBtn")
     datasetSelectDropdownBtn.setAttribute("disabled", "true")
+    datasetSelectDropdownBtn.firstElementChild.classList.remove("fa-caret-down")
+    datasetSelectDropdownBtn.firstElementChild.classList.add("fa-spinner")
+    datasetSelectDropdownBtn.firstElementChild.classList.add("fa-spin")
+
     let datasetConfig = {
       annotations: []
     }
@@ -274,16 +313,26 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
         utils.showToast(`Using ${datasetConfig.datasetFolderName} as the current dataset.`)
       }
       datasetSelectDropdownBtn.innerHTML = `
-         ${datasetConfig.datasetFolderName} <i class="fas fa-caret-down"></i>
+        ${datasetConfig.datasetFolderName} <i class="fas fa-caret-down"></i>
       `
     }
     path.datasetConfig = datasetConfig
+    const datasetConfigsSetEvent = new CustomEvent("datasetConfigSet")
+    document.dispatchEvent(datasetConfigsSetEvent)
     datasetSelectDropdownBtn.removeAttribute("disabled")
+    datasetSelectDropdownBtn.firstElementChild.classList.add("fa-caret-down")
+    datasetSelectDropdownBtn.firstElementChild.classList.remove("fa-spinner") 
+    datasetSelectDropdownBtn.firstElementChild.classList.remove("fa-spin")
+    myBox.highlightSelectedDatasetFolder(path.userConfig.lastUsedDataset)
     
     if (hashParams.image) {
-      // const forceRedraw = true
-      // annotations.showAnnotationOptions(path.datasetConfig.annotations, true, forceRedraw)
-      thumbnails.reBorderThumbnails()
+      const forceRedraw = true
+      try {
+        annotations.showAnnotationOptions(path.datasetConfig.annotations, true, forceRedraw)
+        thumbnails.reBorderThumbnails()
+      } catch (e) {
+        console.log(e)
+      }
     }
     
     if (path.datasetConfig && path.datasetConfig.models && path.datasetConfig.models.trainedModels?.length > 0) {
@@ -295,6 +344,7 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
       //     "modelsConfig": path.datasetConfig.models
       //   }
       // })
+      wsi.setupIndexedDB()
       dataset.populateAccordion(path.datasetConfig.models, false)
       dataset.loadModels(path.datasetConfig.models)
       // path.predictionWorker.onmessage = (message) => {
@@ -309,7 +359,7 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
   }
 }
 
-const populateDatasetSelectDropdown = async (selectedDatasetId) => {
+const populateDatasetSelectDropdown = async () => {
   const datasetsUsed = path.userConfig.datasetsUsed.sort((d1, d2)=> {
     if (path.userConfig.preferences.datasetAccessLog) {
       const d1Time = path.userConfig.preferences.datasetAccessLog[d1.folderId]
@@ -336,15 +386,19 @@ const populateDatasetSelectDropdown = async (selectedDatasetId) => {
     
     availableDatasets.forEach(folder => {
       const datasetFolder = folder.path_collection.entries[folder.path_collection.entries.length - 1] // Get parent folder of _epbox
-      if (folder.name === epiBoxFolderName && datasetFolder.id !== selectedDatasetId && folder.path_collection.entries.length > 1) {
+      if (folder.name === epiBoxFolderName && folder.path_collection.entries.length > 1) {
         const datasetOptionBtn = document.createElement("button")
-        datasetOptionBtn.setAttribute("class", "btn btn-link")
+        datasetOptionBtn.setAttribute("class", "btn btn-link datasetOptionBtn")
         datasetOptionBtn.innerText = datasetFolder.name
+
+        if (datasetFolder.id === path.datasetConfig.datasetFolderId.toString()) {
+          datasetOptionBtn.classList.add("selected")
+        } else {
+        }
         datasetOptionBtn.onclick = () => {
-          const previouslySelectedDatasetOptionBtn = datasetSelectDropdownDiv.querySelector("button[selected=true]")
-          previouslySelectedDatasetOptionBtn.removeAttribute("selected")
-          datasetOptionBtn.setAttribute("selected", "true")
-          datasetOptionBtn.setAttribute("class", "btn btn-primary")
+          const previouslySelectedDatasetOptionBtn = datasetSelectDropdownDiv.querySelector("button.selected")
+          previouslySelectedDatasetOptionBtn.classList.remove("selected")
+          datasetOptionBtn.classList.add("selected")
           path.selectDataset(datasetFolder.id)
           // const folderInMyBox = document.getElementById("boxFolderTree").querySelector(`button[entryid="${datasetFolder.id}"]`)
           // if (folderInMyBox) {
@@ -371,157 +425,153 @@ const loadDefaultImage = async () => {
 const loadImageFromBox = async (id, url) => {
   path.isImageFromBox = false
 
-  if (await utils.boxRequest) {
-    //Disable clicking on anything else while new image is loading.
-    path.imageDiv.style["pointer-events"] = "none"
+  //Disable clicking on anything else while new image is loading.
+  path.imageDiv.style["pointer-events"] = "none"
 
-    const thumbnailImage = document.getElementById(`thumbnail_${id}`)
-    if (thumbnailImage) {
-      path.isThumbnail = true
-      path.tmaImage.src = thumbnailImage.src
-    } else if (path.tmaCanvasLoaded) {
-      path.isThumbnail = false
-      const loaderElementId = "imgLoaderDiv"
-      showLoader(loaderElementId, path.tmaCanvas)
-    }
+  const thumbnailImage = document.getElementById(`thumbnail_${id}`)
+  if (thumbnailImage && !path.wsiViewer.canvas) {
+    path.isThumbnail = true
+    path.tmaImage.src = thumbnailImage.src
     thumbnails.highlightThumbnail(id)
-    myBox.highlightImage(id)
-   
-    try {
-      
-      const imageData = await box.getData(id, "file") || {}
-      if (imageData.status === 404) {
-        console.log(`Can't fetch data for image ID ${id} from Box`)
-        alert("The image ID in the URL does not point to a file in Box!")
-        path.selectImage()
-        loadDefaultImage()
-        return
-      }
+  } else if (path.tmaCanvasLoaded) {
+    path.isThumbnail = false
+    const loaderElementId = "imgLoaderDiv"
+    showLoader(loaderElementId, path.tmaCanvas)
+  }
   
-      const {
-        type,
-        name,
-        parent,
-        metadata,
-        path_collection: {
-          entries: filePathInBox
-        },
-        size,
-        representations
-      } = imageData
+  myBox.highlightImage(id)
   
-      if (type === "file" && utils.isValidImage(name)) {
-        annotations.deactivateQualitySelectors()
-  
-        const fileMetadata = metadata ? metadata.global.properties : {}
-        if (Object.keys(fileMetadata).length > 0) {
-          window.localStorage.fileMetadata = JSON.stringify(fileMetadata)
-        } else {
-          box.createMetadata(id, "file").then(res => {
-            window.localStorage.fileMetadata = JSON.stringify(res)
-          })
-        }
-        
-        // const allFilesInFolderObj = JSON.parse(window.localStorage.allFilesInFolder) || {}
-        // allFilesInFolderObj[parent.id] = parent.id in allFilesInFolderObj && allFilesInFolderObj[parent.id].length > 0 ? allFilesInFolderObj[parent.id] : []
-        // window.localStorage.allFilesInFolder = JSON.stringify(allFilesInFolderObj)
-        window.localStorage.currentThumbnailsFolder = parent.id
-        
-        path.isWSI = utils.isWSI(name)
-        path.tmaImage.setAttribute("alt", name)
-        
-        if (!url) {
-          if (path.isWSI) {
-            wsi.loadImage(id, fileMetadata)
-          } else if (name.endsWith(".tiff")) {
-            
-            if (!path.tiffUnsupportedAlertShown && typeof OffscreenCanvas !== "function") { // Alert for browsers without OffscreenCanvas support.
-              alert("TIFF files might not work well in this browser. Please use the Google Chrome browser for the best experience!")
-              path.tiffUnsupportedAlertShown = true
-            }
-  
-            if (!fileMetadata["jpegRepresentation"]) { // Get a temporary png from Box, send TIFF to web worker for PNG conversion in the meantime.
-              console.log("Representation not found, loading Box's.", new Date())
-
-              const maxResolutionRep = representations.entries.reduce((maxRep, rep) => {
-                const resolution = Math.max(...rep.properties.dimensions.split("x").map(Number))
-                if (resolution > maxRep.resolution) {
-                  return {
-                    resolution,
-                    url: rep.info.url.replace("api.box.com", "dl.boxcloud.com/api") + `/content/1.${rep.representation}`
-                  }
-                } else {
-                  return maxRep
-                }
-              }, { resolution: 0, url: "" })
-              
-              url = await box.getRepresentation(maxResolutionRep.url)
-              if (url) {
-                await loadImgFromBoxFile(null, url)
-              }
-
-              if (!path.datasetConfig.jpegRepresentationsFolderId || path.datasetConfig.jpegRepresentationsFolderId === -1) {
-                const jpegRepresentationsFolderEntry = await box.createFolder("jpegRepresentations", path.datasetConfig.datasetConfigFolderId)
-                const objectToAdd = {
-                  jpegRepresentationsFolderId: jpegRepresentationsFolderEntry.id
-                }
-                box.addToDatasetConfig(objectToAdd)
-              }
-  
-              if (typeof OffscreenCanvas === "function") {
-                path.processImageWorker.postMessage({
-                  'op': "tiffConvert",
-                  'data': {
-                    'imageId': id,
-                    'jpegRepresentationsFolderId': path.datasetConfig.jpegRepresentationsFolderId,
-                    name,
-                    size
-                  }
-                })
-                
-                path.processImageWorker.onmessage = (evt) => {
-                  const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
-                  if (originalImageId === hashParams.image) {
-                    console.log("Conversion completion message received from worker, loading new image", new Date())
-                    loadImgFromBoxFile(representationFileId)
-                    window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-                  }
-                }
-  
-                path.processImageWorker.onerror = (err) => {
-                  console.log("Error converting TIFF from worker", err)
-                }
-              }
-  
-            } else { // Just use the representation created before.
-              const { representationFileId} = JSON.parse(fileMetadata["jpegRepresentation"])
-              console.log("Using the JPEG representation created already", new Date())
-              await loadImgFromBoxFile(representationFileId)
-            }
-          
-          } else {
-            await loadImgFromBoxFile(id)
-          }
-        }
-  
-        
-        addImageHeader(filePathInBox, id, name)
-        window.localStorage.currentImage = id
-        
-        if (!hashParams.folder) {
-          path.selectFolder(parent.id)
-        }
-      } else {
-        alert("The ID in the URL does not point to a valid image file (.jpg/.png/.tiff) in Box.")
-      }
+  try {
     
-    } catch (e) {
-      console.log("Error occurred loading image", e)
+    const imageData = await box.getData(id, "file") || {}
+    if (imageData.status === 404) {
+      console.log(`Can't fetch data for image ID ${id} from Box`)
+      alert("The image ID in the URL does not point to a file in Box!")
+      path.selectImage()
+      loadDefaultImage()
+      return
+    }
+
+    const {
+      type,
+      name,
+      parent,
+      metadata,
+      path_collection: {
+        entries: filePathInBox
+      },
+      size,
+      representations
+    } = imageData
+
+    if (type === "file" && utils.isValidImage(name)) {
+      annotations.deactivateQualitySelectors()
+
+      const fileMetadata = metadata ? metadata.global.properties : {}
+      if (Object.keys(fileMetadata).length > 0) {
+        window.localStorage.fileMetadata = JSON.stringify(fileMetadata)
+      } else {
+        box.createMetadata(id, "file").then(res => {
+          window.localStorage.fileMetadata = JSON.stringify(res)
+        })
+      }
+      
+      window.localStorage.currentThumbnailsFolder = parent.id
+      thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
+      
+      path.isWSI = utils.isWSI(name)
+      path.tmaImage.setAttribute("alt", name)
+      
+      if (!url) {
+        if (path.isWSI) {
+          path.tmaImage.setAttribute("entry_id", id)
+          wsi.loadImage(id, fileMetadata)
+        } else if (name.endsWith(".tiff")) {
+          
+          if (!path.tiffUnsupportedAlertShown && typeof OffscreenCanvas !== "function") { // Alert for browsers without OffscreenCanvas support.
+            alert("TIFF files might not work well in this browser. Please use the Google Chrome browser for the best experience!")
+            path.tiffUnsupportedAlertShown = true
+          }
+
+          if (!fileMetadata["jpegRepresentation"]) { // Get a temporary png from Box, send TIFF to web worker for PNG conversion in the meantime.
+            console.log("Representation not found, loading Box's.", new Date())
+
+            const maxResolutionRep = representations.entries.reduce((maxRep, rep) => {
+              const resolution = Math.max(...rep.properties.dimensions.split("x").map(Number))
+              if (resolution > maxRep.resolution) {
+                return {
+                  resolution,
+                  url: rep.info.url.replace("api.box.com", "dl.boxcloud.com/api") + `/content/1.${rep.representation}`
+                }
+              } else {
+                return maxRep
+              }
+            }, { resolution: 0, url: "" })
+            
+            url = await box.getRepresentation(maxResolutionRep.url)
+            if (url) {
+              await loadImgFromBoxFile(null, url)
+            }
+
+            if (!path.datasetConfig.jpegRepresentationsFolderId || path.datasetConfig.jpegRepresentationsFolderId === -1) {
+              const jpegRepresentationsFolderEntry = await box.createFolder("jpegRepresentations", path.datasetConfig.datasetConfigFolderId)
+              const objectToAdd = {
+                jpegRepresentationsFolderId: jpegRepresentationsFolderEntry.id
+              }
+              box.addToDatasetConfig(objectToAdd)
+            }
+
+            if (typeof OffscreenCanvas === "function") {
+              path.processImageWorker.postMessage({
+                'op': "tiffConvert",
+                'data': {
+                  'imageId': id,
+                  'jpegRepresentationsFolderId': path.datasetConfig.jpegRepresentationsFolderId,
+                  name,
+                  size
+                }
+              })
+              
+              path.processImageWorker.onmessage = (evt) => {
+                const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
+                if (originalImageId === hashParams.image) {
+                  console.log("Conversion completion message received from worker, loading new image", new Date())
+                  loadImgFromBoxFile(representationFileId)
+                  window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+                }
+              }
+
+              path.processImageWorker.onerror = (err) => {
+                console.log("Error converting TIFF from worker", err)
+              }
+            }
+
+          } else { // Just use the representation created before.
+            const { representationFileId} = JSON.parse(fileMetadata["jpegRepresentation"])
+            console.log("Using the JPEG representation created already", new Date())
+            await loadImgFromBoxFile(representationFileId)
+          }
+        
+        } else {
+          await loadImgFromBoxFile(id)
+        }
+      }
+
+      addImageHeader(filePathInBox, id, name)
+      
+      if (!hashParams.folder) {
+        path.selectFolder(parent.id)
+      }
+    } else {
+      alert("The ID in the URL does not point to a valid image file (.jpg/.png/.tiff) in Box.")
     }
   
-    // Re-enable click events once image has been loaded.
-    path.imageDiv.style["pointer-events"] = "auto"
+  } catch (e) {
+    console.log("Error occurred loading image", e)
   }
+
+  // Re-enable click events once image has been loaded.
+  path.imageDiv.style["pointer-events"] = "auto"
 }
 
 const loadImgFromBoxFile = async (id, url) => {
@@ -532,6 +582,7 @@ const loadImgFromBoxFile = async (id, url) => {
   path.isThumbnail = false
   path.tmaImage.setAttribute("src", "")
   path.tmaImage.setAttribute("src", url)
+  path.tmaImage.setAttribute("entry_id", id)
   path.tmaImage.setAttribute("crossorigin", "Anonymous")
 }
 
@@ -551,7 +602,7 @@ const addImageHeader = (filePathInBox, id, name) => {
       const folderLink = document.createElement("a")
       folderLink.setAttribute("href", `${box.appBasePath}/${folder.type}/${folder.id}`)
       folderLink.setAttribute("target", "_blank")
-      folderLink.innerText = path.tmaCanvas.getBoundingClientRect().width < 550 ? folder.name.slice(0, 7).trim() + "..." : folder.name.trim()
+      folderLink.innerText = folder.name.length > 15 ? folder.name.slice(0, 12).trim() + "..." : folder.name.trim()
       folderLink.title = folder.name
       folderItem.appendChild(folderLink)
       folderStructure.appendChild(folderItem)
@@ -596,8 +647,8 @@ path.loadCanvas = () => {
     if (path.wsiViewer.canvas) {
       path.wsiViewer.destroy()
       path.wsiViewer = {}
-      // path.wsiViewerDiv.style.display = "none"
-      path.tmaCanvas.parentElement.style.display = "block"
+      path.wsiViewerDiv.style.display = "none"
+      path.tmaCanvas.parentElement.style.display = "flex"
     }
     // console.log(path.tmaCanvas.width, path.tmaCanvas.parentElement.getBoundingClientRect().width)
     // console.log(path.tmaCanvas.height, path.tmaCanvas.parentElement.getBoundingClientRect().height)
@@ -615,82 +666,68 @@ path.loadCanvas = () => {
 }
 
 path.onCanvasLoaded = async () => {
-  hideLoader("imgLoaderDiv")
-  document.getElementById("canvasWithPickers").style.borderLeft = "1px solid lightgray"
-  document.getElementById("canvasWithPickers").style.borderRight = "1px solid lightgray"
-
-  if (!path.options) {
-    path.loadOptions()
+  hideLoader("imgLoaderDiv") 
+  
+  if (path.datasetConfig && path.datasetConfig.annotations.length > 0 && !path.isThumbnail) {
+    annotations.showAnnotationOptions(path.datasetConfig.annotations, path.isImageFromBox, false)
   }
+}
 
-  if (path.isImageFromBox && !path.isThumbnail) {
-    
-    await thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
-    
-    if (path.datasetConfig && path.datasetConfig.annotations.length > 0 && !path.isThumbnail) {
-      annotations.showAnnotationOptions(path.datasetConfig.annotations, path.isImageFromBox, false)
-    }
+path.getCurrentCanvasSize = () => {
+  if (path.wsiViewer.canvas) {
+    return path.wsiViewer.element.getBoundingClientRect()
   }
+  return path.tmaCanvas.getBoundingClientRect()
 }
 
 path.loadOptions = () => {
   path.options = true
   document.getElementById("toolsOuterDiv").style.visibility = "visible"
+  document.getElementById("toolsOuterDiv").style.borderRight = "1px solid lightgray"
   tools.addLocalFileButton()
   tools.zoomButton()
   tools.segmentButton()
 }
 
-path.selectImage = (imageId) => {
+path.modifyHashString = (hashObj) => {
+  // hashObj contains hash keys with corresponding values to update. To remove a hash parameter, the
+  // value corresponding to the hash param should be undefined in the hashObj.
   let hash = decodeURIComponent(window.location.hash)
-  if (imageId && imageId !== hashParams.image) {
-   
-    if (hashParams.image) {
-      hash = hash.replace(`image=${hashParams.image}`, `image=${imageId}`)
-    } else {
-      hash += hash.length > 0 ? "&" : ""
-      hash += `image=${imageId}`
-    }
-    window.location.hash = hash
-
-  } else if (!imageId) {
-    const imageParam = `image=${hashParams.image}`
-    const imageParamIndex = hash.indexOf(imageParam)
-    
-    if (hash[imageParamIndex-1] === "&") {  // if hash is of the form "...&image=abc...", remove preceding & also.
-      hash = hash.replace(`&${imageParam}`, "")
-    } else if (hash[imageParamIndex + imageParam.length] === "&") { // if hash is of the form "#image=abc&...", remove following & also.
-      hash = hash.replace(`${imageParam}&`, "")
-    } else { // if hash is just #image=abc, remove just the param.
-      hash = hash.replace(imageParam, "")
-    }
+  Object.entries(hashObj).forEach(([key, val]) => {
+    if (val && val !== hashParams[key]) {
+     
+      if (hashParams[key]) {
+        hash = hash.replace(`${key}=${hashParams[key]}`, `${key}=${val}`)
+      } else {
+        hash += hash.length > 0 ? "&" : ""
+        hash += `${key}=${val}`
+      }
   
-    window.location.hash = hash
-  }
+    } else if (!val) {
+      const param = `${key}=${hashParams[key]}`
+      const paramIndex = hash.indexOf(param)
+      if (hash[paramIndex-1] === "&") {  // if hash is of the form "...&image=123...", remove preceding & as well.
+        hash = hash.replace(`&${param}`, "")
+      } else if (hash[paramIndex + param.length] === "&") { // if hash is of the form "#image=123&...", remove following & as well.
+        hash = hash.replace(`${param}&`, "")
+      } else { // if hash is just #image=123, remove just the param.
+        hash = hash.replace(param, "")
+      }
+    }
+  })
+  window.location.hash = hash
+}
+
+path.selectImage = (imageId) => {
+  path.modifyHashString({
+    'image': imageId
+  })
 }
 
 path.selectFolder = (folderId) => {
-  if (folderId && folderId !== hashParams.folder) {
-    if (hashParams.folder) {
-      window.location.hash = window.location.hash.replace(`folder=${hashParams.folder}`, `folder=${folderId}`)
-    } else {
-      window.location.hash += window.location.hash.length > 0 ? "&" : ""
-      window.location.hash += `folder=${folderId}`
-    }
-  } else if (!folderId) {
-    let hash = decodeURIComponent(window.location.hash)
-    const folderParam = `folderParam=${hashParams.image}`
-    const folderParamIndex = hash.indexOf(folderParam)
-    
-    if (hash[folderParamIndex-1] === "&") {  // if hash is of the form "...&folder=abc...", remove preceding & also.
-      hash = hash.replace(`&${folderParam}`, "")
-    } else if (hash[folderParamIndex + folderParam.length] === "&") { // if hash is of the form "#folder=abc&...", remove following & also.
-      hash = hash.replace(`${folderParam}&`, "")
-    } else { // if hash is just #folder=abc, remove just the param.
-      hash = hash.replace(folderParam, "")
-    }
-    window.location.hash = hash
-  }
+  path.modifyHashString({
+    'folder': folderId
+  })
 }
 
 const startCollaboration = () => {
@@ -727,7 +764,7 @@ path.annotateFolder = async (folderId=hashParams.folder, annotationName) => {
   console.time("Prediction")
   for (let image of images.entries) {
     if (image.type === "file" && utils.isValidImage(image.name)) {
-      const preds = await models.getModelPrediction(annotation.annotationId, annotationName, image.id, true)
+      const preds = await models.getTMAPrediction(annotation.annotationId, annotationName, image.id, true)
       const maxPred = preds.reduce((maxLabel, pred) => {
         if (!maxLabel.prob || maxLabel.prob < pred.prob) {
           maxLabel = pred
@@ -760,5 +797,5 @@ path.annotateFolder = async (folderId=hashParams.folder, annotationName) => {
 }
 
 window.onload = path
-window.onresize = path.tmaCanvasLoaded && path.loadCanvas
+window.onresize = () => path.tmaCanvasLoaded && path.loadCanvas()
 window.onhashchange = loadHashParams
