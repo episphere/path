@@ -5,7 +5,7 @@ dataset.loadModels = (modelsConfig) => {
   Object.values(dataset.predictionWorkers).forEach((predictionWorker) => predictionWorker.terminate())
   dataset.modelsLoaded = {}
   modelsConfig.trainedModels.forEach(modelConfig => {
-    dataset.predictionWorkers[modelConfig.correspondingAnnotation] = new Worker(`${basePath}/scripts/modelPrediction.js`, {
+    dataset.predictionWorkers[modelConfig.correspondingAnnotation] = new Worker(`${basePath}scripts/modelPrediction.js`, {
       name: path.datasetConfig.annotations.find(annot => annot.annotationId === modelConfig.correspondingAnnotation).annotationName
     })
     dataset.predictionWorkers[modelConfig.correspondingAnnotation].onmessage = (e) => {
@@ -37,6 +37,7 @@ dataset.loadModels = (modelsConfig) => {
     dataset.predictionWorkers[modelConfig.correspondingAnnotation].postMessage({
       "op": "loadModel",
       "body": {
+        basePath,
         modelConfig
       }
     })
