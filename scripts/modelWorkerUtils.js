@@ -245,7 +245,7 @@ const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, ws
 }
 
 const insertWSIDataToIndexedDB = (data, annotationId) => new Promise (async resolve => {
-  if (indexedDBConfig['wsi'].objectStoreOpts.keyPath.every(key => data[key])) {
+  if (indexedDBConfig['wsi'].objectStoreOpts.keyPath.every(key => data[key] >= 0)) {
     wsiPredsDB = wsiPredsDB || await fetchIndexedDBInstance('wsi')
     const objectStore = wsiPredsDB.transaction(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, "readwrite").objectStore(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`)
     objectStore.put(data).onsuccess = ({target}) => resolve(target.result)
@@ -253,7 +253,7 @@ const insertWSIDataToIndexedDB = (data, annotationId) => new Promise (async reso
 })
 
 const getWSIDataFromIndexedDB = (query, annotationId) => new Promise (async resolve => {
-  if (indexedDBConfig['wsi'].objectStoreOpts.keyPath.every(key => query[key])) {
+  if (indexedDBConfig['wsi'].objectStoreOpts.keyPath.every(key => query[key] >= 0)) {
     wsiPredsDB = wsiPredsDB || await fetchIndexedDBInstance('wsi')
     const objectStore = wsiPredsDB.transaction(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, "readonly").objectStore(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`)
     objectStore.get(Object.values(query)).onsuccess = ({target}) => resolve(target.result)

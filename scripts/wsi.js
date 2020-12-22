@@ -143,9 +143,9 @@ wsi.loadImage = async (id, fileMetadata={}) => {
     const createRunModelButton = () => {
       const runModelWSIHandler = (e) => {
         const regionSelected = document.getElementById("runModelWSIDropdownDiv").querySelector(`input[type=radio]:checked`)?.value
+        const currentLevel = path.wsiViewer.world.getItemAt(0).lastDrawn.reduce((maxLevel, current) => maxLevel < current.level ? current.level : maxLevel, 0)
+        const tileSizeAtCurrentLevel = Math.pow(2, 8 + path.wsiViewer.source.maxLevel - currentLevel) // Start at 2^8 because 256 is the smallest tile size we consider.
         if (regionSelected === "currentRegion") {
-          const currentLevel = path.wsiViewer.world.getItemAt(0).lastDrawn.reduce((maxLevel, current) => maxLevel < current.level ? current.level : maxLevel, 0)
-          const tileSizeAtCurrentLevel = Math.pow(2, 8 + path.wsiViewer.source.maxLevel - currentLevel) // Start at 2^8 because 256 is the smallest tile size we consider.
           const currentBounds = path.wsiViewer.viewport.getBounds()
           const { x: topLeftX, y: topLeftY } = path.wsiViewer.source.getTileAtPoint(currentLevel, new OpenSeadragon.Point(currentBounds.x, currentBounds.y))
           const { x: bottomRightX, y: bottomRightY } = path.wsiViewer.source.getTileAtPoint(currentLevel, new OpenSeadragon.Point(currentBounds.x + currentBounds.width, currentBounds.y + currentBounds.height))
@@ -160,7 +160,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
           const startX = 0
           const startY = 0
           const {width: endX, height: endY } = path.wsiViewer.source
-          runModelWSI(startX, startY, endX, endY)
+          runModelWSI(startX, startY, endX, endY, tileSizeAtCurrentLevel)
         }
       }
 
