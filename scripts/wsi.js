@@ -751,7 +751,6 @@ wsi.stopModel = () => {
 wsi.stopWorkers = () => {
   const annotationId = path.datasetConfig?.annotations[0]?.annotationId
   models.stopWSIWorkers(annotationId)
-  utils.showToast("Stopping Model...")
 }
 
 wsi.setupIndexedDB = async () => {
@@ -789,7 +788,7 @@ wsi.overlayPreviousPredictions = () => {
         e.target.result.forEach(({x, y, width, height, prediction}) => {
           if (prediction[0].prob === prediction.reduce((max, current) => max < current.prob ? current.prob : max, 0)) {
             const osdRect = path.wsiViewer.viewport.imageToViewportRectangle(x, y, width, height, 0)
-            const predictionText = `${prediction[0].label}: ${prediction[0].prob}`
+            const predictionText = `${prediction[0].label}: ${Math.round((prediction[0].prob + Number.EPSILON) * 1000) / 1000 }`
             const tooltipText = `${annotation.displayName}\n${predictionText}`
             wsi.createOverlayRect("model", osdRect, tooltipText, false, false, true)
           }
