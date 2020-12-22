@@ -11,34 +11,35 @@ const minTileHeight = 256
 
 let stopPreds = false
 
-utils = {
-  ...utils,
-  isValidImage: (name) => {
-    let isValid = false
-    
-    validFileTypes.forEach(fileType => {
-      if (name.endsWith(fileType)) {
-        isValid = true
-      }
-    })
-    
-    return isValid
-  },
-
-  isWSI: (name) => {
-    let isWSI = false
-    
-    wsiFileTypes.forEach(fileType => {
-      if (name.endsWith(fileType)) {
-        isWSI = true
-      }
-    })
-
-    return isWSI
-  }
+const addUtils = () => {
+  utils = {
+    ...utils,
+    isValidImage: (name) => {
+      let isValid = false
+      
+      validFileTypes.forEach(fileType => {
+        if (name.endsWith(fileType)) {
+          isValid = true
+        }
+      })
+      
+      return isValid
+    },
   
+    isWSI: (name) => {
+      let isWSI = false
+      
+      wsiFileTypes.forEach(fileType => {
+        if (name.endsWith(fileType)) {
+          isWSI = true
+        }
+      })
+  
+      return isWSI
+    }
+    
+  }  
 }
-
 const loadLocalModel = async () => {
 
   // model = await tf.automl.loadImageClassification()
@@ -53,7 +54,8 @@ onmessage = async (evt) => {
     case 'loadModel':
       modelConfig = data.body.modelConfig
       const { basePath } = data.body
-      importScripts(`${basePath}scripts/modelWorkerUtils.js`)
+      importScripts(`${basePath}/scripts/modelWorkerUtils.js`)
+      addUtils()
       const { correspondingAnnotation, configFileId, weightFiles, dictionaryFileId } = modelConfig
       const modelArch = await getFileContentFromBox(configFileId, false, "json")
       const handler = new BoxHandler(modelArch, weightFiles)
