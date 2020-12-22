@@ -1,5 +1,7 @@
+const basePath = location.pathname === "/" ? "" : location.pathname
+
 importScripts("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js", "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js")
-importScripts("scripts/modelWorkerUtils.js")
+importScripts(`${basePath}scripts/modelWorkerUtils.js`)
 
 const MAX_PARALLEL_REQUESTS = 5
 const childWorkers = []
