@@ -1,7 +1,4 @@
-const basePath = location.pathname === "/" ? "" : location.pathname
-
 importScripts("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js", "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl@1.0.0/dist/tf-automl.min.js")
-importScripts(`${basePath}scripts/modelWorkerUtils.js`)
 
 const MAX_PARALLEL_REQUESTS = 5
 const childWorkers = []
@@ -55,6 +52,8 @@ onmessage = async (evt) => {
   switch (op) {
     case 'loadModel':
       modelConfig = data.body.modelConfig
+      const { basePath } = data.body
+      importScripts(`${basePath}scripts/modelWorkerUtils.js`)
       const { correspondingAnnotation, configFileId, weightFiles, dictionaryFileId } = modelConfig
       const modelArch = await getFileContentFromBox(configFileId, false, "json")
       const handler = new BoxHandler(modelArch, weightFiles)
