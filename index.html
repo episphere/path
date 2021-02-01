@@ -43,7 +43,7 @@
             Select... <i class="fas fa-caret-down"></i>
           </button>
           <div class="dropdown-menu" id="datasetSelectDropdownDiv" aria-labelledby="datasetSelectDropdown">
-            <button class="btn btn-link" data-toggle="modal" data-target="#addDatasetInfoModal">+ Add Dataset</a>
+            <button class="btn btn-link" id="addDatasetDropdownBtn" data-toggle="modal" data-target="#addDatasetInfoModal" onclick="document.getElementById('datasetSelectDropdownBtn').Dropdown.hide();">+ New Dataset</a>
           </div>
         </div>
       </span>
@@ -121,7 +121,7 @@
               <div id="nextImageMessage"></div>
               <div class="accordion" id="annotationsAccordion">
                 <span id="localImageAnnotationsMsg" style="margin: 0 auto; color: gray;">
-                  <i style="text-align: center;">-- Please select an image from </i><a href="#" onclick="document.getElementById('box-tab').click(); return false;">My Box</a><i> first! --</i>
+                  <i style="text-align: center;">-- Please </i><a href="#" onclick="document.getElementById('datasetSelectDropdownBtn').click(); return false;">Choose a Dataset</a><i>, then select an image from </i><a href="#" onclick="document.getElementById('box-tab').click(); return false;">My Box</a><i> to get started! --</i>
                 </span>
                 <br/>
               </div>
@@ -247,7 +247,7 @@
             </button>
           </div>
           <div class="modal-body">
-            <p>Start by selecting your dataset folder from the <b>Datasets</b> dropdown or by clicking on the&nbsp; <i class="fas fa-ellipsis-v"></i>&nbsp; icon against the folder in <a href="" data-dismiss="modal"><u style="color:cornflowerblue">My Box</u></a>!</p>
+            <p>Start by selecting your dataset from the <b><a href="#" data-dismiss="modal" onclick="document.getElementById('datasetSelectDropdownBtn').Dropdown.show(); return false;">Datasets list</a></b> or by clicking on the&nbsp; <i class="fas fa-ellipsis-v"></i>&nbsp; icon against the folder in <a href="#" data-dismiss="modal" onclick="document.getElementById('box-tab').Tab.show(); return false"><u style="color:cornflowerblue">My Box</u></a>!</p>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-primary" data-dismiss="modal">Okay</button>
@@ -260,13 +260,13 @@
       <div class="modal-dialog" role="document">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Add Dataset</h5>
+            <h5 class="modal-title">Create Dataset</h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </button>
           </div>
           <div class="modal-body">
-            <p>To add a new Dataset, click on the&nbsp; <i class="fas fa-ellipsis-v"></i>&nbsp; icon against the name of the dataset folder in <a href="" data-dismiss="modal"><u style="color:cornflowerblue">My Box</u></a>.</p>
+            <p>To create a new Dataset, click on the&nbsp; <i class="fas fa-ellipsis-v"></i>&nbsp; icon against the dataset folder in <a href="" data-dismiss="modal" onclick="document.getElementById('box-tab').Tab.show()"><u style="color:cornflowerblue">My Box</u></a>, and select <span style="color:slateblue;">Use as Dataset</span>.</p>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-primary" data-dismiss="modal">Okay</button>

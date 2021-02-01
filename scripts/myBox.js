@@ -3,7 +3,7 @@ const myBox = {}
 myBox.loadFileManager = async (id = boxRootFolderId, forceRedraw) => {
   const boxFileMgrHeaderDiv = document.getElementById("boxFileMgrHeader")
 
-  if (boxFileMgrHeaderDiv.parentElement.getAttribute("folderId") === hashParams.folder ) {
+  if (!boxFileMgrHeaderDiv || boxFileMgrHeaderDiv.parentElement.getAttribute("folderId") === hashParams.folder) {
     return
   }
 
@@ -53,12 +53,7 @@ myBox.loadFileManager = async (id = boxRootFolderId, forceRedraw) => {
     }
 
     fileMgrNav.setAttribute("id", "boxFileMgrNav")
-    fileMgrNav.style.width = "100%"
-    fileMgrNav.style.margin = "auto 0"
-    fileMgrNav.style.textAlign = "center"
-
-    folderData.name = folderData.name.length > 25 ? folderData.name.slice(0,22).trim() + "..." : folderData.name.trim()
-
+    
     fileMgrNav.innerHTML =
       `<strong style="font-size: 18px;">
         <a href="${box.appBasePath}/${folderData.type}/${folderData.id}" target="_blank">
@@ -119,9 +114,8 @@ myBox.loadFileManager = async (id = boxRootFolderId, forceRedraw) => {
 
     }
 
-    boxFileMgrHeaderDiv.style.display = "flex"
+    boxFileMgrHeaderDiv.style.display = "grid"
     boxFileMgrHeaderDiv.style.alignItems = "center"
-    boxFileMgrHeaderDiv.style.height = "4rem";
     boxFileMgrHeaderDiv.style["background-color"] = "rgba(210, 210, 210, 0.2)";
 
     if (!boxFileMgrHeaderDiv.parentElement.querySelector("hr")) {
@@ -197,7 +191,7 @@ myBox.loadFolderTree = (folderData) => {
       }
       // To Enable Dropdown for folders
       const folderOptionsTogglers = document.querySelectorAll(".dropdown.boxFolderOptionsDiv")
-      folderOptionsTogglers.forEach(folderOptionDiv => new BSN.Dropdown(folderOptionDiv) )
+      folderOptionsTogglers.forEach(folderOptionDiv => new BSN.Dropdown(folderOptionDiv.firstElementChild) )
 
     } else if (entries.length === 0) {
       parentElement.style.textAlign = "center"
@@ -312,10 +306,32 @@ myBox.populateFolderTree = (entries, currentFolderDiv, moreFiles=false) => {
 }
 
 myBox.highlightSelectedDatasetFolder = (id) => {
-  const entryBtnOptionsDiv = document.getElementById(`${id}_folderOptions`)
-  if (entryBtnOptionsDiv) {
-    entryBtnOptionsDiv.classList.remove("dropdown")
-    entryBtnOptionsDiv.innerHTML = `<i class="far fa-check-circle"></i>`
+  const previouslySelectedDatasetFolder = document.getElementsByClassName("boxFileMgr_currentDatasetFolder")[0]
+  if (previouslySelectedDatasetFolder) {
+    previouslySelectedDatasetFolder.classList.remove("boxFileMgr_currentDatasetFolder")
+    previouslySelectedDatasetFolder.childNodes.forEach(element => {
+      if (element.classList.contains("boxFolderOptionsDiv")) {
+        if (!element.firstElementChild.Dropdown) {
+          new BSN.Dropdown(element.firstElementChild)
+        }
+        element.firstElementChild.innerHTML = `<i class="fas fa-ellipsis-v"></i>`
+        element.firstElementChild.style.background = ""
+        element.firstElementChild.style.pointerEvents = ""
+      }
+    })
+  }
+  
+  const currentDatasetFolderDiv = document.getElementById(`boxFileMgr_subFolder_${id}`)
+  if (currentDatasetFolderDiv) {
+    currentDatasetFolderDiv.classList.add("boxFileMgr_currentDatasetFolder")
+    currentDatasetFolderDiv.childNodes.forEach(element => {
+      if (element.classList.contains("boxFolderOptionsDiv")) {
+        element.firstElementChild.Dropdown?.dispose()
+        element.firstElementChild.innerHTML = `<i class="far fa-check-circle"></i>`
+        element.firstElementChild.style.background = "none"
+        element.firstElementChild.style.pointerEvents = "none"
+      }
+    })
   }
 }
 

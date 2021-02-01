@@ -1,5 +1,7 @@
 const wsi = {}
+const EPSILON = Math.pow(10, -11)
 
+wsi.metadataPathPrefix = "wsiAnnotation"
 wsi.tileServerBasePath = "https://dl-test-tma.uc.r.appspot.com/iiif"
 
 const reloadImageAfterURLTimeout = (id) => wsi.loadImage(id)
@@ -9,7 +11,6 @@ wsi.loadImage = async (id, fileMetadata={}) => {
   path.tmaCanvas.parentElement.style.display = "none"
   path.wsiViewerDiv.style.display = "block"
 
-  const metadataPath = "wsiAnnotation"
   
   const loaderElementId = "imgLoaderDiv"
   showLoader(loaderElementId, path.wsiViewerDiv)
@@ -24,6 +25,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
     } catch (e) {
       alert("An error occurred retrieving the image information. Please try again later.")
       hideLoader(loaderElementId)
+      return
     }
   }
   
@@ -43,7 +45,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
   
   
   if (!path.wsiViewer.canvas) {
-    path.tmaCanvas.parentElement.style.background = "black"
+    path.tmaCanvas.parentElement.style.backgroundColor = "black"
     path.wsiViewer = OpenSeadragon({
       id: "wsiCanvasParent",
       visibilityRatio: 1,
@@ -85,6 +87,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       annotateWSIButtonDiv.title = "Annotate Image"
   
       annotateWSIButton.onclick = (e) => {
+        const annotationId = path.datasetConfig.annotations[0].annotationId
         annotateWSIButtonDiv.selected = !annotateWSIButtonDiv.selected
         if (annotateWSIButtonDiv.selected) {
           annotateWSIButtonDiv.classList.add("active")
@@ -111,22 +114,26 @@ wsi.loadImage = async (id, fileMetadata={}) => {
               }
 
               if (!isOverlayPresent(smallestTileClicked)) {
-                wsi.createOverlayRect("user", smallestTileClicked.bounds, "", false, false, false)
+                wsi.createOverlayRect("user", smallestTileClicked.bounds, "", annotationId, false, false, false)
                 
-                const wsiAnnotations = fileMetadata[metadataPath] ? JSON.parse(fileMetadata[metadataPath]) : {}
+                const wsiAnnotations = JSON.parse(window.localStorage.fileMetadata)[`${wsi.metadataPathPrefix}_${annotationId}`] ? JSON.parse(JSON.parse(window.localStorage.fileMetadata)[`${wsi.metadataPathPrefix}_${annotationId}`]) : {}
                 wsiAnnotations[window.localStorage.userId] = wsiAnnotations[window.localStorage.userId] || []
-      
+
                 const newAnnotation = {
+                  annotationId,
                   'userId': window.localStorage.userId,
-                  'email': window.localStorage.email,
                   'username': window.localStorage.username,
                   'rectBounds': smallestTileClicked.bounds,
                   'createdAt': Date.now()
                 }
       
-                wsiAnnotations[window.localStorage.userId] = [...wsiAnnotations[window.localStorage.userId], newAnnotation]
+                wsiAnnotations[window.localStorage.userId].push(newAnnotation)
           
-                box.updateMetadata(id, `/${metadataPath}`, JSON.stringify(wsiAnnotations))
+                box.updateMetadata(id, `/${`${wsi.metadataPathPrefix}_${annotationId}`}`, JSON.stringify(wsiAnnotations)).then(newMetadata => {
+                  fileMetadata = JSON.stringify(newMetadata)
+                  window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+                  annotations.populateWSIAnnotations(document.querySelectorAll('.wsiAnnotationType')[0], false, true)
+                })
               }
             }
           })
@@ -152,14 +159,14 @@ wsi.loadImage = async (id, fileMetadata={}) => {
           
           const startX = topLeftX * tileSizeAtCurrentLevel
           const startY = topLeftY * tileSizeAtCurrentLevel
-          const endX = (bottomRightX * tileSizeAtCurrentLevel) + tileSizeAtCurrentLevel
-          const endY = (bottomRightY * tileSizeAtCurrentLevel) + tileSizeAtCurrentLevel
+          const endX = (bottomRightX * tileSizeAtCurrentLevel) + tileSizeAtCurrentLevel < imageInfo.width ? (bottomRightX * tileSizeAtCurrentLevel) + tileSizeAtCurrentLevel : imageInfo.width
+          const endY = (bottomRightY * tileSizeAtCurrentLevel) + tileSizeAtCurrentLevel < imageInfo.height ? (bottomRightY * tileSizeAtCurrentLevel) + tileSizeAtCurrentLevel : imageInfo.height
           runModelWSI(startX, startY, endX, endY, tileSizeAtCurrentLevel)
 
         } else if (regionSelected === "wholeImage") {
           const startX = 0
           const startY = 0
-          const {width: endX, height: endY } = path.wsiViewer.source
+          const {width: endX, height: endY } = imageInfo
           runModelWSI(startX, startY, endX, endY, tileSizeAtCurrentLevel)
         }
       }
@@ -397,6 +404,9 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       'delay': 50
     })
     new BSN.Dropdown(runModelWSIButtonDiv.querySelector("button#wsiRunModelBtn"), false)
+    runModelWSIButtonDiv.addEventListener('show.bs.dropdown', (e) => {
+      runModelWSIButtonDiv.Tooltip.hide()
+    })
     new BSN.Dropdown(hideAnnotationsButtonDiv.querySelector("button#wsiHideAnnotationsBtn"), true)
 
     // path.wsiViewer.addHandler('canvas-key', (e) => {
@@ -425,6 +435,8 @@ wsi.loadImage = async (id, fileMetadata={}) => {
           'wsiZoom': zoom
         })
       }
+      
+      wsi.overlayPreviousPredictions()
     })
     
     // path.wsiViewer.addHandler("tile-drawn", (e) => {
@@ -449,32 +461,33 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       element.setAttribute("disabled", "true")
       element.style.cursor = "not-allowed"
     })
+    
     wsi.stopModel()
+    
     path.wsiViewer.world.getItemAt(0).addOnceHandler('fully-loaded-change', async (e) => {
       path.wsiCanvasLoaded = true
       wsi.handlePanAndZoom()
-      if (fileMetadata[metadataPath]) {
-        const hideUserAnnotations = document.getElementById("hideAnnotationsOption_byMe").checked
-        const hideModelAnnotations = document.getElementById("hideAnnotationsOption_byModel").checked
-        const userAnnotations = JSON.parse(fileMetadata[metadataPath])[window.localStorage.userId]
-        if (userAnnotations) {
-          userAnnotations.sort((a,b) => (b.width*b.height) - (a.width*a.height))
-          userAnnotations.forEach(annot => {
-            const { x, y, width, height, degrees } = annot.rectBounds
-            const osdRect = new OpenSeadragon.Rect(x, y, width, height, degrees)
-            wsi.createOverlayRect("user", osdRect, "", hideUserAnnotations, false, false)
-          })
-        }
+      document.removeEventListener("datasetConfigSet", wsi.datasetChangeHandler)
+      wsi.datasetChangeHandler = () => {
+        wsi.stopModel()
+        wsi.removeOverlays(true)
+        enableOptions()
+        wsi.getPreviousPredsFromBox()
+        wsi.overlayPreviousAnnotations()
       }
-
+      document.addEventListener("datasetConfigSet", wsi.datasetChangeHandler)
+      wsi.overlayPreviousAnnotations()
       
-      path.wsiViewer.element.querySelectorAll("button.wsiControlBtn").forEach(element => {
-        if (element.id === "wsiRunModelBtn" && path.datasetConfig?.models?.trainedModels?.length === 0) {
-          return
-        }
-        element.removeAttribute("disabled")
-        element.style.cursor = "pointer"
-      })
+      const enableOptions = () => {
+        path.wsiViewer.element.querySelectorAll("button.wsiControlBtn").forEach(element => {
+          if (element.id === "wsiRunModelBtn" && path.datasetConfig?.models?.trainedModels?.length === 0) {
+            return
+          }
+          element.removeAttribute("disabled")
+          element.style.cursor = "pointer"
+        })
+      }
+      enableOptions()
       
       if (!fileMetadata.wsiInfo) {
         const imageInfoForMetadata = {
@@ -486,14 +499,14 @@ wsi.loadImage = async (id, fileMetadata={}) => {
         window.localStorage.fileMetadata = JSON.stringify(metadata)
       }
       wsi.getPreviousPredsFromBox(fileMetadata)
-
+      
     })
     path.onCanvasLoaded()
   })
 
   path.wsiViewer.removeAllHandlers('open-failed')
   path.wsiViewer.addOnceHandler('open-failed', (e) => {
-    console.log(e)
+    console.error("Error opening Tile Source", e)
   })
 
   const handleBoxURLExpiry = () => {
@@ -540,13 +553,14 @@ wsi.loadImage = async (id, fileMetadata={}) => {
 
 wsi.startPrediction = (annotationId, imageId, width, height, predictionBounds, wsiPredsFileId) => {
   const predicting = models.getWSIPrediction(annotationId, imageId, { width, height }, predictionBounds, wsiPredsFileId)
+  wsi.modelRunning = true
   if (!predicting) {
     wsi.stopModel()
     utils.showToast("Model not ready yet, please try again in a few seconds!")
   }
-  
+
   const processOverlayRect = path.wsiViewer.viewport.imageToViewportRectangle(predictionBounds.startX, predictionBounds.startY, predictionBounds.endX - predictionBounds.startX, predictionBounds.endY - predictionBounds.startY)
-  wsi.createOverlayRect("wsiProcessing", processOverlayRect, "Running Model over this region", false, false, false)
+  wsi.createOverlayRect("wsiProcessing", processOverlayRect, "Running Model over this region", undefined, false, false, false)
   path.wsiViewer.controls[path.wsiViewer.controls.length - 1].autoFade = false
 }
 
@@ -566,7 +580,6 @@ wsi.handlePanAndZoom = (centerX=hashParams?.wsiCenterX, centerY=hashParams?.wsiC
         path.wsiViewer.viewport.panTo(new OpenSeadragon.Point(centerX, centerY))
       }
     }
-  
   } else if (path.tmaCanvasLoaded) {
     wsi.removePanAndZoomFromHash()
   }
@@ -580,14 +593,19 @@ wsi.removePanAndZoomFromHash = () => {
   })
 }
 
-wsi.createOverlayRect = (type="user", rectBounds, tooltipText, hidden=false, processing=false, showAsTooltip=false) => {
+wsi.createOverlayRect = (type="user", rectBounds, tooltipText, annotationId=path.datasetConfig.annotations[0].annotationId, hidden=false, processing=false, showAsTooltip=false, withOptions=true) => {
   const classNamesToTypeMap = {
-    'user': "wsiUserAnnotation",
-    'model': "wsiModelAnnotation",
-    'wsiProcessing': "wsiProcessing",
-    'tileProcessing': "tileProcessing"
+    'user': "wsiUserAnnotation wsiOverlay",
+    'model': "wsiModelAnnotation wsiOverlay",
+    'wsiProcessing': "wsiProcessing wsiOverlay",
+    'tileProcessing': "tileProcessing wsiOverlay"
   }
-  const elementId = `wsiAnnotation_${Date.now()}`
+  const rectBoundValues = Object.values(path.wsiViewer.viewport.viewportToImageRectangle(...Object.values(rectBounds)))
+  const rectBoundsInImageCoordsForId = rectBoundValues.splice(0, rectBoundValues.length - 1).map(v => Math.round(v)).join("_")
+  const elementId = `wsiAnnotation_${annotationId}_${rectBoundsInImageCoordsForId}`
+  if (path.wsiViewer.getOverlayById(elementId)) {
+    return
+  }
   const rect = document.createElement("div")
   rect.setAttribute("id", elementId)
   rect.setAttribute("class", classNamesToTypeMap[type])
@@ -608,24 +626,96 @@ wsi.createOverlayRect = (type="user", rectBounds, tooltipText, hidden=false, pro
     rect.setAttribute("data-toggle", "tooltip")
     rect.setAttribute("title", tooltipText)
   }
+
+  if (withOptions) {
+    // const optionsDiv = createOverlayOptions(rect)
+  }
   
-  rect.onkeyup = (e) => {
+  const shiftKeyUpListener = (e) => {
     if (!e.shiftKey) {
       rect.style.cursor = "auto"
+      document.addEventListener("keydown", shiftKeyDownListener, {once: true})
+    } else {
+      document.addEventListener("keyup", shiftKeyUpListener, {once: true})
     }
   }
-  rect.onmousemove = (e) => {
+
+  const shiftKeyDownListener = (e) => {
     if (e.shiftKey) {
       rect.style.cursor = "zoom-in"
+      document.addEventListener("keyup", shiftKeyUpListener, {once: true})
     } else {
-      rect.style.cursor = "auto"
+      document.addEventListener("keydown", shiftKeyDownListener, {once: true})
     }
   }
+
+  rect.onmouseover = (e) => {
+    if (e.shiftKey) {
+      rect.style.cursor = "zoom-in"
+      document.removeEventListener("keydown", shiftKeyDownListener)
+      document.addEventListener("keyup", shiftKeyUpListener, {once: true})
+    } else {
+      document.removeEventListener("keyup", shiftKeyUpListener)
+      document.addEventListener("keydown", shiftKeyDownListener, {once: true})
+    }
+  }
+
+  rect.onmouseleave = (e) => {
+    rect.style.cursor = "auto"
+    document.removeEventListener("keyup", shiftKeyUpListener)
+    document.removeEventListener("keydown", shiftKeyDownListener)
+  }
+
   rect.onclick = (e) => {
     if (e.shiftKey) {
       path.wsiViewer.viewport.fitBoundsWithConstraints(rectBounds)
       rect.style.cursor = "auto"
     }
+    
+    if (type === "user" || type === "model") {
+      const annotationsTab = document.getElementById("annotations-tab")
+      const annotationCard = document.getElementById(`annotation_${annotationId}Card`)
+      const annotationTypeBtn = type === "user" ? annotationCard.querySelectorAll(".wsiAnnotationType")[0] : annotationCard.querySelectorAll(".wsiAnnotationType")[1]
+
+      const findAndFocusWSIAnnotation = () => {
+        // console.log('annotation type button clicked')
+        const wsiAnnotationDetailsElement = document.getElementById(`wsiAnnotationDetails_${type}_${annotationId}_${rectBoundsInImageCoordsForId}`)
+        if (wsiAnnotationDetailsElement) {
+          wsiAnnotationDetailsElement.scrollIntoViewIfNeeded({block: 'center'})
+          wsiAnnotationDetailsElement.classList.add("highlightedAnnotation")
+          setTimeout(() => wsiAnnotationDetailsElement.classList.remove("highlightedAnnotation"), 2000)
+        }
+      }
+
+      const openAnnotationCard = () => {
+        const annotationDropdownBtn = annotationCard.querySelector("button[data-toggle=collapse]")
+        if (annotationDropdownBtn.getAttribute("aria-expanded") === "false") {
+          document.querySelector(annotationDropdownBtn.getAttribute("data-target")).addEventListener("shown.bs.collapse", () => {
+            // console.log("annotatioin card shown")
+            findAndFocusWSIAnnotation()
+          }, {once: true})
+          annotationTypeBtn.click()
+          annotationDropdownBtn.Collapse.show()
+  
+        } else {
+          findAndFocusWSIAnnotation()
+        }
+      }
+      
+      if (!annotationsTab.classList.contains("active")) {
+        annotationsTab.Tab.show()
+        annotationsTab.addEventListener("shown.bs.tab", () => {
+          // console.log("annotatioin tab shown")
+          openAnnotationCard()
+        }, {once: true})
+      } else {
+        openAnnotationCard()
+      }
+
+      
+      
+    }
+    rect.focus()
   }
 
   path.wsiViewer.addOverlay({
@@ -662,11 +752,12 @@ wsi.createOverlayRect = (type="user", rectBounds, tooltipText, hidden=false, pro
   
 }
 
-wsi.getPreviousPredsFromBox = (fileMetadata) => {
+wsi.getPreviousPredsFromBox = (fileMetadata=JSON.parse(window.localStorage.fileMetadata)) => {
   const annotationId = path.datasetConfig?.annotations[0]?.annotationId
   if (!annotationId) {
     return
   }
+
   const imageId = hashParams.image
   const modelId = path.datasetConfig.models.trainedModels.filter(x => x.correspondingAnnotation === annotationId).reduce((maxVersion, current) => maxVersion.version < current.version ? current : maxVersion, {version: -1}).id
   const wsiPredsFiles = fileMetadata.wsiPredsFiles ? JSON.parse(fileMetadata.wsiPredsFiles) : undefined
@@ -674,27 +765,33 @@ wsi.getPreviousPredsFromBox = (fileMetadata) => {
     ...path.datasetConfig,
     'datasetConfigFileId': box.currentDatasetConfigFileId
   }
+
   models.getPreviousWSIPredsFromBox(imageId, annotationId, modelId, datasetConfig, wsiPredsFiles)
 }
 
-wsi.handleMessage = (data, op) => { 
+wsi.handleMessage = (data, op) => {
   if (op === "getPreviousPreds") {
     if (data.datasetConfigChanged && data.newDatasetConfig) {
       path.datasetConfig = data.newDatasetConfig
     }
+    
     if (data.fileMetadataChanged && data.newFileMetadata) {
       window.localStorage.fileMetadata = JSON.stringify(data.newFileMetadata)
       const previousPredsReadyEvent = new CustomEvent("previousPredsReady", {
         detail: {
-          'wsiPredsFileId': data.newFileMetadata.wsiPredsFiles.find(file => file.annotationId === data.annotationId && file.modelId === data.modelId).fileId
+          'wsiPredsFileId': JSON.parse(data.newFileMetadata.wsiPredsFiles).find(file => file.annotationId === data.annotationId && file.modelId === data.modelId).fileId
         }
       })
       document.dispatchEvent(previousPredsReadyEvent)
     }
     wsi.overlayPreviousPredictions()
     return
-  } 
-  if (data.imageId === hashParams.image) {
+  } else if (op === "stop") {
+    if (data.success) {
+      wsi.modelRunning = false
+      utils.showToast("Stopping Model...")
+    }
+  } else if (data.imageId === hashParams.image) {
     if (data.message) {
       utils.showToast(data.message)
       if (data.completed) {
@@ -711,41 +808,40 @@ wsi.handleMessage = (data, op) => {
         const annotation = path.datasetConfig.annotations.find(annot => annot.annotationId === data.annotationId)
         if (highestValuePrediction.label === annotation.labels[0].label) {
           const tooltip = `${annotation.displayName}\n${annotation.labels[0].displayText || annotation.labels[0].label}: ${Math.round((highestValuePrediction.prob + Number.EPSILON) * 1000) / 1000 }`
-          wsi.createOverlayRect("model", osdRect, tooltip, false, false, true)
+          wsi.createOverlayRect("model", osdRect, tooltip, data.annotationId, false, false, true)
         }
       }
     } else if (data.processing) {
       const { x, y, width, height } = data
       const osdRect = path.wsiViewer.viewport.imageToViewportRectangle(x, y, width, height)
-      wsi.createOverlayRect("tileProcessing", osdRect, "Analyzing...", false, true, false)
+      wsi.createOverlayRect("tileProcessing", osdRect, "Analyzing...", undefined, false, true, false)
       // console.log("processing overlay added", Object.values(osdRect))
     }
   }
 }
 
 wsi.stopModel = () => {
-  path.wsiViewer.currentOverlays.forEach(overlay => {
-    if (overlay.element.classList.contains("wsiProcessing") || overlay.element.classList.contains("tileProcessing")) {
-      path.wsiViewer.removeOverlay(overlay.element)
-    }
-  })
-  path.wsiViewer.removeAllHandlers('remove-overlay')
-  
-  const runModelWSIButton = document.getElementById("wsiRunModelBtn")
-  runModelWSIButton.innerHTML = `<i class="fas fa-microchip"></i>`
-  runModelWSIButton.parentElement.classList.remove("active")
-  runModelWSIButton.parentElement.selected = false
-  
-  const dropdownDiv = document.getElementById("runModelWSIDropdownDiv")
-  dropdownDiv.querySelectorAll("input[type=radio]").forEach(element => {
-    element.removeAttribute("disabled") 
-    element.checked = false
-  })
-  dropdownDiv.querySelector("#stopWSIModelButtonDiv").style.display = "none"
-  // dropdownDiv.querySelectorAll("button").forEach(element => element.removeAttribute("disabled"))
-  
-  path.wsiViewer.controls[path.wsiViewer.controls.length - 1].autoFade = true
-  wsi.stopWorkers()
+  if (wsi.modelRunning) {
+    wsi.removeOverlays(false, "wsiProcessing")
+    wsi.removeOverlays(false, "tileProcessing")
+    path.wsiViewer.removeAllHandlers('remove-overlay')
+    
+    const runModelWSIButton = document.getElementById("wsiRunModelBtn")
+    runModelWSIButton.innerHTML = `<i class="fas fa-microchip"></i>`
+    runModelWSIButton.parentElement.classList.remove("active")
+    runModelWSIButton.parentElement.selected = false
+    
+    const dropdownDiv = document.getElementById("runModelWSIDropdownDiv")
+    dropdownDiv.querySelectorAll("input[type=radio]").forEach(element => {
+      element.removeAttribute("disabled") 
+      element.checked = false
+    })
+    dropdownDiv.querySelector("#stopWSIModelButtonDiv").style.display = "none"
+    // dropdownDiv.querySelectorAll("button").forEach(element => element.removeAttribute("disabled"))
+    
+    path.wsiViewer.controls[path.wsiViewer.controls.length - 1].autoFade = true
+    wsi.stopWorkers()
+  }
 }
 
 wsi.stopWorkers = () => {
@@ -753,14 +849,28 @@ wsi.stopWorkers = () => {
   models.stopWSIWorkers(annotationId)
 }
 
-wsi.setupIndexedDB = async () => {
-  const { dbName, objectStoreOpts, objectStoreIndex } = indexedDBConfig['wsi']
+wsi.removeOverlays = (removeAll, className="") => {
+  if (removeAll) {
+    path.wsiViewer.currentOverlays.forEach(overlay => requestAnimationFrame(() => path.wsiViewer.removeOverlay(overlay.element)))
+  } else if (className) {
+    path.wsiViewer.currentOverlays.forEach(overlay => {
+      if (overlay.element.classList.contains(className)) {
+        requestAnimationFrame(() => path.wsiViewer.removeOverlay(overlay.element))
+      }
+    })
+  }
+}
+
+wsi.setupIndexedDB = (forceCreateNewVersion=false) => new Promise (async resolve => {
+  const { dbName, objectStoreOpts, objectStoreIndexes } = indexedDBConfig['wsi']
   const objectStoreNames = path.datasetConfig.models.trainedModels.map(model => `${indexedDBConfig['wsi'].objectStoreNamePrefix}_${model.correspondingAnnotation}`)
-  const currentDBInstances = await window.indexedDB.databases()
-  const existingWSIDBInstance = currentDBInstances.find(db => db.name === dbName)
   let dbRequest
-  if (existingWSIDBInstance) {
-    dbRequest = window.indexedDB.open(dbName, existingWSIDBInstance.version + 1)
+  if (forceCreateNewVersion) {
+    const currentDBInstances = await window.indexedDB.databases()
+    const existingWSIDBInstance = currentDBInstances.find(db => db.name === dbName)
+    if (existingWSIDBInstance) {
+      dbRequest = window.indexedDB.open(dbName, existingWSIDBInstance.version + 1)
+    }
   } else {
     dbRequest = window.indexedDB.open(dbName)
   }
@@ -770,28 +880,173 @@ wsi.setupIndexedDB = async () => {
     objectStoreNames.forEach(objectStoreName => {
       if (!db.objectStoreNames.contains(objectStoreName)) {
         const objectStore = db.createObjectStore(objectStoreName, objectStoreOpts)
-        objectStore.createIndex(objectStoreIndex.name, objectStoreIndex.keyPath, objectStoreIndex.objectParameters)
+        objectStoreIndexes.forEach(objectStoreIndex => objectStore.createIndex(objectStoreIndex.name, objectStoreIndex.keyPath, objectStoreIndex.objectParameters))
       }
-    })    
+    })
   }
-  dbRequest.onsuccess = (evt) => {
-    wsi.predsDB = evt.target.result
+
+  dbRequest.onsuccess = async () => {
+    if (objectStoreNames.every(objectStoreName => dbRequest.result.objectStoreNames.contains(objectStoreName))) {
+      wsi.predsDB = dbRequest.result
+      resolve()
+    } else {
+      dbRequest.result.onversionchange = () => {
+        dbRequest.result.close()
+      }
+      await wsi.setupIndexedDB(true)
+      resolve()
+      // dbRequest.result.onerror = console.log
+      // dbRequest.result.close()
+    }
   }
-}
+
+  dbRequest.onblocked = (evt) => console.log("IDB Open Request BLOCKED", evt)
+  dbRequest.onerror = (evt) => console.log("IDB Open Request ERROR", evt)
+})
+
+wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reject) => {
+  const objectStoreTransaction = wsi.predsDB.transaction(objectStore, "readonly").objectStore(objectStore)
+  const queryResult = []
+  let offset = typeof(queryOpts.offset) === "number" && queryOpts.offset >= 0 ? queryOpts.offset : 0 
+  queryOpts.limit = typeof(queryOpts.limit) === "number" && queryOpts.limit > 0 ? queryOpts.limit : 25
+
+  if (queryOpts.query === "all") {
+    objectStoreTransaction.getAll().onsuccess = (e) => {
+      resolve({result: e.target.result})
+    }
+  } else if (Array.isArray(queryOpts.query) || typeof(queryOpts.query) === "string" || typeof(queryOpts.query) === "number") {
+    const attemptGet = objectStoreTransaction.get(key)
+    attemptGet.onsuccess = (e) => {
+      resolve({result: e.target.result})
+    }
+    attemptGet.onerror = (e) => {
+      reject(e.target.result)
+    }
+  } else {
+    let numRecords = 0
+    objectStoreTransaction.count(queryOpts.query).onsuccess = (e) => {
+      numRecords = e.target.result
+    
+      let cursorSource = objectStoreTransaction
+      if (queryOpts.index) {
+        cursorSource = objectStoreTransaction.index(queryOpts.index)
+      }
+      
+      let pagesSkippedFlag = queryOpts.pageNum && queryOpts.pageNum > 0
+      
+      const cursorRequest = cursorSource.openCursor(queryOpts.query, queryOpts.direction)
+      cursorRequest.onsuccess = (e) => {
+        const cursor = e.target.result
+        if (!cursor) {
+          console.log("No cursor", queryOpts)
+          resolve({result: []})
+          return
+        }
+
+        if (queryOpts.offset > 0 && !pagesSkippedFlag) {
+          // console.log("Advancing by ", queryOpts.offset, numRecords)
+          pagesSkippedFlag = true
+          cursor.advance(queryOpts.offset)
+          return
+        }
+        
+        if (cursor && queryResult.length < queryOpts.limit) {
+          if (queryOpts?.query?.lower && Array.isArray(queryOpts?.query?.lower) && queryOpts?.query?.upper && Array.isArray(queryOpts?.query?.upper)) {
+            for (let i = 1; i < queryOpts.query.lower.length; i++) {
+              if (window.indexedDB.cmp(cursor.key.slice(i, queryOpts.query.lower.length), queryOpts.query.lower.slice(i)) < 0) {
+                // console.log("Skipping Because low", cursor.key.slice(0, queryOpts.query.lower.length), queryOpts.query.lower)
+                cursor.continue([
+                  ...cursor.key.slice(0, i),
+                  ...queryOpts.query.lower.slice(i),
+                  ...cursor.key.slice(queryOpts.query.lower.length)
+                ])
+                offset++
+                return
+              } 
+              if (window.indexedDB.cmp(cursor.key.slice(i, queryOpts.query.upper.length), queryOpts.query.upper.slice(i)) > 0) {
+                // console.log("Skipping Because high", cursor.key.slice(0, queryOpts.query.lower.length), queryOpts.query.upper)
+                cursor.continue([
+                  ...cursor.key.slice(0, i),
+                  cursor.key[i] + EPSILON,
+                  ...queryOpts.query.upper.slice(i+1),
+                  ...cursor.key.slice(queryOpts.query.upper.length)
+                ])
+                offset++
+                return
+              }
+            }
+          }
+          // console.log("FOUND!")
+          queryResult.push(cursor.value)
+          offset++
+          cursor.continue()
+        } else {
+          // console.log(queryResult, offset)
+          resolve({result: queryResult, offset})
+        }
+      }
+      cursorRequest.onerror = (e) => {
+        console.log(e)
+      }
+    }
+  }
+   
+})
 
 wsi.overlayPreviousPredictions = () => {
-  Object.values(wsi.predsDB.objectStoreNames).forEach(objectStore => {
+  const hideModelAnnotations = document.getElementById("hideAnnotationsOption_byModel").checked
+  Object.values(wsi.predsDB.objectStoreNames).forEach(async objectStore => {
     const annotation = path.datasetConfig.annotations.find(annot => annot.annotationId === parseInt(objectStore.split(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_`)[1]))
     if (annotation) {
-      const objectStoreTransaction = wsi.predsDB.transaction(objectStore, "readonly").objectStore(objectStore)
-      objectStoreTransaction.getAll().onsuccess = (e) => {
-        e.target.result.forEach(({x, y, width, height, prediction}) => {
+      const currentViewportBounds = path.wsiViewer.viewport.viewportToImageRectangle(path.wsiViewer.viewport.getBounds(true))
+      
+      const limit = 100
+      let offset = 0
+      let finishedIndexedDBParsing = false
+      const topXBounds = currentViewportBounds.x > 0 ? currentViewportBounds.x : 0
+      const topYBounds = currentViewportBounds.y > 0 ? currentViewportBounds.y : 0
+      const bottomXBounds = currentViewportBounds.x + currentViewportBounds.width > 0 ? currentViewportBounds.x + currentViewportBounds.width: 0
+      const bottomYBounds = currentViewportBounds.y + currentViewportBounds.height > 0 ? currentViewportBounds.y + currentViewportBounds.height : 0
+      const indexedDBQueryOpts = {
+        'index': indexedDBConfig['wsi'].objectStoreIndexes[0].name,
+        'query': IDBKeyRange.bound([topXBounds, topYBounds], [bottomXBounds, bottomYBounds], true, true),
+        offset,
+        limit
+      }
+      while (!finishedIndexedDBParsing) {
+        indexedDBQueryOpts.offset = offset
+        const { result: dataInIndexedDB, offset: newOffset } = await wsi.getFromIndexedDB(objectStore, indexedDBQueryOpts)
+        dataInIndexedDB.forEach(({x, y, width, height, prediction}) => {
           if (prediction[0].prob === prediction.reduce((max, current) => max < current.prob ? current.prob : max, 0)) {
             const osdRect = path.wsiViewer.viewport.imageToViewportRectangle(x, y, width, height, 0)
             const predictionText = `${prediction[0].label}: ${Math.round((prediction[0].prob + Number.EPSILON) * 1000) / 1000 }`
             const tooltipText = `${annotation.displayName}\n${predictionText}`
-            wsi.createOverlayRect("model", osdRect, tooltipText, false, false, true)
+            wsi.createOverlayRect("model", osdRect, tooltipText, annotation.annotationId, hideModelAnnotations, false, true)
           }
+        }) 
+        if (dataInIndexedDB.length < limit) {
+          finishedIndexedDBParsing = true
+        } else {
+          offset = newOffset
+        }
+      }
+
+    }
+  })
+}
+
+wsi.overlayPreviousAnnotations = () => {
+  path.datasetConfig.annotations.forEach(({ annotationId }) => {
+    const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
+    if (fileMetadata[`${wsi.metadataPathPrefix}_${annotationId}`]) {
+      const hideUserAnnotations = document.getElementById("hideAnnotationsOption_byMe").checked
+      const userAnnotations = JSON.parse(fileMetadata[`${wsi.metadataPathPrefix}_${annotationId}`])[window.localStorage.userId]
+      if (userAnnotations) {
+        const annotationsToOverlay = userAnnotations.filter(annot => annot.annotationId === annotationId)
+        annotationsToOverlay.forEach(annot => {
+          const { x, y, width, height, degrees } = annot.rectBounds
+          const osdRect = new OpenSeadragon.Rect(x, y, width, height, degrees)
+          wsi.createOverlayRect("user", osdRect, "", annotationId, hideUserAnnotations, false, false)
         })
       }
     }

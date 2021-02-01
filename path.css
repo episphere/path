@@ -144,7 +144,6 @@ canvas {
   display: flex;
   flex-direction: column;
   height: 100%;
-  margin-right: 0.5rem;
 }
 
 #toolsDiv>div:first-child {
@@ -161,12 +160,8 @@ canvas {
   width: fit-content;
 }
 
-.dropdown {
-  z-index: 10000000;
-}
-
-.tooltip {
-  z-index: 10000000;
+.dropdown-menu, .tooltip, .modal {
+  z-index: 1000001;
 }
 
 .dropdown-toggle {
@@ -188,7 +183,7 @@ canvas {
   display: none;
   position: absolute;
   background-color: rgba(220, 220, 220, 0.4);
-  z-index: 2;
+  z-index: 9999999;
 }
 
 .loaderImg {
@@ -386,16 +381,13 @@ canvas {
   display: flex;
   flex-direction: column;
   height: 100%;
-  /* margin-left: 0.5rem; */
   border-left: 1px solid lightgray;
 }
 
 #tabsContent {
   display: flex;
   width: 100%;
-  height: 100%;
-  /* height: 93%; */
-  /* max-height: 78vh; */
+  height: 100%; 
   border-top: 1px solid lightgray;
 }
 
@@ -406,6 +398,7 @@ canvas {
 .tabContainerWithMargin {
   margin-top: 0.7rem;
   padding-left: 1.5rem;
+  height: calc(100% - 0.7rem)
 }
 
 #collaborate>.jumbotron {
@@ -486,14 +479,17 @@ canvas {
 }
 
 .boxFileMgr_subFolder>button {
-  width: 90%;
+  width: 95%;
   text-align: left;
   padding-top: 1rem;
   padding-bottom: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .boxFolderOptionsDiv {
-  margin: auto 1.5rem auto 0;
+  margin: auto;
 }
 
 .boxMoreFilesDiv {
@@ -524,15 +520,24 @@ canvas {
 }
 
 #boxFileMgrHeader {
+  grid-template-columns: 110px 10px auto 10px 100px;
   height: 4rem;
   display: none;
-  flex-direction: row;
 }
 
 .boxFileMgrHeader {
   position: relative;
-  align-items: center;
   background-color: rgba(210, 210, 210, 0.2);
+}
+
+
+#boxFileMgrNav {
+  grid-column-start: 3;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  color: #007bff;
 }
 
 #fileMgrOptionsContent {
@@ -543,7 +548,7 @@ canvas {
 }
 
 #boxFileMgrTools {
-  margin-left: 1.2rem;
+  margin-left: 0.8rem;
 }
 
 #boxFileMgrOptionsBtn {
@@ -553,7 +558,7 @@ canvas {
 }
 
 .boxFileMgrHeaderBtn:not(:last-child) {
-  margin-right: 0.7rem;
+  margin-right: 0.3rem;
 }
 
 .fileMgrOptions {
@@ -602,7 +607,7 @@ canvas {
 #annotationsAccordion {
   display: flex;
   flex-direction: column;
-  max-height: 65vh;
+  max-height: 70vh;
   overflow-y: auto;
 }
 
@@ -647,7 +652,64 @@ canvas {
 }
 
 .annotationsCardBody {
-  padding-bottom: 0;
+  padding: 0;
+}
+
+.wsiAnnotationsParent hr {
+  margin: 0;
+}
+
+.wsiAnnotationTypesBtnGrp {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: 2.2rem;
+  border-bottom: 1px solid lightgray;
+}
+
+.wsiAnnotationTypesBtnGrp button {
+  border-radius: 0px;
+  border: none;
+}
+
+.wsiAnnotationTypesBtnGrp button:first-child.active {
+  background-color: lightcoral;
+}
+
+.wsiAnnotationTypesBtnGrp button:last-child.active {
+  background-color: lightsteelblue;
+}
+
+.wsiAnnotationsList {
+  flex-direction: column;
+  width: 100%;
+}
+
+.wsiAnnotationElement {
+  display: grid;
+  grid-template-columns: auto 100px;
+  padding: 1rem;
+  cursor: pointer;
+  /* content-visibility: auto; */
+  background-color: transparent;
+  transition-property: background-color;
+  transition-duration: 500s;
+}
+
+.wsiAnnotationElement.highlightedAnnotation {
+  animation: highlightElement;
+  animation-duration: 2s;
+  animation-iteration-count: 1;
+  animation-timing-function: ease-in-out;
+}
+
+.wsiAnnotationElement:hover {
+  background-color:rgba(200, 200, 200, 0.25);
+}
+
+.wsiAnnotationElement>div:first-child {
+  display: grid;
+  grid-template-columns: 90px auto;
 }
 
 .qualityAnnotations {
@@ -666,6 +728,15 @@ canvas {
 
 .qualitySelect {
   margin-bottom: 0;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.qualitySelect tr>th:first-child {
+  padding-left: 2rem;
+}
+
+.qualitySelect tr>td:first-child {
+  padding-left: 2rem;
 }
 
 .modelPrediction {
@@ -775,8 +846,21 @@ canvas {
 }
 
 .wsiModelAnnotation {
-  outline: 1px solid green;
-  box-shadow: 0px 0px 2px 2px lightgreen;
+  outline: 1px solid rgba(29, 172, 29, 0.6);
+  /* box-shadow: 0px 0px 1px 1px lightgreen; */
+}
+
+.wsiUserAnnotation:hover, .wsiUserAnnotation.hover {
+  box-shadow: 0px 0px 5px 5px lightpink;
+}
+
+.wsiModelAnnotation:hover, .wsiModelAnnotation.hover {
+  box-shadow: 0px 0px 3px 3px lightgreen;
+}
+
+.wsiUserAnnotation:focus, .wsiModelAnnotation:focus, .wsiUserAnnotation.focus, .wsiModelAnnotation.focus {
+  outline: 1px solid royalblue;
+  box-shadow: 0px 0px 5px 5px skyblue;
 }
 
 .wsiProcessing {
@@ -831,6 +915,26 @@ canvas {
 
 .quality_addComment {
   margin-top: 2px;
+  margin-left: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+.quality_commentOptions {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  margin-left: 0.1rem;
+}
+
+.quality_commentOptions label {
+  margin-bottom: 0
+}
+
+.quality_commentOptions>div {
+  display: flex;
+  flex-direction: row;
+  margin: auto 0;
 }
 
 #addAnnotationsBtn {
@@ -913,7 +1017,7 @@ canvas {
     width: 55%;
     display: flex;
     flex-direction: column;
-    margin-left: 1.5rem;
+    margin-left: 1rem;
   }
 
   #canvasDiv {
@@ -951,4 +1055,9 @@ canvas {
   .qualitySelect {
     flex-direction: row;
   }
+}
+
+@keyframes highlightElement {
+  0% { background-color: lightskyblue; }
+  100% { background-color: transparent; }
 }

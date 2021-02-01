@@ -226,6 +226,7 @@ const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, ws
 
     const metadataPath = "/wsiPredsFiles"
     const newMetadata = await updateMetadataInBox(imageId, metadataPath, JSON.stringify(wsiPredsFiles))
+    fileMetadataChanged = true
     
     const returnObj = {
       'previousPredictions': [],

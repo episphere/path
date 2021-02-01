@@ -1,14 +1,29 @@
 const annotations = {}
 
-annotations.showAnnotationOptions = async (annotationsConfig=path.datasetConfig.annotations, isImageFromBox=false, forceRedraw=false) => {
-  if (isImageFromBox) {
+annotations.showAnnotationOptions = async (annotationsConfig=path?.datasetConfig?.annotations, isImageFromBox=false, forceRedraw=false) => {
+  const annotationsAccordion = document.getElementById("annotationsAccordion")
+ 
+  if (annotationsConfig && isImageFromBox) {
     await annotations.createTables(annotationsConfig, forceRedraw)
-  } else {
-    const annotationsAccordion = document.getElementById("annotationsAccordion")
+
+  } else if (!annotationsConfig) {
+    let messageHTMLString = ``
+    if (document.getElementById("datasetSelectDropdownDiv").querySelectorAll("button").length > 1) {
+      messageHTMLString = `-- Please </i><a href="#" onclick="document.getElementById('datasetSelectDropdownBtn').Dropdown.show(); return false;">Select a Dataset</a><i> first! --`
+    } else {
+      messageHTMLString = `-- Please </i><a href="#" onclick="document.getElementById('addDatasetDropdownBtn').Modal.show(); return false;">Create a Dataset</a><i> first! --`
+    }
+    annotationsAccordion.innerHTML = `
+      <span id="localImageAnnotationsMsg" style="margin: 0 auto; color: gray;">
+        <i style="text-align: center;">${messageHTMLString}</i>
+      </span>
+    `
+  } else if (!isImageFromBox) {
     annotationsAccordion.innerHTML = `
       <span id="localImageAnnotationsMsg" style="margin: 0 auto; color: gray;">
         <i style="text-align: center;">-- Please select an image from </i><a href="#" onclick="document.getElementById('box-tab').click(); return false;">My Box</a><i> first! --</i>
-      </span>`
+      </span>
+    `
   }
 }
 
@@ -21,49 +36,52 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
     annotationsAccordion.innerHTML = ""
   }
   
-  annotationsConfig.forEach(annotation => {
+  annotationsConfig.forEach(async (annotation) => {
     const {
       annotationId,
       displayName,
       annotationName,
       metaName,
       definition,
-      enableComments
+      enableComments,
+      labels
     } = annotation
-
+    
     let annotationCard = annotationsAccordion.querySelector(`#annotation_${annotationId}Card`)
-  
+    
     if (annotationCard && forceRedraw) {
       annotationCard.parentElement.removeChild(annotationCard)
       annotationCard = undefined
     }
-  
+    
     if (!annotationCard || annotationCard.childElementCount === 0) {
       const annotationCardDiv = document.createElement("div")
       annotationCardDiv.setAttribute("class", "card annotationsCard")
       annotationCardDiv.setAttribute("id", `annotation_${annotationId}Card`)
       annotationCardDiv.style.overflow = "visible"
-      let annotationCard = `
+      annotationsAccordion.appendChild(annotationCardDiv)
+
+      let annotationCardHeader = `
         <div class="card-header">
           <div class="annotationWithMenuHeader">
             <div class="classWithDefinition">
               <h2 class="mb-0">
                 <button class="btn btn-link classCardHeader" type="button" data-toggle="collapse"
-                  data-target="#${annotationName}Annotations" id="${annotationName}Toggle">
-                  ${displayName}
+                  data-target="#${annotationName}Annotations" id="${annotationName}Toggle" aria-expanded="false">
+                  <i class="fas fa-caret-right" style="width:18px;">&nbsp&nbsp</i>${displayName}
                 </button>
               </h2>
       `
   
       if (definition) {
-        annotationCard += `
+        annotationCardHeader += `
               <button class="btn btn-light classDefinitionPopup" id="${annotationName}_definitionPopup" type="button" data-toggle="popover">
                 <i class="fas fa-info-circle"></i>
               </button>
         `
       }
   
-      annotationCard += `
+      annotationCardHeader += `
             </div>
             <div class="dropdown dropleft classificationMenu" id="${annotationName}_classificationMenu">
               <button class="btn btn-light dropdown-toggle classificationMenuToggle" role="button" id="${annotationName}_classificationMenuToggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -83,59 +101,25 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
             </div>
           </div>
         </div>
+      `
     
-        <div id="${annotationName}Annotations" class="collapse qualityAnnotations" data-parent="#annotationsAccordion">
-          <div class="card-body annotationsCardBody" name="${displayName}">
-            <table id="${annotationName}Select" class="table table-bordered qualitySelect">
-              <thead>
-                <tr>
-                  <th scope="col" style="border-right: none; padding-left: 0; padding-right: 0;">
-                    <div class="text-left col">Label</div>
-                  </th>
-                  <th scope="col" style="border-left: none;">
-                    <div class="text-center col">Model Score</div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-              </tbody>
-            </table>
-            <div id="${annotationName}_othersAnnotations" class="quality_othersAnnotations"></div>
-        `
-      if (enableComments) {
-        annotationCard += `
-            <div class="commentsToggleDiv">
-              <button id="${annotationName}_commentsToggle" type="button" data-toggle="collapse" data-target="#${annotationName}_allComments" role="button" class="btn btn-link collapsed" disabled style="padding-left: 0;"></button>
-            </div>
-            <div class="collapse" id="${annotationName}_allComments">
-              <div class="allCommentsCard card card-body" id="${annotationName}_allCommentsCard">
-              </div>
-            </div>
-            <div id="${annotationName}_comments" class="quality_addComment form-group">
-              <textarea class="form-control" id="${annotationName}_commentsTextField" rows="2" placeholder="Add your comments here..."></textarea>
-              <div style="display: flex; flex-direction: row; justify-content: space-between; margin-top: 0.5rem; margin-left: 0.1rem;">
-                <div style="display: flex; flex-direction: row; style="margin: auto 0;">
-                  <label for="${annotationName}_commentsPublic" style="margin-right: 0.5rem;">Private</label>
-                  <div class="custom-control custom-switch">
-                    <input type="checkbox" class="custom-control-input" id="${annotationName}_commentsPublic">
-                    <label class="custom-control-label" for="${annotationName}_commentsPublic">Public</label>
-                  </div>
-                </div>
-                <div>
-                  <button type="button" onclick=cancelEditComment("${annotationName}") id="${annotationName}_cancelEditComment" class="btn btn-link">Cancel</button>
-                  <button type="submit" onclick="submitAnnotationComment('${annotationName}', '${metaName}')" id="${annotationName}_submitComment" class="btn btn-info" disabled>Submit</button>
-                </div>
-              </div>
-            </div>
-          `
-      }
-      annotationCard += `
-          </div>
-        </div>
-        `
-      annotationCardDiv.insertAdjacentHTML("beforeend", annotationCard)
-      annotationsAccordion.appendChild(annotationCardDiv)
+      annotationCardDiv.insertAdjacentHTML('beforeend', annotationCardHeader)
+      const annotationCardContentDiv = document.createElement("div")
+      annotationCardContentDiv.setAttribute("id", `${annotationName}Annotations`)
+      annotationCardContentDiv.setAttribute("class", "collapse qualityAnnotations")
+      annotationCardContentDiv.setAttribute("data-parent", "#annotationsAccordion")
+      annotationCardDiv.insertAdjacentElement('beforeend', annotationCardContentDiv)
+      annotations.populateAnnotationCard(annotationCardContentDiv, annotationId, annotationName, displayName, metaName, labels, path.isWSI, enableComments)
       new BSN.Collapse(document.getElementById(`${annotationName}Toggle`))
+      const annotationCollapseDiv = document.getElementById(`${annotationName}Annotations`)
+      annotationCollapseDiv.addEventListener("show.bs.collapse", (evt) => {
+        const annotationToggleBtn = document.getElementById(`${annotationName}Toggle`)
+        annotationToggleBtn.firstElementChild.classList.replace("fa-caret-right", "fa-caret-down")
+      })
+      annotationCollapseDiv.addEventListener("hide.bs.collapse", (evt) => {
+        const annotationToggleBtn = document.getElementById(`${annotationName}Toggle`)
+        annotationToggleBtn.firstElementChild.classList.replace("fa-caret-down", "fa-caret-right")
+      })
       new BSN.Dropdown(document.getElementById(`${annotationName}_classificationMenu`))
   
       if (definition) {
@@ -149,43 +133,337 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
         })
       }
   
-      if (enableComments) {
+      if (enableComments && !path.isWSI) {
   
-        const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
-        new BSN.Collapse(toggleCommentsButton)
+        new BSN.Collapse(document.getElementById(`${annotationName}_commentsToggle`))
         const commentsCollapseDiv = document.getElementById(`${annotationName}_allComments`)
         commentsCollapseDiv.addEventListener("show.bs.collapse", (evt) => {
+          const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
           toggleCommentsButton.innerHTML = "- Hide All Comments"
         })
         commentsCollapseDiv.addEventListener("hide.bs.collapse", (evt) => {
+          const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
           toggleCommentsButton.innerHTML = "+ Show All Comments"
         })
   
-        const commentsTextField = document.getElementById(`${annotationName}_commentsTextField`)
-        const commentsSubmitButton = document.getElementById(`${annotationName}_submitComment`)
-        commentsTextField.oninput = (evt) => {
+        document.getElementById(`${annotationName}_commentsTextField`).oninput = (evt) => {
+          const commentsTextField = evt.target
+          const commentsSubmitButton = document.getElementById(`${annotationName}_submitComment`)
           if (commentsTextField.value.length > 0) {
             commentsSubmitButton.removeAttribute("disabled")
           } else {
             commentsSubmitButton.setAttribute("disabled", "true")
           }
         }
-        commentsTextField.onkeydown = (evt) => {
-          if (evt.shiftKey && evt.keyCode === 13) {
+
+        document.getElementById(`${annotationName}_commentsTextField`).onkeydown = (evt) => {
+          const commentsSubmitButton = document.getElementById(`${annotationName}_submitComment`)
+          if (evt.shiftKey && (evt.key === "Enter" || evt.key === "NumpadEnter")) {
             evt.preventDefault()
             commentsSubmitButton.click()
           }
         }
+        annotations.populateComments(annotationName)
       }
     }
-    annotations.showQualitySelectors(annotation)
-    if (enableComments) {
-      annotations.populateComments(annotationName)
+    if (!path.isWSI) {
+      annotations.showQualitySelectors(annotation)
     }
   })
   annotations.loadModelPredictions()
   annotations.showNextImageButton()
   document.getElementById("addClassificationBtn").removeAttribute("disabled")
+}
+
+annotations.populateAnnotationCard = async (annotationCardContentDiv, annotationId, annotationName, displayName, metaName, labels, isWSI=path.isWSI, enableComments=false) => {
+  annotations.populateWSIAnnotations = async (clickedButton, showModelPredictions=false, forceReload=false) => {
+    const positiveLabel = labels[0]
+    if (!forceReload && clickedButton.classList.contains("active")) {
+      return
+    } else {
+      clickedButton.parentElement.querySelector(".active").classList.remove("active")
+      clickedButton.classList.add("active")
+
+      if (showModelPredictions) {
+        const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_model`)
+        annotationsContainerElement.previousElementSibling.style.display = "none"
+        annotationsContainerElement.style.display = "flex"
+
+        const indexedDBQueryOpts = {
+          'index': indexedDBConfig['wsi'].objectStoreIndexes[1].name,
+          'query': "all",
+          'direction': "prev",
+          'offset': 0,
+          'limit': 25
+        }
+        const { result: modelPredictions, offset } = await wsi.getFromIndexedDB(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, indexedDBQueryOpts)
+
+        if (modelPredictions && modelPredictions.length !== 0 && modelPredictions.length !== Math.ceil(annotationsContainerElement.childElementCount/2)) {
+          annotationsContainerElement.innerHTML = ""
+          const tempDocumentFragment = document.createDocumentFragment()
+
+          modelPredictions.forEach(({x, y, width, height, prediction}, ind) => {
+            const { label, prob } = prediction.reduce((max, current) => current.prob > max.prob ? current : max, {prob: 0})
+            const annotationElement = document.createElement("div")
+            annotationElement.setAttribute("class", "wsiAnnotationElement")
+            annotationElement.setAttribute("id", `wsiAnnotationDetails_model_${annotationId}_${x}_${y}_${width}_${height}`)
+            annotationElement.innerHTML = `
+              <div>
+                <i style="color:gray">Prediction:</i> ${displayName} ${label}<br/>
+                <i style="color:gray">Score:</i> ${Math.round((prob + Number.EPSILON) * 10000) / 10000}<br/>
+              </div>
+              <div style="display: flex; flex-direction: row; margin: auto;">
+              </div>
+            `
+            // <i>Position in Image:</i> ${x}, ${y}, ${x+width}, ${y+height}<br/>
+            annotationElement.onclick = () => {
+              path.wsiViewer.viewport.fitBoundsWithConstraints(path.wsiViewer.viewport.imageToViewportRectangle(new OpenSeadragon.Rect(x, y, width, height, 0)))
+            }
+            tempDocumentFragment.appendChild(annotationElement)
+            if (ind !== modelPredictions.length - 1) {
+              tempDocumentFragment.appendChild(document.createElement("hr"))
+            }
+            
+            const approveButton = document.createElement("button")
+            approveButton.setAttribute("type", "button")
+            approveButton.setAttribute("class", "btn btn-light")
+            approveButton.setAttribute("disabled", "true")
+            approveButton.style.fontSize = "18px"
+            approveButton.innerText = "👍"
+            
+            const rejectButton = document.createElement("button")
+            rejectButton.setAttribute("type", "button")
+            rejectButton.setAttribute("class", "btn btn-light")
+            rejectButton.setAttribute("disabled", "true")
+            rejectButton.style.fontSize = "18px"
+            rejectButton.innerText = "👎"
+            
+            annotationElement.lastElementChild.appendChild(approveButton)
+            annotationElement.lastElementChild.appendChild(rejectButton)
+
+            annotationElement.onmouseover = () => {
+              if (annotationElement.getAttribute("overlay_element_id")) {
+                document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.add("hover")
+              } else {
+                const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === x && overlay.bounds.y === y && overlay.bounds.width === width && overlay.bounds.height === height)?.element
+                if (overlayElement) {
+                  overlayElement.classList.add("hover")
+                  annotationElement.setAttribute("overlay_element_id", overlayElement.id)
+                }
+              }
+            }
+            
+            annotationElement.onmouseleave = () => {
+              if (annotationElement.getAttribute("overlay_element_id")) {
+                document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.remove("hover")
+              } else {
+                const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === x && overlay.bounds.y === y && overlay.bounds.width === width && overlay.bounds.height === height)?.element
+                if (overlayElement) {
+                  overlayElement.classList.remove("hover")
+                  annotationElement.setAttribute("overlay_element_id", overlayElement.id)
+                }
+              }
+            }
+          }) 
+          annotationsContainerElement.appendChild(tempDocumentFragment)
+        } else if (annotationsContainerElement.querySelectorAll("div.wsiAnnotationElement").length === 0) {
+          annotationsContainerElement.innerHTML = `<div style="display:flex; align-items:center; width:100%; height:20vh;"><i style="color:slategray; margin:auto; font-size:18px">-- Nothing to show --</i></div>`
+        }
+      } else {
+        const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_user`)
+        annotationsContainerElement.nextElementSibling.style.display = "none"
+        annotationsContainerElement.style.display = "flex"
+
+        const userAnnotationsMetadata = window.localStorage.fileMetadata ? JSON.parse(window.localStorage.fileMetadata)[`${wsi.metadataPathPrefix}_${annotationId}`] : undefined
+        const userAnnotations = userAnnotationsMetadata ? JSON.parse(userAnnotationsMetadata)?.[window.localStorage.userId] : undefined
+
+        if (userAnnotations && userAnnotations.length !== 0 && userAnnotations.length !== Math.ceil(annotationsContainerElement.childElementCount/2)) {
+          annotationsContainerElement.innerHTML = ""
+          const tempDocumentFragment = document.createDocumentFragment()
+
+          userAnnotations.forEach(({rectBounds, label, createdAt, comment}, ind) => {
+            label = label || `${displayName} ${labels[0].displayText}`
+            const positionInImage = path.wsiViewer.viewport.viewportToImageRectangle(...Object.values(rectBounds))
+            const positionInImageForElementId = Object.values(positionInImage).splice(0, Object.values(positionInImage).length - 1).map(v => Math.round(v)).join("_")
+            const xPos = Math.round(positionInImage.x)
+            const yPos = Math.round(positionInImage.y)
+            const createdAtTime = new Date(createdAt)
+            const createdAtTimeString = createdAtTime.toLocaleString('default', {year: 'numeric', month: 'long', day: 'numeric', hour:'numeric', minute: 'numeric'})
+      
+            const annotationElement = document.createElement("div")
+            annotationElement.setAttribute("class", "wsiAnnotationElement")
+            annotationElement.setAttribute("id", `wsiAnnotationDetails_user_${positionInImageForElementId}`)
+            let annotationElementHTMLString = `
+              <div>
+                <i style="color:gray">Annotation:</i> ${label}<br>
+                <i style="color:gray">Created at:</i> ${createdAtTimeString}<br>
+            ` 
+                // <i style="color:gray">Position in Image:</i> (${xPos}, ${yPos}, ${xPos+positionInImage.width}, ${yPos+positionInImage.height})
+            if (comment) {
+              annotationElementHTMLString += `
+                <br/><i>Comments:</i> ${comment}
+              `
+            }
+            annotationElementHTMLString += `
+              </div>
+              <div style="margin: auto;">
+              </div>
+            `
+            annotationElement.innerHTML = annotationElementHTMLString
+
+            annotationElement.onclick = () => path.wsiViewer.viewport.fitBoundsWithConstraints(new OpenSeadragon.Rect(...Object.values(rectBounds)))
+            tempDocumentFragment.appendChild(annotationElement)
+            if (ind !== userAnnotations.length - 1) {
+              tempDocumentFragment.appendChild(document.createElement("hr"))
+            }
+            const deleteAnnotationBtn = document.createElement("button")
+            deleteAnnotationBtn.setAttribute("type", "button")
+            deleteAnnotationBtn.setAttribute("class", "btn btn-light")
+            deleteAnnotationBtn.innerHTML = `<i class="fas fa-trash"></i>`  
+            deleteAnnotationBtn.onclick = async (e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              const userAnnotationsMetadataNew = JSON.parse(window.localStorage.fileMetadata)?.[`${wsi.metadataPathPrefix}_${annotationId}`] ? JSON.parse(JSON.parse(window.localStorage.fileMetadata)?.[`${wsi.metadataPathPrefix}_${annotationId}`]) : {}
+              userAnnotationsMetadataNew[window.localStorage.userId] = userAnnotationsMetadataNew[window.localStorage.userId] ? userAnnotationsMetadataNew[window.localStorage.userId].filter((annot, ind2) => ind !== ind2 ) : []
+              const newMetadata = await box.updateMetadata(hashParams.image, `/wsiAnnotation_${annotationId}`, JSON.stringify(userAnnotationsMetadataNew))
+              path.wsiViewer.removeOverlay(`wsiAnnotation_${annotationId}_${positionInImageForElementId}`)
+              annotationElement.parentElement.removeChild(annotationElement)
+              window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+              utils.showToast("Annotation Deleted!")
+            }
+            annotationElement.lastElementChild.appendChild(deleteAnnotationBtn)
+            
+            annotationElement.onmouseover = () => {
+              if (annotationElement.getAttribute("overlay_element_id")) {
+                document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.add("hover")
+              } else {
+                const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === rectBounds.x && overlay.bounds.y === rectBounds.y && overlay.bounds.width === rectBounds.width && overlay.bounds.height === rectBounds.height)?.element
+                if (overlayElement) {
+                  overlayElement.classList.add("hover")
+                  annotationElement.setAttribute("overlay_element_id", overlayElement.id)
+                }
+              }
+            }
+            annotationElement.onmouseleave = () => {
+              if (annotationElement.getAttribute("overlay_element_id")) {
+                document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.remove("hover")
+              } else {
+                const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === rectBounds.x && overlay.bounds.y === rectBounds.y && overlay.bounds.width === rectBounds.width && overlay.bounds.height === rectBounds.height)?.element
+                if (overlayElement) {
+                  overlayElement.classList.remove("hover")
+                  annotationElement.setAttribute("overlay_element_id", overlayElement.id)
+                }
+              }
+            }
+          })
+          annotationsContainerElement.appendChild(tempDocumentFragment)
+        } else if (annotationsContainerElement.querySelectorAll("div.wsiAnnotationElement").length === 0) {
+          annotationsContainerElement.innerHTML = `<div style="display:flex; align-items:center; width:100%; height:20vh;"><i style="color:slategray; margin:auto; font-size:18px">-- Nothing to show --</i></div>`
+        }
+      }
+    }
+
+  }
+
+  if (isWSI) {
+    
+    const parentContentDiv = document.createElement("div")
+    parentContentDiv.style.display = "flex"
+    parentContentDiv.style.flexDirection = "column"
+    
+    const annotationTypesBtnGrp = document.createElement("div")
+    annotationTypesBtnGrp.setAttribute("class", "btn-group btn-group-toggle wsiAnnotationTypesBtnGrp")
+    annotationTypesBtnGrp.setAttribute("data-toggle", "buttons")
+    
+    const userAnnotationsBtn = document.createElement("button")
+    userAnnotationsBtn.setAttribute("class", "btn btn-outline-secondary active wsiAnnotationType")
+    userAnnotationsBtn.insertAdjacentHTML('beforeend', `<i class="fas fa-edit"></i>`)
+    userAnnotationsBtn.onclick = (e) => annotations.populateWSIAnnotations(e.currentTarget, false)
+    
+    const modelPredictionsBtn = document.createElement("button")
+    modelPredictionsBtn.setAttribute("class", "btn btn-outline-secondary wsiAnnotationType")
+    modelPredictionsBtn.insertAdjacentHTML('beforeend', `<i class="fas fa-microchip"></i>`)
+    modelPredictionsBtn.onclick = (e) => annotations.populateWSIAnnotations(e.currentTarget, true)
+    
+    annotationTypesBtnGrp.appendChild(userAnnotationsBtn)
+    annotationTypesBtnGrp.appendChild(modelPredictionsBtn)
+    parentContentDiv.appendChild(annotationTypesBtnGrp)
+    
+    const annotationsParentElement = document.createElement("div")
+    annotationsParentElement.setAttribute("id", `wsiAnnotations_${annotationId}_parent`)
+    annotationsParentElement.setAttribute("class", "wsiAnnotationsParent")
+    annotationsParentElement.style.position = "relative"
+    annotationsParentElement.style.flex = "1"
+
+    const userAnnotationsDiv = document.createElement("div")
+    userAnnotationsDiv.setAttribute("id", `wsiAnnotations_${annotationId}_user`)
+    userAnnotationsDiv.setAttribute("class", "wsiAnnotationsList")
+    userAnnotationsDiv.style.display = "none"
+    
+    const modelPredictionsDiv = document.createElement("div")
+    modelPredictionsDiv.setAttribute("id", `wsiAnnotations_${annotationId}_model`)
+    modelPredictionsDiv.setAttribute("class", "wsiAnnotationsList")
+    modelPredictionsDiv.style.display = "none"
+
+    annotationsParentElement.appendChild(userAnnotationsDiv)
+    annotationsParentElement.appendChild(modelPredictionsDiv)
+
+    parentContentDiv.appendChild(annotationsParentElement)
+    annotationCardContentDiv.insertAdjacentElement('beforeend', parentContentDiv)
+    annotations.populateWSIAnnotations(userAnnotationsBtn, false, true)
+    // annotationsElement.style.contentVisibility = "auto"
+
+  } else {
+    annotationCardContentDiv.innerHTML = `
+        <div class="card-body annotationsCardBody" name="${displayName}">
+          <table id="${annotationName}Select" class="table qualitySelect">
+            <thead>
+              <tr>
+                <th scope="col" style="border: none;">
+                  <div class="text-left col">Label</div>
+                </th>
+                <th scope="col" style="border: none;">
+                  <div class="text-center col">Model Score</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+            </tbody>
+          </table>
+          <div id="${annotationName}_othersAnnotations" class="quality_othersAnnotations"></div>
+      `
+    if (enableComments) {
+      annotationCardContentDiv.innerHTML += `
+          <div class="commentsToggleDiv">
+            <button id="${annotationName}_commentsToggle" type="button" data-toggle="collapse" data-target="#${annotationName}_allComments" role="button" class="btn btn-link collapsed" disabled style="padding-left: 0;"></button>
+          </div>
+          <div class="collapse" id="${annotationName}_allComments">
+            <div class="allCommentsCard card card-body" id="${annotationName}_allCommentsCard">
+            </div>
+          </div>
+          <div id="${annotationName}_comments" class="quality_addComment form-group">
+            <textarea class="form-control" id="${annotationName}_commentsTextField" rows="2" placeholder="Add your comments here..."></textarea>
+            <div class="quality_commentOptions">
+              <div>
+                <label for="${annotationName}_commentsPublic" style="margin-right: 0.5rem;">Private</label>
+                <div class="custom-control custom-switch">
+                  <input type="checkbox" class="custom-control-input" id="${annotationName}_commentsPublic">
+                  <label class="custom-control-label" for="${annotationName}_commentsPublic">Public</label>
+                </div>
+              </div>
+              <div>
+                <button type="button" onclick=cancelEditComment("${annotationName}") id="${annotationName}_cancelEditComment" class="btn btn-link">Cancel</button>
+                <button type="submit" onclick="submitAnnotationComment('${annotationName}', '${metaName}')" id="${annotationName}_submitComment" class="btn btn-info" disabled>Submit</button>
+              </div>
+            </div>
+          </div>
+        `
+    }
+    annotationCardContentDiv.innerHTML += `
+        </div>
+      </div>
+    `
+  }
 }
 
 annotations.showQualitySelectors = async (annotation) => {

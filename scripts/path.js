@@ -16,13 +16,19 @@ const indexedDBConfig = {
     'objectStoreOpts': {
       'keyPath': ["x", "y", "width", "height"]
     },
-    'objectStoreIndex': {
+    'objectStoreIndexes': [{
       'name': "tileCoords",
       'keyPath': ["x", "y", "width", "height"],
       'objectParameters': {
         'unique': true
       }
-    }
+    }, {
+      'name': "tilePredictions",
+      'keyPath': ["predictedLabel", "predictionScore"],
+      'objectParameters': {
+        'unique': false
+      }
+    }]
   }
 }
 
@@ -142,13 +148,16 @@ const utils = {
   },
 
   showToast: (message) => {
-    document.getElementById("toastMessage").innerText = message
-    document.getElementById("toastClose").Toast.show()
-    setTimeout(() => {
-      if (document.getElementById("toast").classList.contains("showing")) {
-        document.getElementById("toast").dispatchEvent(new Event("webkitTransitionEnd"))
-      }
-    }, 3000) //For bug where toast doesn't go away the second time an annotation is made.
+    const toastElement = document.getElementById("toast")
+    if (toastElement) {
+      document.getElementById("toastMessage").innerText = message
+      document.getElementById("toastClose")?.Toast.show()
+      setTimeout(() => {
+        if (toastElement?.classList.contains("showing")) {
+          toastElement?.dispatchEvent(new Event("webkitTransitionEnd"))
+        }
+      }, 3000) //For bug where toast doesn't go away the second time an annotation is made.
+    }
   }
 }
 
@@ -179,6 +188,8 @@ const path = async () => {
   loadURLParams()
   
   path.root = document.getElementById("tmaPath")
+  path.canvasParentElement = document.getElementById("canvasWithPickers")
+  path.tabsContainerElement = document.getElementById("tabsContainer")
   path.imageDiv = document.getElementById("imageDiv")
   path.imageDiv.style.height = window.innerHeight - path.imageDiv.getBoundingClientRect().top - 16
   
@@ -213,8 +224,7 @@ const path = async () => {
   path.tiffUnsupportedAlertShown = false
 }
 
-path.setupIndexedDB = (dbName, objectStoreName, objectStoreOpts={}, indexOpts={}) => {
-
+path.setupIndexedDB = (dbName, objectStoreName, objectStoreOpts={}, indexOpts) => {
   return new Promise(resolve => {
     const dbRequest = window.indexedDB.open(dbName)
     dbRequest.onupgradeneeded = () => {
@@ -269,6 +279,14 @@ path.setupAfterBoxLogin = async () => {
   if (path.userConfig.lastUsedDataset && path.userConfig.lastUsedDataset !== -1) {
     
     await path.selectDataset(path.userConfig.lastUsedDataset)
+    const forceRedraw = true
+    try {
+      console.log("HERE")
+      annotations.showAnnotationOptions(path.datasetConfig.annotations, !!hashParams.image, forceRedraw)
+      thumbnails.reBorderThumbnails()
+    } catch (e) {
+      console.log(e)
+    }
   
   } else if(!window.localStorage.selectDatasetModalShown || (Date.now() - window.localStorage.selectDatasetModalShown > 10*60*1000)) {
     const selectDatasetModal = new BSN.Modal(document.getElementById("selectDatasetModal"))
@@ -277,7 +295,11 @@ path.setupAfterBoxLogin = async () => {
   }
   thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
 
-  populateDatasetSelectDropdown()
+  populateDatasetSelectDropdown().then(() => {
+    if (!path.datasetConfig) {
+      annotations.showAnnotationOptions(undefined, !!hashParams.image)
+    }
+  })
 }
 
 path.setupEventListeners = () => {
@@ -317,36 +339,30 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
       `
     }
     path.datasetConfig = datasetConfig
-    const datasetConfigsSetEvent = new CustomEvent("datasetConfigSet")
-    document.dispatchEvent(datasetConfigsSetEvent)
+    
     datasetSelectDropdownBtn.removeAttribute("disabled")
     datasetSelectDropdownBtn.firstElementChild.classList.add("fa-caret-down")
     datasetSelectDropdownBtn.firstElementChild.classList.remove("fa-spinner") 
     datasetSelectDropdownBtn.firstElementChild.classList.remove("fa-spin")
     myBox.highlightSelectedDatasetFolder(path.userConfig.lastUsedDataset)
     
-    if (hashParams.image) {
-      const forceRedraw = true
-      try {
-        annotations.showAnnotationOptions(path.datasetConfig.annotations, true, forceRedraw)
-        thumbnails.reBorderThumbnails()
-      } catch (e) {
-        console.log(e)
-      }
-    }
+    await wsi.setupIndexedDB()
     
-    if (path.datasetConfig && path.datasetConfig.models && path.datasetConfig.models.trainedModels?.length > 0) {
-      const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Loading AI Model..." : "Loading AI Models..."
-      utils.showToast(toastMessage)
+    if (path.datasetConfig && path.datasetConfig.models) {
+      if (path.datasetConfig.models.trainedModels?.length > 0) {
+        const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Loading AI Model..." : "Loading AI Models..."
+        utils.showToast(toastMessage)
+        dataset.populateAccordion(path.datasetConfig.models, false)
+        dataset.loadModels(path.datasetConfig.models)
+      }
+      const datasetConfigSetEvent = new CustomEvent("datasetConfigSet")
+      document.dispatchEvent(datasetConfigSetEvent)
       // path.predictionWorker.postMessage({
       //   "op": "loadModels", 
       //   "body": {
       //     "modelsConfig": path.datasetConfig.models
       //   }
       // })
-      wsi.setupIndexedDB()
-      dataset.populateAccordion(path.datasetConfig.models, false)
-      dataset.loadModels(path.datasetConfig.models)
       // path.predictionWorker.onmessage = (message) => {
       //   if (message.data.annotationId && message.data.modelLoaded) {
       //     path.modelsLoaded[message.data.annotationId] = true
@@ -370,7 +386,7 @@ const populateDatasetSelectDropdown = async () => {
     }
   }).map(d => d.folderId)
 
-  const { entries: availableDatasets } = await box.search(epiBoxFolderName, "folder", undefined, 100)
+  const { entries: availableDatasets } = await box.search(`"${epiBoxFolderName}"`, "folder", undefined, 100)
   if (availableDatasets.length > 0) {
     const datasetSelectDropdownDiv = document.getElementById("datasetSelectDropdownDiv")
     while (datasetSelectDropdownDiv.childElementCount > 1) {
@@ -391,13 +407,15 @@ const populateDatasetSelectDropdown = async () => {
         datasetOptionBtn.setAttribute("class", "btn btn-link datasetOptionBtn")
         datasetOptionBtn.innerText = datasetFolder.name
 
-        if (datasetFolder.id === path.datasetConfig.datasetFolderId.toString()) {
+        if (datasetFolder.id === path.datasetConfig?.datasetFolderId.toString()) {
           datasetOptionBtn.classList.add("selected")
         } else {
         }
         datasetOptionBtn.onclick = () => {
           const previouslySelectedDatasetOptionBtn = datasetSelectDropdownDiv.querySelector("button.selected")
-          previouslySelectedDatasetOptionBtn.classList.remove("selected")
+          if (previouslySelectedDatasetOptionBtn) {
+            previouslySelectedDatasetOptionBtn.classList.remove("selected")
+          }
           datasetOptionBtn.classList.add("selected")
           path.selectDataset(datasetFolder.id)
           // const folderInMyBox = document.getElementById("boxFolderTree").querySelector(`button[entryid="${datasetFolder.id}"]`)
@@ -483,7 +501,11 @@ const loadImageFromBox = async (id, url) => {
       path.tmaImage.setAttribute("alt", name)
       
       if (!url) {
+        path.tabsContainerElement.style.width = "45%"
+        path.canvasParentElement.style.width = "55%"
         if (path.isWSI) {
+          path.tabsContainerElement.style.width = "35%"
+          path.canvasParentElement.style.width = "65%"
           path.tmaImage.setAttribute("entry_id", id)
           wsi.loadImage(id, fileMetadata)
         } else if (name.endsWith(".tiff")) {
@@ -649,6 +671,7 @@ path.loadCanvas = () => {
       path.wsiViewer = {}
       path.wsiViewerDiv.style.display = "none"
       path.tmaCanvas.parentElement.style.display = "flex"
+      path.tmaCanvas.parentElement.style.backgroundColor = "transparent"
     }
     // console.log(path.tmaCanvas.width, path.tmaCanvas.parentElement.getBoundingClientRect().width)
     // console.log(path.tmaCanvas.height, path.tmaCanvas.parentElement.getBoundingClientRect().height)
