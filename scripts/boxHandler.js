@@ -515,7 +515,7 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
     
     let datasetEpiBoxEntry = await box.iterativeSearchInFolder(epiBoxFolderName, datasetFolderId, "DESC")
     
-    if (!datasetEpiBoxEntry.id) {
+    if (!datasetEpiBoxEntry?.id) {
       // Create _epibox folder as it doesn't exist.
       datasetEpiBoxEntry = await box.createFolder(epiBoxFolderName, datasetFolderId)
     }
@@ -523,7 +523,7 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
     const epiBoxFolderId = datasetEpiBoxEntry.id
     let appFolderEntry = await box.iterativeSearchInFolder(appFolderName, epiBoxFolderId, "DESC")
     
-    if (!appFolderEntry.id) {
+    if (!appFolderEntry?.id) {
       // Create _epiPath folder if it doesn't exist
       appFolderEntry = await box.createFolder(appFolderName, epiBoxFolderId)
     }
@@ -531,7 +531,7 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
     const appFolderId = appFolderEntry.id
     let appConfigFileEntry = await box.iterativeSearchInFolder(datasetConfigFileName, appFolderId, "DESC")
     
-    if (!appConfigFileEntry.id) {
+    if (!appConfigFileEntry?.id) {
       // Creates dataset config file if it doesn't exist.
       const datasetFolderName = datasetEpiBoxEntry.path_collection.entries[datasetEpiBoxEntry.path_collection.entries.length - 1].name
       datasetConfig = await box.createDatasetConfig(datasetFolderId, appFolderId, datasetFolderName)

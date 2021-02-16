@@ -277,16 +277,9 @@ path.setupAfterBoxLogin = async () => {
   
   path.userConfig = await box.getUserConfig()
   if (path.userConfig.lastUsedDataset && path.userConfig.lastUsedDataset !== -1) {
+    annotations.showAnnotationOptions(undefined, !!hashParams.image)
     
     await path.selectDataset(path.userConfig.lastUsedDataset)
-    const forceRedraw = true
-    try {
-      console.log("HERE")
-      annotations.showAnnotationOptions(path.datasetConfig.annotations, !!hashParams.image, forceRedraw)
-      thumbnails.reBorderThumbnails()
-    } catch (e) {
-      console.log(e)
-    }
   
   } else if(!window.localStorage.selectDatasetModalShown || (Date.now() - window.localStorage.selectDatasetModalShown > 10*60*1000)) {
     const selectDatasetModal = new BSN.Modal(document.getElementById("selectDatasetModal"))
@@ -347,8 +340,15 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
     myBox.highlightSelectedDatasetFolder(path.userConfig.lastUsedDataset)
     
     await wsi.setupIndexedDB()
+    try {
+      const forceRedraw = true
+      annotations.showAnnotationOptions(path.datasetConfig.annotations, !!hashParams.image, forceRedraw)
+      thumbnails.reBorderThumbnails()
+    } catch (e) {
+      console.log(e)
+    }
     
-    if (path.datasetConfig && path.datasetConfig.models) {
+    if (path?.datasetConfig?.models) {
       if (path.datasetConfig.models.trainedModels?.length > 0) {
         const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Loading AI Model..." : "Loading AI Models..."
         utils.showToast(toastMessage)
@@ -688,10 +688,10 @@ path.loadCanvas = () => {
   }
 }
 
-path.onCanvasLoaded = async () => {
+path.onCanvasLoaded = async (loadAnnotations=true) => {
   hideLoader("imgLoaderDiv") 
   
-  if (path.datasetConfig && path.datasetConfig.annotations.length > 0 && !path.isThumbnail) {
+  if (loadAnnotations && path.datasetConfig && path.datasetConfig.annotations.length > 0 && !path.isThumbnail) {
     annotations.showAnnotationOptions(path.datasetConfig.annotations, path.isImageFromBox, false)
   }
 }
