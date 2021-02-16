@@ -691,7 +691,7 @@ path.loadCanvas = () => {
 path.onCanvasLoaded = async (loadAnnotations=true) => {
   hideLoader("imgLoaderDiv") 
   
-  if (loadAnnotations && path.datasetConfig && path.datasetConfig.annotations.length > 0 && !path.isThumbnail) {
+  if (loadAnnotations && path.datasetConfig && !path.isThumbnail) {
     annotations.showAnnotationOptions(path.datasetConfig.annotations, path.isImageFromBox, false)
   }
 }
