@@ -398,7 +398,7 @@ box.getUserConfig = async () => {
   // if (!rootEpiBoxEntry) {
   let rootEpiBoxEntry = await box.iterativeSearchInFolder(epiBoxFolderName, boxRootFolderId, "DESC")
 
-  if (!rootEpiBoxEntry.id) {
+  if (!rootEpiBoxEntry?.id) {
     // Create _epibox folder as it doesn't exist
     rootEpiBoxEntry = await box.createFolder(epiBoxFolderName, boxRootFolderId)
     box.createEpiboxConfig(rootEpiBoxEntry.id)
@@ -409,7 +409,7 @@ box.getUserConfig = async () => {
 
   let appFolderEntry = await box.iterativeSearchInFolder(appFolderName, epiBoxFolderId, "DESC")
 
-  if (!appFolderEntry.id) {
+  if (!appFolderEntry?.id) {
     // Create _epiPath folder if it doesn't exist
     appFolderEntry  = await box.createFolder(appFolderName, epiBoxFolderId)
   }
@@ -418,7 +418,7 @@ box.getUserConfig = async () => {
   const appFolderId = appFolderEntry.id
   
   let userConfig = {}
-  const appConfigFileEntry = await box.iterativeSearchInFolder(userConfigFileName, appFolderId, "DESC")
+  let appConfigFileEntry = await box.iterativeSearchInFolder(userConfigFileName, appFolderId, "DESC")
     
   if (appConfigFileEntry) {
     userConfig = await box.getFileContent(appConfigFileEntry.id, true)
@@ -501,14 +501,12 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
   if (availableDataset && !forceCreateNew) {
     try {
       datasetConfig = await box.getFileContent(availableDataset.configFileId, true)
-      
       resolve(datasetConfig)
-      box.changeLastUsedDataset(datasetFolderId)
-      box.currentDatasetConfigFileId = availableDataset.configFileId
         
     } catch (e) {
       if (e.message === "404") {
         resolve(box.getDatasetConfig(datasetFolderId, true))
+        return
       }
     }
   } else {
@@ -536,12 +534,11 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
       const datasetFolderName = datasetEpiBoxEntry.path_collection.entries[datasetEpiBoxEntry.path_collection.entries.length - 1].name
       datasetConfig = await box.createDatasetConfig(datasetFolderId, appFolderId, datasetFolderName)
       resolve(datasetConfig)
-    
     } else {
       datasetConfig = await box.getFileContent(appConfigFileEntry.id, true)
       console.log(datasetFolderId, datasetConfig.datasetFolderId)
      
-      if (datasetFolderId != datasetConfig.datasetFolderId) {
+      if (false && datasetFolderId != datasetConfig.datasetFolderId) {
       
         if (!path.root.querySelector("div#copiedDatasetModal")) {
           const copiedDatasetModalDiv = document.createElement("div")
@@ -596,8 +593,12 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
           copiedDatasetModal.show()
         }
       }
+      resolve(datasetConfig)
     }
   }
+  box.changeLastUsedDataset(datasetFolderId)
+  box.currentDatasetConfigFileId = availableDataset.configFileId
+  return
 })
 
 box.addDatasetToAppConfig = async (datasetFolderId, configFileId) => {
