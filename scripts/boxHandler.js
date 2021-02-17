@@ -501,7 +501,9 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
   if (availableDataset && !forceCreateNew) {
     try {
       datasetConfig = await box.getFileContent(availableDataset.configFileId, true)
-      resolve(datasetConfig)
+      
+      resolve(datasetConfig)      
+      box.currentDatasetConfigFileId = availableDataset.configFileId
         
     } catch (e) {
       if (e.message === "404") {
@@ -534,9 +536,11 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
       const datasetFolderName = datasetEpiBoxEntry.path_collection.entries[datasetEpiBoxEntry.path_collection.entries.length - 1].name
       datasetConfig = await box.createDatasetConfig(datasetFolderId, appFolderId, datasetFolderName)
       resolve(datasetConfig)
+      return
     } else {
       datasetConfig = await box.getFileContent(appConfigFileEntry.id, true)
       console.log(datasetFolderId, datasetConfig.datasetFolderId)
+      box.currentDatasetConfigFileId = appConfigFileEntry.id
      
       if (false && datasetFolderId != datasetConfig.datasetFolderId) {
       
@@ -594,11 +598,10 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
         }
       }
       resolve(datasetConfig)
+      return
     }
   }
   box.changeLastUsedDataset(datasetFolderId)
-  box.currentDatasetConfigFileId = availableDataset.configFileId
-  return
 })
 
 box.addDatasetToAppConfig = async (datasetFolderId, configFileId) => {
