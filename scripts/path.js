@@ -680,7 +680,9 @@ path.loadCanvas = () => {
     const tmaContext = path.tmaCanvas.getContext("2d")
     tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
     path.tmaCanvasLoaded = true
-    path.imageDiv.style["pointer-events"] = "auto"
+    if (!path.isThumbnail) {
+      path.imageDiv.style["pointer-events"] = "auto"
+    }
 
     path.onCanvasLoaded()
   }
