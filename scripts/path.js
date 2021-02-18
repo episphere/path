@@ -591,9 +591,6 @@ const loadImageFromBox = async (id, url) => {
   } catch (e) {
     console.log("Error occurred loading image", e)
   }
-
-  // Re-enable click events once image has been loaded.
-  path.imageDiv.style["pointer-events"] = "auto"
 }
 
 const loadImgFromBoxFile = async (id, url) => {
@@ -683,6 +680,7 @@ path.loadCanvas = () => {
     const tmaContext = path.tmaCanvas.getContext("2d")
     tmaContext.drawImage(path.tmaImage, 0, 0, path.tmaCanvas.width, path.tmaCanvas.height)
     path.tmaCanvasLoaded = true
+    path.imageDiv.style["pointer-events"] = "auto"
 
     path.onCanvasLoaded()
   }
