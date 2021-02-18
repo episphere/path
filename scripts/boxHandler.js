@@ -332,7 +332,7 @@ box.iterativeSearchInFolder = async (nameToSearch, parentFolderId, sortDirection
 
   while (!foundEntry.id) {
     const folderContents = await box.getFolderContents(parentFolderId, limit, searchOffset, [], queryParams)
-    foundEntry = folderContents.entries.find(entry => entry.name === nameToSearch)
+    foundEntry = folderContents.entries.find(entry => entry.name === nameToSearch) || {}
     if (searchOffset + limit < folderContents.total_count) {
       searchOffset += limit
     } else {
