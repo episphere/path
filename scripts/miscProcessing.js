@@ -283,21 +283,24 @@ const retriveAnnotations = async (op, folderId, annotations, format) => {
       const { id, name, metadata:{global:{properties: fileMetadata}} } = entry
       annotations.forEach(annot => {
         const { displayName, metaName, labels } = annot
-        const annotationsOnFile = Object.values(JSON.parse(fileMetadata[metaName])).reduce((obj, current) => {
+        const annotationsOnFile = fileMetadata[metaName] ? Object.values(JSON.parse(fileMetadata[metaName])).reduce((obj, current) => {
           const selectedLabel = labels.find(label => label.label === current.value)
           if (selectedLabel) {
             obj[current.username] = selectedLabel.displayText
           }
           return obj
-        }, {})
-        let rowInAnnotationObj = {
-          'Image ID': id,
-          'Image Name': name,
-          'Image In EpiPath': `${epiPathBasePath}#image=${id}`,
-          'Annotation Type': displayName,
-          ...annotationsOnFile
+        }, {}) : {}
+        
+        if (Object.keys(annotationsOnFile).length > 0) {
+          let rowInAnnotationObj = {
+            'Image ID': id,
+            'Image Name': name,
+            'Image In EpiPath': `${epiPathBasePath}#image=${id}`,
+            'Annotation Type': displayName,
+            ...annotationsOnFile
+          }
+          annotationsObj.push(rowInAnnotationObj)
         }
-        annotationsObj.push(rowInAnnotationObj)
       })
     }
   })
