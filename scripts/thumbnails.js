@@ -123,6 +123,7 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
       // thumbnails.getAnnotationsForBorder(thumbnailId)
     }
   })
+  document.dispatchEvent(new Event("thumbnailsLoaded"))
 
 }
 
@@ -149,8 +150,9 @@ thumbnails.loadThumbnail = async (id, name, thumbnailImgElement, thumbnailMetada
       if(utils.isWSI(name)){
         const handleWSIThumbnailGeneration = () => {
           if (path.datasetConfig) {
-            path.processImageWorker.postMessage({
-              'op': "wsiThumbnail",
+            let op = "wsiThumbnail"
+            path.miscProcessingWorker.postMessage({
+              op,
               'data': {
                 'imageId': id,
                 'name': name,
@@ -159,10 +161,10 @@ thumbnails.loadThumbnail = async (id, name, thumbnailImgElement, thumbnailMetada
             })
             
             const consumeGeneratedThumbnail =  (evt) => {
-              const { op, data: { imageId, thumbnailURL, thumbnailSavedToBox }} = evt.data
-              if (op === "wsiThumbnail" && imageId === id) {
+              if (evt.data.op === op && evt.data.imageId === id) {
+                const { data: { thumbnailURL, thumbnailSavedToBox }} = evt.data
                 thumbnailImgElement.setAttribute("src", thumbnailURL)
-                path.processImageWorker.removeEventListener('message', consumeGeneratedThumbnail)
+                path.miscProcessingWorker.removeEventListener('message', consumeGeneratedThumbnail)
                 if (!thumbnailSavedToBox) {
                   setTimeout(() => retrySaveThumbnailToBox(thumbnailURL, name), 2*1000)
                 }
@@ -178,7 +180,7 @@ thumbnails.loadThumbnail = async (id, name, thumbnailImgElement, thumbnailMetada
                 await box.addToDatasetConfig(objectToAdd)
               }
   
-              path.processImageWorker.postMessage({
+              path.miscProcessingWorker.postMessage({
                 'op': "retrySaveThumbnail",
                 'data': {
                   'imageId': id,
@@ -189,7 +191,7 @@ thumbnails.loadThumbnail = async (id, name, thumbnailImgElement, thumbnailMetada
               })
             }
   
-            path.processImageWorker.addEventListener('message', consumeGeneratedThumbnail)
+            path.miscProcessingWorker.addEventListener('message', consumeGeneratedThumbnail)
           } else {
             document.addEventListener("datasetConfigSet", handleWSIThumbnailGeneration, {
               once: true

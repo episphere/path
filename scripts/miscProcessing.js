@@ -1,4 +1,7 @@
+const epiPathBasePath = "https://episphere.github.io/path"
 const tileServerBasePath = "https://dl-test-tma.uc.r.appspot.com/iiif"
+const wsiFileTypes = [".svs", ".ndpi"]
+const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff", ...wsiFileTypes]
 
 const indexedDBConfig = {
   dbName: "boxCreds",
@@ -9,6 +12,29 @@ let workerDB
 const fetchIndexedDBInstance = () => new Promise(resolve => {
   indexedDB.open(indexedDBConfig.dbName).onsuccess = (evt) => {
     resolve(evt.target.result)
+  }
+})
+
+const isValidImage = (name) => {
+  let isValid = false
+  
+  validFileTypes.forEach(fileType => {
+    if (name.endsWith(fileType)) {
+      isValid = true
+    }
+  })
+  
+  return isValid
+}
+
+const getBoxFolderContents = (folderId, limit=1000, offset=0, opts={}) => new Promise(resolve => {
+  const contentEndpoint = `https://api.box.com/2.0/folders/${folderId}/items?limit=${limit}&offset=${offset}&fields=id,type,name,metadata.global.properties`
+  workerDB.transaction("oauth", "readwrite").objectStore("oauth").get(1).onsuccess = (evt) => {
+    const { access_token: accessToken } = evt.target.result
+    opts['headers'] = {
+      'Authorization': `Bearer ${accessToken}`
+    }
+    resolve(fetch(contentEndpoint, opts))
   }
 })
 
@@ -72,7 +98,7 @@ const updateMetadata = (id, path, updateData) => new Promise(resolve => {
   }
 })
 
-const handleTIFFConversion = async (imageId, jpegRepresentationsFolderId, name, size) => {
+const handleTIFFConversion = async (op, imageId, jpegRepresentationsFolderId, name, size) => {
   importScripts("../external/tiff.min.js")
   if (size) {
     Tiff.initialize({
@@ -134,6 +160,7 @@ const handleTIFFConversion = async (imageId, jpegRepresentationsFolderId, name, 
   const newMetadata = await (await updateMetadata(imageId, metadataPath, JSON.stringify(jpegRepresentation))).json()
   console.timeEnd("TIFF Image Conversion and Storage in Box via Worker")
   postMessage({
+    op,
     'originalImageId': imageId,
     'representationFileId': jpegImageId,
     'metadataWithRepresentation': newMetadata
@@ -152,7 +179,7 @@ const getWSIThumbnail = async (url, width, height) => {
   return thumbnailImage.blob()
 }
 
-const handleWSIThumbnailCreation = async (imageId, name, wsiThumbnailsFolderId) => {
+const handleWSIThumbnailCreation = async (op, imageId, name, wsiThumbnailsFolderId) => {
   const getImageDownloadURL = async (id) => {
     const ac = new AbortController()
     const signal = ac.signal
@@ -172,7 +199,7 @@ const handleWSIThumbnailCreation = async (imageId, name, wsiThumbnailsFolderId) 
   }
 
   postMessage({
-    'op': "wsiThumbnail",
+    op,
     'data': {
       imageId,
       thumbnailURL,
@@ -236,6 +263,82 @@ const saveThumbnailToBox = async (imageId, thumbnailImage, name, wsiThumbnailsFo
   }
 }
 
+const retriveAnnotations = async (op, folderId, annotations, format) => {
+  const limit = 1000
+  let offset = 0
+  let annotationsObj = []
+  const folderContents = await (await getBoxFolderContents(folderId, limit, offset)).json()
+  if (folderContents.total_count > limit) {
+    while (true) {
+      offset += limit
+      const remainingFiles = await (await getBoxFolderContents(folderId, limit, offset)).json()
+      folderContents.entries = folderContents.entries.concat(remainingFiles.entries)
+      if (remainingFiles.entries.length < limit) {
+        break
+      }
+    }
+  }
+  folderContents.entries.forEach(entry => {
+    if (entry.type === "file" && isValidImage(entry.name) && entry?.metadata?.global?.properties) {
+      const { id, name, metadata:{global:{properties: fileMetadata}} } = entry
+      annotations.forEach(annot => {
+        const { displayName, metaName, labels } = annot
+        const annotationsOnFile = Object.values(JSON.parse(fileMetadata[metaName])).reduce((obj, current) => {
+          const selectedLabel = labels.find(label => label.label === current.value)
+          if (selectedLabel) {
+            obj[current.username] = selectedLabel.displayText
+          }
+          return obj
+        }, {})
+        let rowInAnnotationObj = {
+          'Image ID': id,
+          'Image Name': name,
+          'Image In EpiPath': `${epiPathBasePath}#image=${id}`,
+          'Annotation Type': displayName,
+          ...annotationsOnFile
+        }
+        annotationsObj.push(rowInAnnotationObj)
+      })
+    }
+  })
+  if (annotationsObj.length > 0) {
+    const convertedAnnotations = convertAnnotations(annotationsObj, format)
+    console.log(convertedAnnotations)
+    postMessage({
+      op,
+      convertedAnnotations
+    })
+  } else {
+    postMessage({
+      op,
+      'annotations': ""
+    })
+  }
+}
+
+const convertAnnotations = (annotationsObj, format="json") => {
+  let delimiter = ""
+  if (format === "json") {
+    return JSON.stringify(annotationsObj)
+  } else {
+    if (format === "csv") {
+      delimiter = ","
+    } else if (format === "tsv") {
+      delimiter = "\t"
+    }
+  }
+  
+  let allColumns = []
+  annotationsObj.forEach(annot => allColumns = allColumns.concat(Object.keys(annot)))
+  const fileHeaders = [...new Set(allColumns)]
+  const result = [
+    fileHeaders.join(delimiter),
+    ...annotationsObj.map(annot => fileHeaders.map(header => annot[header] || "-99999999").join(delimiter))
+  ].join("\r\n")
+  
+  return result
+}
+
 onerror = (err) => {
   console.error("Error occurred in processImage worker", err)
   err.preventDefault()
@@ -249,12 +352,12 @@ onmessage = async (evt) => {
     
     case "tiffConvert": 
       const { jpegRepresentationsFolderId, size } = data
-      await handleTIFFConversion(imageId, jpegRepresentationsFolderId, name, size)
+      await handleTIFFConversion(op, imageId, jpegRepresentationsFolderId, name, size)
       break
     
     case "wsiThumbnail":
       const { wsiThumbnailsFolderId } = data
-      await handleWSIThumbnailCreation(imageId, name, wsiThumbnailsFolderId)
+      await handleWSIThumbnailCreation(op, imageId, name, wsiThumbnailsFolderId)
       break
 
     case "retrySaveThumbnail":
@@ -265,6 +368,10 @@ onmessage = async (evt) => {
       } catch (e) {
         console.log("Error saving thumbnail to Box", e)
       }
+
+    case "getAnnotations":
+      const { folderToGetFrom, annotations, format } = data
+      await retriveAnnotations(op, folderToGetFrom, annotations, format)
   }
 }
 

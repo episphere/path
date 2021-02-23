@@ -110,14 +110,13 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
       annotationCardContentDiv.setAttribute("data-parent", "#annotationsAccordion")
       annotationCardDiv.insertAdjacentElement('beforeend', annotationCardContentDiv)
       annotations.populateAnnotationCard(annotationCardContentDiv, annotationId, annotationName, displayName, metaName, labels, path.isWSI, enableComments)
-      new BSN.Collapse(document.getElementById(`${annotationName}Toggle`))
+      const annotationToggleBtn = document.getElementById(`${annotationName}Toggle`)
+      new BSN.Collapse(annotationToggleBtn)
       const annotationCollapseDiv = document.getElementById(`${annotationName}Annotations`)
       annotationCollapseDiv.addEventListener("show.bs.collapse", (evt) => {
-        const annotationToggleBtn = document.getElementById(`${annotationName}Toggle`)
         annotationToggleBtn.firstElementChild.classList.replace("fa-caret-right", "fa-caret-down")
       })
       annotationCollapseDiv.addEventListener("hide.bs.collapse", (evt) => {
-        const annotationToggleBtn = document.getElementById(`${annotationName}Toggle`)
         annotationToggleBtn.firstElementChild.classList.replace("fa-caret-down", "fa-caret-right")
       })
       new BSN.Dropdown(document.getElementById(`${annotationName}_classificationMenu`))
@@ -176,13 +175,16 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
 }
 
 annotations.populateAnnotationCard = async (annotationCardContentDiv, annotationId, annotationName, displayName, metaName, labels, isWSI=path.isWSI, enableComments=false) => {
-  annotations.populateWSIAnnotations = async (clickedButton, showModelPredictions=false, forceReload=false) => {
+  annotations.populateWSIAnnotations = async (clickedButton, forceReload=false) => {
     const positiveLabel = labels[0]
     if (!forceReload && clickedButton.classList.contains("active")) {
-      return
+      return        
     } else {
-      clickedButton.parentElement.querySelector(".active").classList.remove("active")
-      clickedButton.classList.add("active")
+      if (clickedButton.parentElement.querySelector(".active")?.id !== clickedButton.id) {
+        clickedButton.parentElement.querySelector(".active")?.classList.remove("active")
+        clickedButton.classList.add("active")
+      }
+      const showModelPredictions = clickedButton.getAttribute("id") === "wsiAnnotationTypeModel"
 
       if (showModelPredictions) {
         const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_model`)
@@ -198,73 +200,17 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
         }
         const { result: modelPredictions, offset } = await wsi.getFromIndexedDB(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, indexedDBQueryOpts)
 
-        if (modelPredictions && modelPredictions.length !== 0 && modelPredictions.length !== Math.ceil(annotationsContainerElement.childElementCount/2)) {
+        if (modelPredictions && modelPredictions.length !== Math.ceil(annotationsContainerElement.querySelectorAll(".wsiAnnotationElement").length / 2)) {
           annotationsContainerElement.innerHTML = ""
           const tempDocumentFragment = document.createDocumentFragment()
 
-          modelPredictions.forEach(({x, y, width, height, prediction}, ind) => {
-            const { label, prob } = prediction.reduce((max, current) => current.prob > max.prob ? current : max, {prob: 0})
-            const annotationElement = document.createElement("div")
-            annotationElement.setAttribute("class", "wsiAnnotationElement")
-            annotationElement.setAttribute("id", `wsiAnnotationDetails_model_${annotationId}_${x}_${y}_${width}_${height}`)
-            annotationElement.innerHTML = `
-              <div>
-                <i style="color:gray">Prediction:</i> ${displayName} ${label}<br/>
-                <i style="color:gray">Score:</i> ${Math.round((prob + Number.EPSILON) * 10000) / 10000}<br/>
-              </div>
-              <div style="display: flex; flex-direction: row; margin: auto;">
-              </div>
-            `
-            // <i>Position in Image:</i> ${x}, ${y}, ${x+width}, ${y+height}<br/>
-            annotationElement.onclick = () => {
-              path.wsiViewer.viewport.fitBoundsWithConstraints(path.wsiViewer.viewport.imageToViewportRectangle(new OpenSeadragon.Rect(x, y, width, height, 0)))
-            }
+          modelPredictions.forEach((data, ind) => {
+            const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, data, true, false)
             tempDocumentFragment.appendChild(annotationElement)
             if (ind !== modelPredictions.length - 1) {
               tempDocumentFragment.appendChild(document.createElement("hr"))
             }
-            
-            const approveButton = document.createElement("button")
-            approveButton.setAttribute("type", "button")
-            approveButton.setAttribute("class", "btn btn-light")
-            approveButton.setAttribute("disabled", "true")
-            approveButton.style.fontSize = "18px"
-            approveButton.innerText = "👍"
-            
-            const rejectButton = document.createElement("button")
-            rejectButton.setAttribute("type", "button")
-            rejectButton.setAttribute("class", "btn btn-light")
-            rejectButton.setAttribute("disabled", "true")
-            rejectButton.style.fontSize = "18px"
-            rejectButton.innerText = "👎"
-            
-            annotationElement.lastElementChild.appendChild(approveButton)
-            annotationElement.lastElementChild.appendChild(rejectButton)
-
-            annotationElement.onmouseover = () => {
-              if (annotationElement.getAttribute("overlay_element_id")) {
-                document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.add("hover")
-              } else {
-                const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === x && overlay.bounds.y === y && overlay.bounds.width === width && overlay.bounds.height === height)?.element
-                if (overlayElement) {
-                  overlayElement.classList.add("hover")
-                  annotationElement.setAttribute("overlay_element_id", overlayElement.id)
-                }
-              }
-            }
-            
-            annotationElement.onmouseleave = () => {
-              if (annotationElement.getAttribute("overlay_element_id")) {
-                document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.remove("hover")
-              } else {
-                const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === x && overlay.bounds.y === y && overlay.bounds.width === width && overlay.bounds.height === height)?.element
-                if (overlayElement) {
-                  overlayElement.classList.remove("hover")
-                  annotationElement.setAttribute("overlay_element_id", overlayElement.id)
-                }
-              }
-            }
-          }) 
+          })
           annotationsContainerElement.appendChild(tempDocumentFragment)
         } else if (annotationsContainerElement.querySelectorAll("div.wsiAnnotationElement").length === 0) {
           annotationsContainerElement.innerHTML = `<div style="display:flex; align-items:center; width:100%; height:20vh;"><i style="color:slategray; margin:auto; font-size:18px">-- Nothing to show --</i></div>`
@@ -277,83 +223,16 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
         const userAnnotationsMetadata = window.localStorage.fileMetadata ? JSON.parse(window.localStorage.fileMetadata)[`${wsi.metadataPathPrefix}_${annotationId}`] : undefined
         const userAnnotations = userAnnotationsMetadata ? JSON.parse(userAnnotationsMetadata)?.[window.localStorage.userId] : undefined
 
-        if (userAnnotations && userAnnotations.length !== 0 && userAnnotations.length !== Math.ceil(annotationsContainerElement.childElementCount/2)) {
+        if (userAnnotations && userAnnotations.length !== Math.ceil(annotationsContainerElement.querySelectorAll(".wsiAnnotationElement").length/2)) {
           annotationsContainerElement.innerHTML = ""
           const tempDocumentFragment = document.createDocumentFragment()
 
           userAnnotations.forEach(({rectBounds, label, createdAt, comment}, ind) => {
             label = label || `${displayName} ${labels[0].displayText}`
-            const positionInImage = path.wsiViewer.viewport.viewportToImageRectangle(...Object.values(rectBounds))
-            const positionInImageForElementId = Object.values(positionInImage).splice(0, Object.values(positionInImage).length - 1).map(v => Math.round(v)).join("_")
-            const xPos = Math.round(positionInImage.x)
-            const yPos = Math.round(positionInImage.y)
-            const createdAtTime = new Date(createdAt)
-            const createdAtTimeString = createdAtTime.toLocaleString('default', {year: 'numeric', month: 'long', day: 'numeric', hour:'numeric', minute: 'numeric'})
-      
-            const annotationElement = document.createElement("div")
-            annotationElement.setAttribute("class", "wsiAnnotationElement")
-            annotationElement.setAttribute("id", `wsiAnnotationDetails_user_${positionInImageForElementId}`)
-            let annotationElementHTMLString = `
-              <div>
-                <i style="color:gray">Annotation:</i> ${label}<br>
-                <i style="color:gray">Created at:</i> ${createdAtTimeString}<br>
-            ` 
-                // <i style="color:gray">Position in Image:</i> (${xPos}, ${yPos}, ${xPos+positionInImage.width}, ${yPos+positionInImage.height})
-            if (comment) {
-              annotationElementHTMLString += `
-                <br/><i>Comments:</i> ${comment}
-              `
-            }
-            annotationElementHTMLString += `
-              </div>
-              <div style="margin: auto;">
-              </div>
-            `
-            annotationElement.innerHTML = annotationElementHTMLString
-
-            annotationElement.onclick = () => path.wsiViewer.viewport.fitBoundsWithConstraints(new OpenSeadragon.Rect(...Object.values(rectBounds)))
+            const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, { label, createdAt, comment, ...rectBounds }, false, false)
             tempDocumentFragment.appendChild(annotationElement)
             if (ind !== userAnnotations.length - 1) {
               tempDocumentFragment.appendChild(document.createElement("hr"))
-            }
-            const deleteAnnotationBtn = document.createElement("button")
-            deleteAnnotationBtn.setAttribute("type", "button")
-            deleteAnnotationBtn.setAttribute("class", "btn btn-light")
-            deleteAnnotationBtn.innerHTML = `<i class="fas fa-trash"></i>`  
-            deleteAnnotationBtn.onclick = async (e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              const userAnnotationsMetadataNew = JSON.parse(window.localStorage.fileMetadata)?.[`${wsi.metadataPathPrefix}_${annotationId}`] ? JSON.parse(JSON.parse(window.localStorage.fileMetadata)?.[`${wsi.metadataPathPrefix}_${annotationId}`]) : {}
-              userAnnotationsMetadataNew[window.localStorage.userId] = userAnnotationsMetadataNew[window.localStorage.userId] ? userAnnotationsMetadataNew[window.localStorage.userId].filter((annot, ind2) => ind !== ind2 ) : []
-              const newMetadata = await box.updateMetadata(hashParams.image, `/wsiAnnotation_${annotationId}`, JSON.stringify(userAnnotationsMetadataNew))
-              path.wsiViewer.removeOverlay(`wsiAnnotation_${annotationId}_${positionInImageForElementId}`)
-              annotationElement.parentElement.removeChild(annotationElement)
-              window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-              utils.showToast("Annotation Deleted!")
-            }
-            annotationElement.lastElementChild.appendChild(deleteAnnotationBtn)
-            
-            annotationElement.onmouseover = () => {
-              if (annotationElement.getAttribute("overlay_element_id")) {
-                document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.add("hover")
-              } else {
-                const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === rectBounds.x && overlay.bounds.y === rectBounds.y && overlay.bounds.width === rectBounds.width && overlay.bounds.height === rectBounds.height)?.element
-                if (overlayElement) {
-                  overlayElement.classList.add("hover")
-                  annotationElement.setAttribute("overlay_element_id", overlayElement.id)
-                }
-              }
-            }
-            annotationElement.onmouseleave = () => {
-              if (annotationElement.getAttribute("overlay_element_id")) {
-                document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.remove("hover")
-              } else {
-                const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === rectBounds.x && overlay.bounds.y === rectBounds.y && overlay.bounds.width === rectBounds.width && overlay.bounds.height === rectBounds.height)?.element
-                if (overlayElement) {
-                  overlayElement.classList.remove("hover")
-                  annotationElement.setAttribute("overlay_element_id", overlayElement.id)
-                }
-              }
             }
           })
           annotationsContainerElement.appendChild(tempDocumentFragment)
@@ -366,51 +245,56 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
   }
 
   if (isWSI) {
-    
-    const parentContentDiv = document.createElement("div")
-    parentContentDiv.style.display = "flex"
-    parentContentDiv.style.flexDirection = "column"
-    
-    const annotationTypesBtnGrp = document.createElement("div")
-    annotationTypesBtnGrp.setAttribute("class", "btn-group btn-group-toggle wsiAnnotationTypesBtnGrp")
-    annotationTypesBtnGrp.setAttribute("data-toggle", "buttons")
-    
-    const userAnnotationsBtn = document.createElement("button")
-    userAnnotationsBtn.setAttribute("class", "btn btn-outline-secondary active wsiAnnotationType")
-    userAnnotationsBtn.insertAdjacentHTML('beforeend', `<i class="fas fa-edit"></i>`)
-    userAnnotationsBtn.onclick = (e) => annotations.populateWSIAnnotations(e.currentTarget, false)
-    
-    const modelPredictionsBtn = document.createElement("button")
-    modelPredictionsBtn.setAttribute("class", "btn btn-outline-secondary wsiAnnotationType")
-    modelPredictionsBtn.insertAdjacentHTML('beforeend', `<i class="fas fa-microchip"></i>`)
-    modelPredictionsBtn.onclick = (e) => annotations.populateWSIAnnotations(e.currentTarget, true)
-    
-    annotationTypesBtnGrp.appendChild(userAnnotationsBtn)
-    annotationTypesBtnGrp.appendChild(modelPredictionsBtn)
-    parentContentDiv.appendChild(annotationTypesBtnGrp)
-    
-    const annotationsParentElement = document.createElement("div")
-    annotationsParentElement.setAttribute("id", `wsiAnnotations_${annotationId}_parent`)
-    annotationsParentElement.setAttribute("class", "wsiAnnotationsParent")
-    annotationsParentElement.style.position = "relative"
-    annotationsParentElement.style.flex = "1"
+    if (!annotationCardContentDiv.firstElementChild) {
 
-    const userAnnotationsDiv = document.createElement("div")
-    userAnnotationsDiv.setAttribute("id", `wsiAnnotations_${annotationId}_user`)
-    userAnnotationsDiv.setAttribute("class", "wsiAnnotationsList")
-    userAnnotationsDiv.style.display = "none"
-    
-    const modelPredictionsDiv = document.createElement("div")
-    modelPredictionsDiv.setAttribute("id", `wsiAnnotations_${annotationId}_model`)
-    modelPredictionsDiv.setAttribute("class", "wsiAnnotationsList")
-    modelPredictionsDiv.style.display = "none"
+      const parentContentDiv = document.createElement("div")
+      parentContentDiv.style.display = "flex"
+      parentContentDiv.style.flexDirection = "column"
+      
+      const annotationTypesBtnGrp = document.createElement("div")
+      annotationTypesBtnGrp.setAttribute("class", "btn-group btn-group-toggle wsiAnnotationTypesBtnGrp")
+      annotationTypesBtnGrp.setAttribute("data-toggle", "buttons")
+      
+      const userAnnotationsBtn = document.createElement("button")
+      userAnnotationsBtn.setAttribute("class", "btn btn-outline-secondary active wsiAnnotationType")
+      userAnnotationsBtn.setAttribute("id", "wsiAnnotationTypeUser")
+      userAnnotationsBtn.insertAdjacentHTML('beforeend', `<i class="fas fa-edit"></i>`)
+      userAnnotationsBtn.onclick = (e) => annotations.populateWSIAnnotations(e.currentTarget)
+      
+      const modelPredictionsBtn = document.createElement("button")
+      modelPredictionsBtn.setAttribute("class", "btn btn-outline-secondary wsiAnnotationType")
+      modelPredictionsBtn.setAttribute("id", "wsiAnnotationTypeModel")
+      modelPredictionsBtn.insertAdjacentHTML('beforeend', `<i class="fas fa-microchip"></i>`)
+      modelPredictionsBtn.onclick = (e) => annotations.populateWSIAnnotations(e.currentTarget)
+      
+      annotationTypesBtnGrp.appendChild(userAnnotationsBtn)
+      annotationTypesBtnGrp.appendChild(modelPredictionsBtn)
+      parentContentDiv.appendChild(annotationTypesBtnGrp)
+      
+      const annotationsParentElement = document.createElement("div")
+      annotationsParentElement.setAttribute("id", `wsiAnnotations_${annotationId}_parent`)
+      annotationsParentElement.setAttribute("class", "wsiAnnotationsParent")
+      annotationsParentElement.style.position = "relative"
+      annotationsParentElement.style.flex = "1"
+  
+      const userAnnotationsDiv = document.createElement("div")
+      userAnnotationsDiv.setAttribute("id", `wsiAnnotations_${annotationId}_user`)
+      userAnnotationsDiv.setAttribute("class", "wsiAnnotationsList")
+      userAnnotationsDiv.style.display = "none"
+      
+      const modelPredictionsDiv = document.createElement("div")
+      modelPredictionsDiv.setAttribute("id", `wsiAnnotations_${annotationId}_model`)
+      modelPredictionsDiv.setAttribute("class", "wsiAnnotationsList")
+      modelPredictionsDiv.style.display = "none"
+  
+      annotationsParentElement.appendChild(userAnnotationsDiv)
+      annotationsParentElement.appendChild(modelPredictionsDiv)
+  
+      parentContentDiv.appendChild(annotationsParentElement)
+      annotationCardContentDiv.insertAdjacentElement('beforeend', parentContentDiv)
 
-    annotationsParentElement.appendChild(userAnnotationsDiv)
-    annotationsParentElement.appendChild(modelPredictionsDiv)
-
-    parentContentDiv.appendChild(annotationsParentElement)
-    annotationCardContentDiv.insertAdjacentElement('beforeend', parentContentDiv)
-    annotations.populateWSIAnnotations(userAnnotationsBtn, false, true)
+    }
+    annotations.populateWSIAnnotations(annotationCardContentDiv.querySelector(".wsiAnnotationType.active"), true)
     // annotationsElement.style.contentVisibility = "auto"
 
   } else {
@@ -464,6 +348,150 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
       </div>
     `
   }
+}
+
+annotations.createWSIAnnotationElement = (annotationId, displayName, annotationData={}, modelAnnotation=false, addToParent=false) => {
+  const annotationElement = document.createElement("div")
+  let { x, y, width, height } = annotationData
+  if (modelAnnotation) {
+    const { prediction } = annotationData
+    const { label, prob } = prediction.reduce((max, current) => current.prob > max.prob ? current : max, {prob: 0})
+    
+    annotationElement.setAttribute("class", "wsiAnnotationElement")
+    annotationElement.setAttribute("id", `wsiAnnotationDetails_model_${annotationId}_${x}_${y}_${width}_${height}`)
+    annotationElement.innerHTML = `
+      <div>
+        <i style="color:gray">Prediction:</i> ${displayName} ${label}<br/>
+        <i style="color:gray">Score:</i> ${Math.round((prob + Number.EPSILON) * 10000) / 10000}<br/>
+      </div>
+      <div style="display: flex; flex-direction: row; margin: auto;">
+      </div>
+    `
+    // <i>Position in Image:</i> ${x}, ${y}, ${x+width}, ${y+height}<br/>
+    
+    const approveButton = document.createElement("button")
+    approveButton.setAttribute("type", "button")
+    approveButton.setAttribute("class", "btn btn-light")
+    approveButton.setAttribute("disabled", "true")
+    approveButton.style.fontSize = "18px"
+    approveButton.innerText = "👍"
+    
+    const rejectButton = document.createElement("button")
+    rejectButton.setAttribute("type", "button")
+    rejectButton.setAttribute("class", "btn btn-light")
+    rejectButton.setAttribute("disabled", "true")
+    rejectButton.style.fontSize = "18px"
+    rejectButton.innerText = "👎"
+    
+    annotationElement.lastElementChild.appendChild(approveButton)
+    annotationElement.lastElementChild.appendChild(rejectButton)
+    
+    if (addToParent) {
+      const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_model`)
+      annotationsContainerElement.appendChild(document.createElement("hr"))
+      annotationsContainerElement.appendChild(annotationElement)
+      annotationElement.scrollIntoView({block: 'end'})
+      setTimeout(() => {
+        annotationElement.classList.add("highlightedAnnotation")
+        setTimeout(() => annotationElement.classList.remove("highlightedAnnotation"), 2000)
+      }, 100)
+    }
+
+  } else {
+    const { label, comment, createdAt } = annotationData
+    const positionInImage = path.wsiViewer.viewport.viewportToImageRectangle(x, y, width, height)
+    const positionInImageForElementId = Object.values(positionInImage).splice(0, Object.values(positionInImage).length - 1).map(v => Math.round(v)).join("_")
+    // const xPos = Math.round(positionInImage.x)
+    // const yPos = Math.round(positionInImage.y)
+    const createdAtTime = new Date(createdAt)
+    const createdAtTimeString = createdAtTime.toLocaleString('default', {year: 'numeric', month: 'long', day: 'numeric', hour:'numeric', minute: 'numeric'})
+
+    annotationElement.setAttribute("class", "wsiAnnotationElement")
+    annotationElement.setAttribute("id", `wsiAnnotationDetails_user_${annotationId}_${positionInImageForElementId}`)
+    let annotationElementHTMLString = `
+      <div>
+        <i style="color:gray">Annotation:</i> ${label} <br>
+        <i style="color:gray">Created at:</i> ${createdAtTimeString} <br>
+    ` 
+        // <i style="color:gray">Position in Image:</i> (${xPos}, ${yPos}, ${xPos+positionInImage.width}, ${yPos+positionInImage.height})
+    if (comment) {
+      annotationElementHTMLString += `
+        <br/><i>Comments:</i> ${comment}
+      `
+    }
+    annotationElementHTMLString += `
+      </div>
+      <div style="margin: auto;">
+      </div>
+    `
+    annotationElement.innerHTML = annotationElementHTMLString
+
+    const deleteAnnotationBtn = document.createElement("button")
+    deleteAnnotationBtn.setAttribute("type", "button")
+    deleteAnnotationBtn.setAttribute("class", "btn btn-light")
+    deleteAnnotationBtn.innerHTML = `<i class="fas fa-trash"></i>`  
+    deleteAnnotationBtn.onclick = async (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const userAnnotationsMetadataNew = JSON.parse(window.localStorage.fileMetadata)?.[`${wsi.metadataPathPrefix}_${annotationId}`] ? JSON.parse(JSON.parse(window.localStorage.fileMetadata)?.[`${wsi.metadataPathPrefix}_${annotationId}`]) : {}
+      userAnnotationsMetadataNew[window.localStorage.userId] = userAnnotationsMetadataNew[window.localStorage.userId] ? userAnnotationsMetadataNew[window.localStorage.userId].filter((annot, ind2) => annot.createdAt !== createdAt ) : []
+      const newMetadata = await box.updateMetadata(hashParams.image, `/wsiAnnotation_${annotationId}`, JSON.stringify(userAnnotationsMetadataNew))
+      window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+      path.wsiViewer.removeOverlay(`wsiAnnotation_${annotationId}_${positionInImageForElementId}`)
+      const parentElement = annotationElement.parentElement
+      if (annotationElement?.previousElementSibling?.tagName === "HR") {
+        // Remove <hr>
+        parentElement.removeChild(annotationElement.previousElementSibling)
+      }
+      parentElement.removeChild(annotationElement)
+      if (parentElement.childElementCount === 0) {
+        annotations.populateWSIAnnotations(document.querySelectorAll('.wsiAnnotationType')[0], true)
+      }
+      utils.showToast("Annotation Deleted!")
+    }
+    
+    annotationElement.lastElementChild.appendChild(deleteAnnotationBtn)
+
+    if (addToParent) {
+      const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_user`)
+      annotationsContainerElement.appendChild(document.createElement("hr"))
+      annotationsContainerElement.appendChild(annotationElement)
+      annotationElement.scrollIntoView({block: 'end'})
+      annotationElement.classList.add("highlightedAnnotation")
+      setTimeout(() => annotationElement.classList.remove("highlightedAnnotation"), 2000)
+    }
+  }
+
+  annotationElement.onclick = () => {
+    path.wsiViewer.viewport.fitBoundsWithConstraints(path.wsiViewer.viewport.imageToViewportRectangle(new OpenSeadragon.Rect(x, y, width, height, 0)))
+  }
+
+  annotationElement.onmouseover = () => {
+    if (annotationElement.getAttribute("overlay_element_id")) {
+      document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.add("hover")
+    } else {
+      const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === x && overlay.bounds.y === y && overlay.bounds.width === width && overlay.bounds.height === height)?.element
+      if (overlayElement) {
+        overlayElement.classList.add("hover")
+        annotationElement.setAttribute("overlay_element_id", overlayElement.id)
+      }
+    }
+  }
+  
+  annotationElement.onmouseleave = () => {
+    if (annotationElement.getAttribute("overlay_element_id")) {
+      document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.remove("hover")
+    } else {
+      const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === x && overlay.bounds.y === y && overlay.bounds.width === width && overlay.bounds.height === height)?.element
+      if (overlayElement) {
+        overlayElement.classList.remove("hover")
+        annotationElement.setAttribute("overlay_element_id", overlayElement.id)
+      }
+    }
+  }
+
+  return annotationElement
+
 }
 
 annotations.showQualitySelectors = async (annotation) => {
@@ -616,9 +644,11 @@ annotations.showNextImageButton = (metadata) => {
    
     if (path.datasetConfig.annotations.length > 0) {
       metadata = metadata || JSON.parse(window.localStorage.fileMetadata)
-      const numAnnotationsCompleted = annotations.getNumCompletedAnnotations(metadata)
-      const nextImageText = `<b><span style='color:darkorchid'>${numAnnotationsCompleted}</span> / ${path.datasetConfig.annotations.length} Annotations Completed!</b>`
-      nextImageMessage.innerHTML = nextImageText
+      if (!path.isWSI) {
+        const numAnnotationsCompleted = annotations.getNumCompletedAnnotations(metadata)
+        const nextImageText = `<b><span style='color:darkorchid'>${numAnnotationsCompleted}</span> / ${path.datasetConfig.annotations.length} Annotations Completed!</b>`
+        nextImageMessage.innerHTML = nextImageText
+      }
     
       const nextImageButton = document.getElementById("nextImageBtn") || document.createElement("button")
       nextImageButton.setAttribute("type", "button")
@@ -626,19 +656,30 @@ annotations.showNextImageButton = (metadata) => {
       nextImageButton.setAttribute("class", "btn btn-link")
       nextImageButton.innerHTML = "Next Image >>"
     
+      const isLastThumbnailsPage = () => document.getElementById("thumbnailPageSelector").querySelector("button:last-child").getAttribute("disabled") === "true"
       const isLastImageInThumbnailsList = (imageId=hashParams.image.toString()) => document.querySelector("div.thumbnailDiv:last-of-type>img.imagePickerThumbnail").getAttribute("entry_id") === imageId
+
+      if (isLastThumbnailsPage() && isLastImageInThumbnailsList()) {
+        nextImageButton.setAttribute("disabled", "true")
+      }
       
       nextImageButton.onclick = async (_) => {
        
         if (isLastImageInThumbnailsList(hashParams.image.toString())) {
+          
           const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
           thumbnailCurrentPageText.stepUp()
           thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+          if (path.isWSI) {
+            showLoader("imgLoaderDiv", path.wsiViewer.canvas)
+          } else {
+            showLoader("imgLoaderDiv", path.tmaCanvas)
+          }
           
-          setTimeout(() => { // Needs to wait for new thumbnails list to be loaded. Very ugly, need rethinking later.
+          document.addEventListener("thumbnailsLoaded", (e) => { // Needs to wait for new thumbnails list to be loaded.
             path.selectImage(document.querySelector("img.imagePickerThumbnail").getAttribute("entry_id"))
-          }, 1000)     
-       
+          }, {once: true})
+
         } else {
           const thumbnailElements = document.querySelectorAll("img.imagePickerThumbnail")
           let nextImageIndex = -1
@@ -1038,7 +1079,6 @@ const addClassificationToConfig = () => {
             }
           }).join("")
           newAnnotation["annotationName"] += `_${newAnnotation["annotationId"]}`
-
           break
 
         case "labelDisplayText":

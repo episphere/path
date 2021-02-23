@@ -156,7 +156,7 @@ const utils = {
         if (toastElement?.classList.contains("showing")) {
           toastElement?.dispatchEvent(new Event("webkitTransitionEnd"))
         }
-      }, 3000) //For bug where toast doesn't go away the second time an annotation is made.
+      }, 7000) //For bug where toast doesn't go away the second time an annotation is made.
     }
   }
 }
@@ -205,7 +205,7 @@ const path = async () => {
   path.setupEventListeners()
   path.boxCredsDB = await path.setupIndexedDB(...Object.values(indexedDBConfig['box']))
   
-  path.processImageWorker = new Worker(`${basePath}/scripts/processImage.js`)
+  path.miscProcessingWorker = new Worker(`${basePath}/scripts/miscProcessing.js`)
   
   box().then(() => {
     path.setupAfterBoxLogin()
@@ -338,8 +338,9 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
     datasetSelectDropdownBtn.firstElementChild.classList.remove("fa-spinner") 
     datasetSelectDropdownBtn.firstElementChild.classList.remove("fa-spin")
     myBox.highlightSelectedDatasetFolder(path.userConfig.lastUsedDataset)
-    
-    await wsi.setupIndexedDB()
+    if (datasetConfig?.models?.trainedModels?.length > 0) {
+      await wsi.setupIndexedDB()
+    }
     try {
       const forceRedraw = true
       annotations.showAnnotationOptions(path.datasetConfig.annotations, !!hashParams.image, forceRedraw)
@@ -352,11 +353,11 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
       if (path.datasetConfig.models.trainedModels?.length > 0) {
         const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Loading AI Model..." : "Loading AI Models..."
         utils.showToast(toastMessage)
-        dataset.populateAccordion(path.datasetConfig.models, false)
         dataset.loadModels(path.datasetConfig.models)
       }
       const datasetConfigSetEvent = new CustomEvent("datasetConfigSet")
       document.dispatchEvent(datasetConfigSetEvent)
+      dataset.populateInfo(path.datasetConfig, false)
       // path.predictionWorker.postMessage({
       //   "op": "loadModels", 
       //   "body": {
@@ -451,6 +452,8 @@ const loadImageFromBox = async (id, url) => {
     path.isThumbnail = true
     path.tmaImage.src = thumbnailImage.src
     thumbnails.highlightThumbnail(id)
+    const loaderElementId = "imgLoaderDiv"
+    showLoader(loaderElementId, path.tmaCanvas)
   } else if (path.tmaCanvasLoaded) {
     path.isThumbnail = false
     const loaderElementId = "imgLoaderDiv"
@@ -544,8 +547,9 @@ const loadImageFromBox = async (id, url) => {
             }
 
             if (typeof OffscreenCanvas === "function") {
-              path.processImageWorker.postMessage({
-                'op': "tiffConvert",
+              const op = "tiffConvert"
+              path.miscProcessWorker.postMessage({
+                op,
                 'data': {
                   'imageId': id,
                   'jpegRepresentationsFolderId': path.datasetConfig.jpegRepresentationsFolderId,
@@ -554,16 +558,18 @@ const loadImageFromBox = async (id, url) => {
                 }
               })
               
-              path.processImageWorker.onmessage = (evt) => {
-                const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
-                if (originalImageId === hashParams.image) {
-                  console.log("Conversion completion message received from worker, loading new image", new Date())
-                  loadImgFromBoxFile(representationFileId)
-                  window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+              path.miscProcessWorker.onmessage = (evt) => {
+                if (evt.data.op === op) {
+                  const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
+                  if (originalImageId === hashParams.image) {
+                    console.log("Conversion completion message received from worker, loading new image", new Date())
+                    loadImgFromBoxFile(representationFileId)
+                    window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+                  } 
                 }
               }
 
-              path.processImageWorker.onerror = (err) => {
+              path.miscProcessWorker.onerror = (err) => {
                 console.log("Error converting TIFF from worker", err)
               }
             }
@@ -642,7 +648,7 @@ const addImageHeader = (filePathInBox, id, name) => {
   imgHeader.appendChild(folderStructure)
 }
 
-const showLoader = (id, overlayOnElement) => {
+const showLoader = (id="imgLoaderDiv", overlayOnElement=path.tmaCanvas) => {
   const loaderDiv = document.getElementById(id)
   if (loaderDiv && overlayOnElement) {
     const {
@@ -661,12 +667,15 @@ const hideLoader = (id) => {
 
 path.loadCanvas = () => {
   // Condition checks if path.tmaImage.src is empty
+  let wasWSICanvasPresent = false
   if (path.tmaImage.src !== window.location.origin + window.location.pathname) {
     
     if (path.wsiViewer.canvas) {
+      wasWSICanvasPresent = true
       path.wsiViewer.destroy()
       path.wsiViewer = {}
       path.wsiViewerDiv.style.display = "none"
+      
       path.tmaCanvas.parentElement.style.display = "flex"
       path.tmaCanvas.parentElement.style.backgroundColor = "transparent"
     }
@@ -684,15 +693,17 @@ path.loadCanvas = () => {
       path.imageDiv.style["pointer-events"] = "auto"
     }
 
-    path.onCanvasLoaded()
+    path.onCanvasLoaded(true, wasWSICanvasPresent)
   }
 }
 
-path.onCanvasLoaded = async (loadAnnotations=true) => {
-  hideLoader("imgLoaderDiv") 
+path.onCanvasLoaded = async (loadAnnotations=true, forceRedraw=false) => {
+  if (!path.isThumbnail) {
+    hideLoader("imgLoaderDiv")
+  }
   
   if (loadAnnotations && path.datasetConfig && !path.isThumbnail) {
-    annotations.showAnnotationOptions(path.datasetConfig.annotations, path.isImageFromBox, false)
+    annotations.showAnnotationOptions(path.datasetConfig.annotations, path.isImageFromBox, forceRedraw)
   }
 }
 

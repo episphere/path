@@ -45,7 +45,63 @@ dataset.loadModels = (modelsConfig) => {
   })
 }
 
-dataset.populateAccordion = (modelsConfig, forceRedraw=false) => {
+dataset.populateInfo = (datasetConfig, forceRedraw=false) => {
+  const datasetInfoDiv = document.getElementById("datasetInfo")
+  if (!datasetConfig) {
+    datasetConfig.innerHTML = ""
+    return
+  }
+  
+  const { datasetFolderId, datasetFolderName, annotations, models: modelsConfig } = datasetConfig
+  datasetInfoDiv.innerHTML = ""
+  datasetInfoDiv.setAttribute("class", "card")
+  const infoContentDiv = datasetInfoDiv.firstElementChild || document.createElement("div")
+  infoContentDiv.setAttribute("class", "card-body")
+  infoContentDiv.innerHTML = ""
+  infoContentDiv.insertAdjacentHTML('afterbegin', `
+      <h5 class="card-title">Overview</h5>
+      <hr class="dropdown-divider">
+      <p class="card-text">Dataset Folder: <a href="https://nih.app.box.com/folder/${datasetFolderId}">${datasetFolderName}</a></p>
+  `)
+  datasetInfoDiv.insertAdjacentElement('afterbegin', infoContentDiv)
+
+  if (annotations && annotations.length > 0) {
+    const downloadButtonSpan = document.createElement("span")
+    const downloadAnnotationsBtn = document.createElement("button")
+    downloadAnnotationsBtn.setAttribute("class", "btn btn-outline-primary downloadAnnotations")
+    downloadAnnotationsBtn.innerText = "Download Annotations"
+    downloadAnnotationsBtn.onclick = (e) => dataset.getAnnotations(document.getElementById("annotationsFileTypeDropdownBtn").getAttribute("value"), e.target, datasetFolderName)
+    downloadButtonSpan.appendChild(downloadAnnotationsBtn)
+    downloadButtonSpan.insertAdjacentHTML('beforeend', "&nbsp as ")
+
+    downloadButtonSpan.insertAdjacentHTML('beforeend', `
+      <span id="annotationsFileTypeDropdown" class="dropdown">
+        <button id="annotationsFileTypeDropdownBtn" class="btn btn-link" style="padding: 0;" type="button" data-toggle="dropdown" value="csv"><span>CSV</span> <i class="fas fa-caret-down"></i></button>
+        <div class="dropdown-menu" style="padding: 0;">
+          <button class="dropdown-item annotationFormat selected" style="padding: 0.5rem 0 0.5rem 1rem;" value="csv">CSV</button>
+          <hr style="margin:0">
+          <button class="dropdown-item annotationFormat" style="padding: 0.5rem 0 0.5rem 1rem;" value="tsv">TSV</button>
+          <hr style="margin:0">
+          <button class="dropdown-item annotationFormat" style="padding: 0.5rem 0 0.5rem 1rem;" value="json">JSON</button>
+        </ul>
+      </span>
+    `)
+    
+    infoContentDiv.appendChild(downloadButtonSpan)
+    const annotationsFileTypeDropdownBtn = document.getElementById("annotationsFileTypeDropdownBtn")
+    downloadButtonSpan.querySelectorAll("button.dropdown-item").forEach(element => {
+      element.onclick = (e) => {
+        if (annotationsFileTypeDropdownBtn.nextElementSibling.querySelector("button.selected") !== e.target) {
+          annotationsFileTypeDropdownBtn.nextElementSibling.querySelector("button.selected").classList.remove("selected")
+          e.target.classList.add("selected")
+          annotationsFileTypeDropdownBtn.firstElementChild.innerText = e.target.innerText
+          annotationsFileTypeDropdownBtn.setAttribute("value", e.target.getAttribute("value"))
+        }
+      }
+    })
+    new BSN.Dropdown(annotationsFileTypeDropdownBtn)
+  }
+  
   if (modelsConfig.trainedModels && modelsConfig.trainedModels.length > 0) {
     const modelsPerClassification = modelsConfig.trainedModels.reduce((obj, current) => {
       const classificationId = current.correspondingAnnotation
@@ -55,16 +111,19 @@ dataset.populateAccordion = (modelsConfig, forceRedraw=false) => {
       obj[classificationId].push(current)
       return obj
     }, {})
-
-    const modelsAccordion = document.getElementById("modelsAccordion")
-    modelsAccordion.style.height = "auto"
     
-    if (forceRedraw) {
-      modelsAccordion.innerHTML = ""
-    }
-
+    const modelsAccordion = document.createElement("div")
+    modelsAccordion.setAttribute("id", "modelsAccordion")
+    // modelsAccordion.setAttribute("class", "card-body")
+    modelsAccordion.style.height = "auto"
+    modelsAccordion.innerHTML = `
+      <h5 class="card-title" style="padding-left:1.25rem;">Models</h5>
+    `
+    datasetInfoDiv.insertAdjacentHTML('beforeend', `<hr>`) 
+    datasetInfoDiv.appendChild(modelsAccordion)
+    
     Object.entries(modelsPerClassification).forEach(([classificationId, modelsConfig]) => {
-      const classificationConfig = path.datasetConfig.annotations.find(classification => classification.annotationId === parseInt(classificationId))
+      const classificationConfig = annotations.find(classification => classification.annotationId === parseInt(classificationId))
       const {
         displayName,
         annotationName,
@@ -107,7 +166,7 @@ dataset.populateAccordion = (modelsConfig, forceRedraw=false) => {
               <h2 class="mb-0">
                 <button class="btn btn-link classCardHeader" type="button" data-toggle="collapse"
                   data-target="#${annotationName}Models" id="${annotationName}ModelsToggle">
-                  ${displayName}
+                  <i class="fas fa-caret-right">&nbsp&nbsp</i>${displayName}
                 </button>
               </h2>
             </div>
@@ -133,8 +192,44 @@ dataset.populateAccordion = (modelsConfig, forceRedraw=false) => {
         `
         classificationsCardDiv.insertAdjacentHTML("beforeend", classificationCard)
         modelsAccordion.appendChild(classificationsCardDiv)
-        new BSN.Collapse(document.getElementById(`${annotationName}ModelsToggle`))
+        const modelsToggleElement = document.getElementById(`${annotationName}ModelsToggle`)
+        const modelsDropdownElement = document.getElementById(modelsToggleElement.getAttribute("data-target").replace("#", ""))
+        new BSN.Collapse(modelsToggleElement)
+        modelsDropdownElement.addEventListener("show.bs.collapse", () => {
+          modelsToggleElement.firstElementChild.classList.replace("fa-caret-right", "fa-caret-down")
+        })
+        modelsDropdownElement.addEventListener("hide.bs.collapse", () => {
+          modelsToggleElement.firstElementChild.classList.replace("fa-caret-down", "fa-caret-right")
+        })
       }
     })
   }
+}
+
+dataset.getAnnotations = async (requestedFormat="json", targetElement, datasetFolderName) => {
+  targetElement.insertAdjacentHTML('beforeend', `<span>&nbsp&nbsp<i class="fas fa-spinner fa-spin"></i></span>`)
+  utils.showToast("Retrieving Annotations...")
+  targetElement.setAttribute("disabled", "true")
+  
+  const op = "getAnnotations"
+  path.miscProcessingWorker.postMessage({
+    op,
+    'data': {
+      'folderToGetFrom': path.datasetConfig.datasetFolderId,
+      'annotations': path.datasetConfig.annotations,
+      'format': requestedFormat
+    }
+  })
+  
+  path.miscProcessingWorker.addEventListener('message', (evt) => {
+    if (evt.data.op === op) {
+      const tempAnchorElement = document.createElement('a');
+      tempAnchorElement.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(evt.data.convertedAnnotations));
+      tempAnchorElement.setAttribute('download', `${datasetFolderName}_Annotations.${requestedFormat}`);
+      tempAnchorElement.click();
+      utils.showToast("Annotations Downloaded!")
+      targetElement.removeChild(targetElement.lastElementChild)
+      targetElement.removeAttribute("disabled")
+    }
+  }, {once: true})
 }

@@ -96,7 +96,7 @@ canvas {
   text-align: left;
 }
 
-.datasetOptionBtn.selected  {
+.datasetOptionBtn.selected, .annotationFormat.selected  {
   background: rgba(100,200,255,0.2);
 }
 
@@ -719,9 +719,7 @@ canvas {
 }
 
 .quality_othersAnnotations {
-  margin-left: 0.3rem;
-  margin-top: 1rem;
-  margin-bottom: 1rem;
+  margin: 1rem;
   color: gray;
   font-size: 1rem;
 }
@@ -1006,6 +1004,10 @@ canvas {
 .btn-default.btn-off-1.active{
   background-color: seagreen;
   color: white;
+}
+
+.fa-caret-right {
+  width:18px;
 }
 
 @media only screen and (min-width: 768px) {

@@ -198,7 +198,7 @@ box.getData = async (id, type, fields=[]) => {
 }
 
 box.getFolderContents = async (folderId, limit=15, offset=0, fields=[], queryParams={}) => {
-  const defaultFields = ["id", "type", "name", "path_collection"]
+  const defaultFields = ["id", "type", "name"]
   const fieldsToRequest = [... new Set(defaultFields.concat(fields)) ].join(",")
   const fieldsParam =  `fields=${fieldsToRequest}`
   const extraParams = Object.keys(queryParams).map(param => `${param}=${queryParams[param]}`).join("&")
@@ -214,7 +214,7 @@ box.getAllFolderContents = async (folderId, fields=[]) => {
   if (folderContents.total_count > limit) {
     while (true) {
       offset += limit
-      const remainingFiles = await box.getFolderContents(folderId, limit, offset)
+      const remainingFiles = await box.getFolderContents(folderId, limit, offset, fields)
       folderContents.entries = folderContents.entries.concat(remainingFiles.entries)
       if (remainingFiles.entries.length < limit) {
         break
@@ -331,7 +331,7 @@ box.iterativeSearchInFolder = async (nameToSearch, parentFolderId, sortDirection
   const queryParams = {'sort': "name", 'direction': sortDirection}
 
   while (!foundEntry.id) {
-    const folderContents = await box.getFolderContents(parentFolderId, limit, searchOffset, [], queryParams)
+    const folderContents = await box.getFolderContents(parentFolderId, limit, searchOffset, ["path_collection"], queryParams)
     foundEntry = folderContents.entries.find(entry => entry.name === nameToSearch) || {}
     if (searchOffset + limit < folderContents.total_count) {
       searchOffset += limit

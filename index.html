@@ -121,7 +121,7 @@
               <div id="nextImageMessage"></div>
               <div class="accordion" id="annotationsAccordion">
                 <span id="localImageAnnotationsMsg" style="margin: 0 auto; color: gray;">
-                  <i style="text-align: center;">-- Please </i><a href="#" onclick="document.getElementById('datasetSelectDropdownBtn').click(); return false;">Choose a Dataset</a><i>, then select an image from </i><a href="#" onclick="document.getElementById('box-tab').click(); return false;">My Box</a><i> to get started! --</i>
+                  <i style="text-align: center;">-- Please <a href="#" onclick="document.getElementById('boxLoginBtn').click(); return false;">Login to Box</a> first! --</i>
                 </span>
                 <br/>
               </div>
@@ -130,8 +130,7 @@
           </div>
           <div class="tab-pane fade" id="dataset" role="tabpanel" aria-labelledby="model-tab">
             <div class="tabContainer tabContainerWithMargin">
-              <div class="accordion" id="modelsAccordion">
-              </div>
+              <div id="datasetInfo"></div>
               <!-- <button class="btn btn-primary" onclick="path.annotateFolder(hashParams.folder)" disabled>Predict For Current Folder</button> -->
             </div>
           </div>

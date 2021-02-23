@@ -10,8 +10,9 @@ wsi.loadImage = async (id, fileMetadata={}) => {
   
   path.tmaCanvas.parentElement.style.display = "none"
   path.wsiViewerDiv.style.display = "block"
+  path.imageDiv.style["pointer-events"] = "auto"
+  path.isImageFromBox = true
 
-  
   const loaderElementId = "imgLoaderDiv"
   showLoader(loaderElementId, path.wsiViewerDiv)
   const url = await box.getFileContent(id, false, true)
@@ -87,7 +88,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       annotateWSIButtonDiv.title = "Annotate Image"
   
       annotateWSIButton.onclick = (e) => {
-        const annotationId = path.datasetConfig.annotations[0].annotationId
+        const { annotationId, displayName, labels } = path.datasetConfig.annotations[0]
         annotateWSIButtonDiv.selected = !annotateWSIButtonDiv.selected
         if (annotateWSIButtonDiv.selected) {
           annotateWSIButtonDiv.classList.add("active")
@@ -132,7 +133,12 @@ wsi.loadImage = async (id, fileMetadata={}) => {
                 box.updateMetadata(id, `/${`${wsi.metadataPathPrefix}_${annotationId}`}`, JSON.stringify(wsiAnnotations)).then(newMetadata => {
                   fileMetadata = JSON.stringify(newMetadata)
                   window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-                  annotations.populateWSIAnnotations(document.querySelectorAll('.wsiAnnotationType')[0], false, true)
+                  const annotationOverlayData = {
+                    ...newAnnotation.rectBounds,
+                    'label': newAnnotation.label || `${displayName} ${labels[0].displayText}`,
+                    'createdAt': newAnnotation.createdAt
+                  }
+                  annotations.createWSIAnnotationElement(annotationId, displayName, annotationOverlayData, false, true)
                 })
               }
             }
@@ -438,21 +444,23 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       
       wsi.overlayPreviousPredictions()
     })
+    path.onCanvasLoaded(true, true)
     
     // path.wsiViewer.addHandler("tile-drawn", (e) => {
       // console.log(e)
       // })
-      
   } else {
     showLoader(loaderElementId, path.wsiViewerDiv)
     const wsiCanvas = path.wsiViewer.canvas.querySelector("canvas")
     const wsiCtx = wsiCanvas.getContext("2d")
     wsiCtx.clearRect(0, 0, wsiCanvas.width, wsiCanvas.height)
-    // path.wsiViewer.world.getItemAt(0).reset()
-    // path.wsiViewer.removeControl(path.wsiViewer.controls[1].element)
     path.wsiViewer.open(tileSources)
     path.wsiViewer.imageLoadedAtTime = Date.now()
     wsi.removePanAndZoomFromHash()
+    wsi.clearIndexedDB().then(() => {
+      console.log("CID", JSON.parse(localStorage.fileMetadata))
+      annotations.populateWSIAnnotations(document.querySelector(`.wsiAnnotationType.active`), true)
+    })
   }
   
   path.wsiViewer.removeAllHandlers('open')
@@ -499,9 +507,8 @@ wsi.loadImage = async (id, fileMetadata={}) => {
         window.localStorage.fileMetadata = JSON.stringify(metadata)
       }
       wsi.getPreviousPredsFromBox(fileMetadata)
-      
     })
-    path.onCanvasLoaded()
+    path.onCanvasLoaded(false)
   })
 
   path.wsiViewer.removeAllHandlers('open-failed')
@@ -681,7 +688,7 @@ wsi.createOverlayRect = (type="user", rectBounds, tooltipText, annotationId=path
         // console.log('annotation type button clicked')
         const wsiAnnotationDetailsElement = document.getElementById(`wsiAnnotationDetails_${type}_${annotationId}_${rectBoundsInImageCoordsForId}`)
         if (wsiAnnotationDetailsElement) {
-          wsiAnnotationDetailsElement.scrollIntoViewIfNeeded({block: 'center'})
+          wsiAnnotationDetailsElement.scrollIntoView({block: 'center'})
           wsiAnnotationDetailsElement.classList.add("highlightedAnnotation")
           setTimeout(() => wsiAnnotationDetailsElement.classList.remove("highlightedAnnotation"), 2000)
         }
@@ -696,15 +703,16 @@ wsi.createOverlayRect = (type="user", rectBounds, tooltipText, annotationId=path
           }, {once: true})
           annotationTypeBtn.click()
           annotationDropdownBtn.Collapse.show()
-  
+          
         } else {
+          annotationTypeBtn.click()
           findAndFocusWSIAnnotation()
         }
       }
       
       if (!annotationsTab.classList.contains("active")) {
         annotationsTab.Tab.show()
-        annotationsTab.addEventListener("shown.bs.tab", () => {
+        annotationsTab.addEventLizstener("shown.bs.tab", () => {
           // console.log("annotatioin tab shown")
           openAnnotationCard()
         }, {once: true})
@@ -785,6 +793,7 @@ wsi.handleMessage = (data, op) => {
       document.dispatchEvent(previousPredsReadyEvent)
     }
     wsi.overlayPreviousPredictions()
+
     return
   } else if (op === "stop") {
     if (data.success) {
@@ -993,6 +1002,16 @@ wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reje
    
 })
 
+wsi.clearIndexedDB = () => new Promise (resolveAll => {
+  Promise.all(Object.values(wsi.predsDB.objectStoreNames).map(objectStoreName => {
+    const objectStore = wsi.predsDB.transaction(objectStoreName, "readwrite").objectStore(objectStoreName)
+    return objectStore.clear()
+  })).then(() => {
+    wsi.predsDB.transaction(wsi.predsDB.objectStoreNames[0], "readonly").objectStore(wsi.predsDB.objectStoreNames[0]).count().onsuccess = (e)=> console.log(e.target)
+    resolveAll()
+  })
+})
+
 wsi.overlayPreviousPredictions = () => {
   const hideModelAnnotations = document.getElementById("hideAnnotationsOption_byModel").checked
   Object.values(wsi.predsDB.objectStoreNames).forEach(async objectStore => {
@@ -1017,7 +1036,7 @@ wsi.overlayPreviousPredictions = () => {
         indexedDBQueryOpts.offset = offset
         const { result: dataInIndexedDB, offset: newOffset } = await wsi.getFromIndexedDB(objectStore, indexedDBQueryOpts)
         dataInIndexedDB.forEach(({x, y, width, height, prediction}) => {
-          if (prediction[0].prob === prediction.reduce((max, current) => max < current.prob ? current.prob : max, 0)) {
+          if (width === 512 && prediction[0].prob === prediction.reduce((max, current) => max < current.prob ? current.prob : max, 0)) {
             const osdRect = path.wsiViewer.viewport.imageToViewportRectangle(x, y, width, height, 0)
             const predictionText = `${prediction[0].label}: ${Math.round((prediction[0].prob + Number.EPSILON) * 1000) / 1000 }`
             const tooltipText = `${annotation.displayName}\n${predictionText}`
