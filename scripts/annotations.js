@@ -138,11 +138,11 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
         const commentsCollapseDiv = document.getElementById(`${annotationName}_allComments`)
         commentsCollapseDiv.addEventListener("show.bs.collapse", (evt) => {
           const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
-          toggleCommentsButton.innerHTML = "- Hide All Comments"
+          toggleCommentsButton.innerHTML = "- Hide Comments"
         })
         commentsCollapseDiv.addEventListener("hide.bs.collapse", (evt) => {
           const toggleCommentsButton = document.getElementById(`${annotationName}_commentsToggle`)
-          toggleCommentsButton.innerHTML = "+ Show All Comments"
+          toggleCommentsButton.innerHTML = "+ Show Comments"
         })
   
         document.getElementById(`${annotationName}_commentsTextField`).oninput = (evt) => {
@@ -923,7 +923,7 @@ annotations.populateComments = (annotationName) => {
           }
         })
 
-        toggleCommentsButton.innerHTML = "+ Show All Comments"
+        toggleCommentsButton.innerHTML = "+ Show Comments"
         toggleCommentsButton.parentElement.style["text-align"] = "left"
         toggleCommentsButton.removeAttribute("disabled")
 
