@@ -1,5 +1,9 @@
 const tools = {}
 
+tools.removeTools = () => {
+  path.toolsDiv.innerHTML = ""
+}
+
 tools.addLocalFileButton = async () => {
   const addFileBtnDiv = document.createElement("div")
   const addFileBtn = document.createElement("button")

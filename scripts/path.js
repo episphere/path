@@ -217,9 +217,6 @@ const path = async () => {
     myBox.showLoginMessage()
     loadDefaultImage()
   })
-  if (!path.options) {
-    path.loadOptions()
-  }
   
   path.tiffUnsupportedAlertShown = false
 }
@@ -438,6 +435,9 @@ const loadDefaultImage = async () => {
     path.tmaImage.src = defaultImg
     path.isImageFromBox = false
     document.getElementById("imgHeader").innerHTML = `<h5>Test Image</h5>`
+    if (!path.tmaOptions) {
+      path.loadTMAOptions()
+    }
   }
 }
 
@@ -504,84 +504,89 @@ const loadImageFromBox = async (id, url) => {
       path.tmaImage.setAttribute("alt", name)
       
       if (!url) {
-        path.tabsContainerElement.style.width = "45%"
-        path.canvasParentElement.style.width = "55%"
+        
         if (path.isWSI) {
-          path.tabsContainerElement.style.width = "35%"
-          path.canvasParentElement.style.width = "65%"
+          document.documentElement.style.setProperty("--tabsContainerWidth", "35%")
+          document.documentElement.style.setProperty("--tmaCanvasWidth", "65%")
           path.tmaImage.setAttribute("entry_id", id)
           wsi.loadImage(id, fileMetadata)
-        } else if (name.endsWith(".tiff")) {
-          
-          if (!path.tiffUnsupportedAlertShown && typeof OffscreenCanvas !== "function") { // Alert for browsers without OffscreenCanvas support.
-            alert("TIFF files might not work well in this browser. Please use the Google Chrome browser for the best experience!")
-            path.tiffUnsupportedAlertShown = true
-          }
-
-          if (!fileMetadata["jpegRepresentation"]) { // Get a temporary png from Box, send TIFF to web worker for PNG conversion in the meantime.
-            console.log("Representation not found, loading Box's.", new Date())
-
-            const maxResolutionRep = representations.entries.reduce((maxRep, rep) => {
-              const resolution = Math.max(...rep.properties.dimensions.split("x").map(Number))
-              if (resolution > maxRep.resolution) {
-                return {
-                  resolution,
-                  url: rep.info.url.replace("api.box.com", "dl.boxcloud.com/api") + `/content/1.${rep.representation}`
-                }
-              } else {
-                return maxRep
-              }
-            }, { resolution: 0, url: "" })
-            
-            url = await box.getRepresentation(maxResolutionRep.url)
-            if (url) {
-              await loadImgFromBoxFile(null, url)
-            }
-
-            if (!path.datasetConfig.jpegRepresentationsFolderId || path.datasetConfig.jpegRepresentationsFolderId === -1) {
-              const jpegRepresentationsFolderEntry = await box.createFolder("jpegRepresentations", path.datasetConfig.datasetConfigFolderId)
-              const objectToAdd = {
-                jpegRepresentationsFolderId: jpegRepresentationsFolderEntry.id
-              }
-              box.addToDatasetConfig(objectToAdd)
-            }
-
-            if (typeof OffscreenCanvas === "function") {
-              const op = "tiffConvert"
-              path.miscProcessWorker.postMessage({
-                op,
-                'data': {
-                  'imageId': id,
-                  'jpegRepresentationsFolderId': path.datasetConfig.jpegRepresentationsFolderId,
-                  name,
-                  size
-                }
-              })
-              
-              path.miscProcessWorker.onmessage = (evt) => {
-                if (evt.data.op === op) {
-                  const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
-                  if (originalImageId === hashParams.image) {
-                    console.log("Conversion completion message received from worker, loading new image", new Date())
-                    loadImgFromBoxFile(representationFileId)
-                    window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-                  } 
-                }
-              }
-
-              path.miscProcessWorker.onerror = (err) => {
-                console.log("Error converting TIFF from worker", err)
-              }
-            }
-
-          } else { // Just use the representation created before.
-            const { representationFileId} = JSON.parse(fileMetadata["jpegRepresentation"])
-            console.log("Using the JPEG representation created already", new Date())
-            await loadImgFromBoxFile(representationFileId)
-          }
-        
         } else {
-          await loadImgFromBoxFile(id)
+
+          if (name.endsWith(".tiff")) {
+            
+            if (!path.tiffUnsupportedAlertShown && typeof OffscreenCanvas !== "function") { // Alert for browsers without OffscreenCanvas support.
+              alert("TIFF files might not work well in this browser. Please use the Google Chrome browser for the best experience!")
+              path.tiffUnsupportedAlertShown = true
+            }
+
+            if (!fileMetadata["jpegRepresentation"]) { // Get a temporary png from Box, send TIFF to web worker for PNG conversion in the meantime.
+              console.log("Representation not found, loading Box's.", new Date())
+
+              const maxResolutionRep = representations.entries.reduce((maxRep, rep) => {
+                const resolution = Math.max(...rep.properties.dimensions.split("x").map(Number))
+                if (resolution > maxRep.resolution) {
+                  return {
+                    resolution,
+                    url: rep.info.url.replace("api.box.com", "dl.boxcloud.com/api") + `/content/1.${rep.representation}`
+                  }
+                } else {
+                  return maxRep
+                }
+              }, { resolution: 0, url: "" })
+              
+              url = await box.getRepresentation(maxResolutionRep.url)
+              if (url) {
+                await loadImgFromBoxFile(null, url)
+              }
+
+              if (path.datasetConfig) {
+                if (!path.datasetConfig.jpegRepresentationsFolderId || path.datasetConfig.jpegRepresentationsFolderId === -1) {
+                  const jpegRepresentationsFolderEntry = await box.createFolder("jpegRepresentations", path.datasetConfig.datasetConfigFolderId)
+                  const objectToAdd = {
+                    jpegRepresentationsFolderId: jpegRepresentationsFolderEntry.id
+                  }
+                  box.addToDatasetConfig(objectToAdd)
+                }
+
+                if (typeof OffscreenCanvas === "function") {
+                  const op = "tiffConvert"
+                  path.miscProcessWorker.postMessage({
+                    op,
+                    'data': {
+                      'imageId': id,
+                      'jpegRepresentationsFolderId': path?.datasetConfig?.jpegRepresentationsFolderId,
+                      name,
+                      size
+                    }
+                  })
+                  
+                  path.miscProcessWorker.onmessage = (evt) => {
+                    if (evt.data.op === op) {
+                      const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
+                      if (originalImageId === hashParams.image) {
+                        console.log("Conversion completion message received from worker, loading new image", new Date())
+                        loadImgFromBoxFile(representationFileId)
+                        window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+                      } 
+                    }
+                  }
+
+                  path.miscProcessWorker.onerror = (err) => {
+                    console.log("Error converting TIFF from worker", err)
+                  }
+                }
+              }
+                
+
+            } else { // Just use the representation created before.
+              const { representationFileId } = JSON.parse(fileMetadata["jpegRepresentation"])
+              console.log("Using the JPEG representation created already", new Date())
+              await loadImgFromBoxFile(representationFileId)
+            }
+        
+          } else {
+            await loadImgFromBoxFile(id)
+          }
         }
       }
 
@@ -600,15 +605,25 @@ const loadImageFromBox = async (id, url) => {
 }
 
 const loadImgFromBoxFile = async (id, url) => {
+  
+  document.documentElement.style.setProperty("--tabsContainerWidth", "45%")
+  document.documentElement.style.setProperty("--tmaCanvasWidth", "55%")
+  
+  if (!path.tmaOptions) {
+    path.loadTMAOptions()
+  }
+
   if (id && !url) {
     url = await box.getFileContent(id, false, true)
   }
+  
   path.isImageFromBox = true
   path.isThumbnail = false
   path.tmaImage.setAttribute("src", "")
   path.tmaImage.setAttribute("src", url)
   path.tmaImage.setAttribute("entry_id", id)
   path.tmaImage.setAttribute("crossorigin", "Anonymous")
+
 }
 
 const addImageHeader = (filePathInBox, id, name) => {
@@ -672,10 +687,11 @@ path.loadCanvas = () => {
     
     if (path.wsiViewer.canvas) {
       wasWSICanvasPresent = true
+      path.toolsDiv.parentElement.style.display = "flex"
+      path.canvasParentElement.style.marginLeft = "1rem"
       path.wsiViewer.destroy()
       path.wsiViewer = {}
       path.wsiViewerDiv.style.display = "none"
-      
       path.tmaCanvas.parentElement.style.display = "flex"
       path.tmaCanvas.parentElement.style.backgroundColor = "transparent"
     }
@@ -714,14 +730,32 @@ path.getCurrentCanvasSize = () => {
   return path.tmaCanvas.getBoundingClientRect()
 }
 
-path.loadOptions = () => {
-  path.options = true
+path.loadTMAOptions = () => {
+  path.tmaOptions = true
+  path.wsiOptions = false
   document.getElementById("toolsOuterDiv").style.visibility = "visible"
   document.getElementById("toolsOuterDiv").style.borderRight = "1px solid lightgray"
+  tools.removeTools()
   tools.addLocalFileButton()
   tools.zoomButton()
   tools.segmentButton()
 }
+
+path.loadWSIOptions = () => {
+  path.loadTMAOptions()
+  path.tmaOptions = false
+  path.wsiOptions = true
+  path.toolsDiv.querySelectorAll("button").forEach(element => element.setAttribute("disabled", "true"))
+}
+
+// path.loadWSIOptions = () => {
+//   path.wsiOptions = true
+//   path.tmaOptions = false
+//   document.getElementById("toolsOuterDiv").style.visibility = "visible"
+//   document.getElementById("toolsOuterDiv").style.borderRight = "1px solid lightgray"
+//   tools.removeTools()
+//   tools.addPredictionOptions()
+// }
 
 path.modifyHashString = (hashObj) => {
   // hashObj contains hash keys with corresponding values to update. To remove a hash parameter, the

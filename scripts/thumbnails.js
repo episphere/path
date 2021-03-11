@@ -119,10 +119,15 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
       thumbnailDiv.onclick = () => path.selectImage(id)
       
       const thumbnailMetadata = metadata?.global?.properties
-      thumbnails.loadThumbnail(id, name, thumbnailImg,  thumbnailMetadata)
+      thumbnails.loadThumbnail(id, name, thumbnailImg, thumbnailMetadata).then(() => {
+        if (!utils.isWSI(name)) {
+          thumbnails.borderByAnnotations(id, thumbnailMetadata)
+        }
+      })
       // thumbnails.getAnnotationsForBorder(thumbnailId)
     }
   })
+
   document.dispatchEvent(new Event("thumbnailsLoaded"))
 
 }
@@ -259,7 +264,6 @@ thumbnails.addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offse
         value
       }
     }) => {
-      console.log(value)
       value = parseInt(value)
       changeThumbnails(value)
     }

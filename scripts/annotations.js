@@ -175,8 +175,41 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
 }
 
 annotations.populateAnnotationCard = async (annotationCardContentDiv, annotationId, annotationName, displayName, metaName, labels, isWSI=path.isWSI, enableComments=false) => {
+  const positiveLabel = labels[0]
   annotations.populateWSIAnnotations = async (clickedButton, forceReload=false) => {
-    const positiveLabel = labels[0]
+    const addControls = (annotationsContainerElement, annotationId, showModelPredictions) => {
+      let controlsDiv = annotationsContainerElement.querySelector(".wsiAnnotationControls")
+      if (!controlsDiv) {
+        if (showModelPredictions) {
+          controlsDiv = document.createElement("div")
+          controlsDiv.setAttribute("class", "wsiAnnotationControls")
+          
+          const displayLabelSelectSpan = document.createElement("span")
+          const displayLabelSelectText = document.createElement("label")
+          displayLabelSelectText.innerText = "View Predictions for: "
+          const displayLabelSelect = document.createElement("select")
+          path.datasetConfig?.annotations.find(annot => annot.annotationId === annotationId)?.labels.forEach((label,ind) => {
+            const labelOption = document.createElement("option")
+            labelOption.setAttribute("value", label.label)
+            labelOption.innerText = label.displayText
+            if (ind === 0) {
+              labelOption.setAttribute("selected", "selected")
+            }
+            displayLabelSelect.appendChild(labelOption)
+          })
+          displayLabelSelect.insertAdjacentHTML('beforeend', `<option value="all">All Labels</option>`)
+          displayLabelSelectSpan.appendChild(displayLabelSelectText)
+          displayLabelSelectSpan.appendChild(displayLabelSelect)
+          controlsDiv.appendChild(displayLabelSelectSpan)
+
+          const scoreThresholdSlider = document.createElement("input")
+          scoreThresholdSlider.setAttribute("type", "range")
+
+        }
+        annotationsContainerElement.appendChild(controlsDiv)
+      }
+    }
+
     if (!forceReload && clickedButton.classList.contains("active")) {
       return        
     } else {
@@ -199,13 +232,14 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
           'limit': 25
         }
         const { result: modelPredictions, offset } = await wsi.getFromIndexedDB(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, indexedDBQueryOpts)
-
+        
         if (modelPredictions && modelPredictions.length !== Math.ceil(annotationsContainerElement.querySelectorAll(".wsiAnnotationElement").length / 2)) {
           annotationsContainerElement.innerHTML = ""
+          addControls(annotationsContainerElement, annotationId, true)
           const tempDocumentFragment = document.createDocumentFragment()
 
           modelPredictions.forEach((data, ind) => {
-            const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, data, true, false)
+            const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, metaName, data, true, false)
             tempDocumentFragment.appendChild(annotationElement)
             if (ind !== modelPredictions.length - 1) {
               tempDocumentFragment.appendChild(document.createElement("hr"))
@@ -213,14 +247,14 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
           })
           annotationsContainerElement.appendChild(tempDocumentFragment)
         } else if (annotationsContainerElement.querySelectorAll("div.wsiAnnotationElement").length === 0) {
-          annotationsContainerElement.innerHTML = `<div style="display:flex; align-items:center; width:100%; height:20vh;"><i style="color:slategray; margin:auto; font-size:18px">-- Nothing to show --</i></div>`
+          annotationsContainerElement.innerHTML = `<div class="wsiNoAnnotationsMsg"><i style="color:slategray; margin:auto; font-size:18px">-- Nothing to show --</i></div>`
         }
       } else {
         const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_user`)
         annotationsContainerElement.nextElementSibling.style.display = "none"
         annotationsContainerElement.style.display = "flex"
 
-        const userAnnotationsMetadata = window.localStorage.fileMetadata ? JSON.parse(window.localStorage.fileMetadata)[`${wsi.metadataPathPrefix}_${annotationId}`] : undefined
+        const userAnnotationsMetadata = window.localStorage.fileMetadata ? JSON.parse(window.localStorage.fileMetadata)[`${wsi.metadataPathPrefix}_${metaName}`] : undefined
         const userAnnotations = userAnnotationsMetadata ? JSON.parse(userAnnotationsMetadata)?.[window.localStorage.userId] : undefined
 
         if (userAnnotations && userAnnotations.length !== Math.ceil(annotationsContainerElement.querySelectorAll(".wsiAnnotationElement").length/2)) {
@@ -229,7 +263,7 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
 
           userAnnotations.forEach(({rectBounds, label, createdAt, comment}, ind) => {
             label = label || `${displayName} ${labels[0].displayText}`
-            const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, { label, createdAt, comment, ...rectBounds }, false, false)
+            const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, metaName, { label, createdAt, comment, ...rectBounds }, false, false)
             tempDocumentFragment.appendChild(annotationElement)
             if (ind !== userAnnotations.length - 1) {
               tempDocumentFragment.appendChild(document.createElement("hr"))
@@ -237,7 +271,7 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
           })
           annotationsContainerElement.appendChild(tempDocumentFragment)
         } else if (annotationsContainerElement.querySelectorAll("div.wsiAnnotationElement").length === 0) {
-          annotationsContainerElement.innerHTML = `<div style="display:flex; align-items:center; width:100%; height:20vh;"><i style="color:slategray; margin:auto; font-size:18px">-- Nothing to show --</i></div>`
+          annotationsContainerElement.innerHTML = `<div class="wsiNoAnnotationsMsg"><i style="color:slategray; margin:auto; font-size:18px">-- Nothing to show --</i></div>`
         }
       }
     }
@@ -350,7 +384,7 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
   }
 }
 
-annotations.createWSIAnnotationElement = (annotationId, displayName, annotationData={}, modelAnnotation=false, addToParent=false) => {
+annotations.createWSIAnnotationElement = (annotationId, displayName, metaName, annotationData={}, modelAnnotation=false, addToParent=false) => {
   const annotationElement = document.createElement("div")
   let { x, y, width, height } = annotationData
   if (modelAnnotation) {
@@ -433,9 +467,9 @@ annotations.createWSIAnnotationElement = (annotationId, displayName, annotationD
     deleteAnnotationBtn.onclick = async (e) => {
       e.preventDefault()
       e.stopPropagation()
-      const userAnnotationsMetadataNew = JSON.parse(window.localStorage.fileMetadata)?.[`${wsi.metadataPathPrefix}_${annotationId}`] ? JSON.parse(JSON.parse(window.localStorage.fileMetadata)?.[`${wsi.metadataPathPrefix}_${annotationId}`]) : {}
+      const userAnnotationsMetadataNew = JSON.parse(window.localStorage.fileMetadata)?.[`${wsi.metadataPathPrefix}_${metaName}`] ? JSON.parse(JSON.parse(window.localStorage.fileMetadata)?.[`${wsi.metadataPathPrefix}_${metaName}`]) : {}
       userAnnotationsMetadataNew[window.localStorage.userId] = userAnnotationsMetadataNew[window.localStorage.userId] ? userAnnotationsMetadataNew[window.localStorage.userId].filter((annot, ind2) => annot.createdAt !== createdAt ) : []
-      const newMetadata = await box.updateMetadata(hashParams.image, `/wsiAnnotation_${annotationId}`, JSON.stringify(userAnnotationsMetadataNew))
+      const newMetadata = await box.updateMetadata(hashParams.image, `/${wsi.metadataPathPrefix}_${metaName}`, JSON.stringify(userAnnotationsMetadataNew))
       window.localStorage.fileMetadata = JSON.stringify(newMetadata)
       path.wsiViewer.removeOverlay(`wsiAnnotation_${annotationId}_${positionInImageForElementId}`)
       const parentElement = annotationElement.parentElement
@@ -448,12 +482,16 @@ annotations.createWSIAnnotationElement = (annotationId, displayName, annotationD
         annotations.populateWSIAnnotations(document.querySelectorAll('.wsiAnnotationType')[0], true)
       }
       utils.showToast("Annotation Deleted!")
+      annotations.showNextImageButton()
     }
     
     annotationElement.lastElementChild.appendChild(deleteAnnotationBtn)
 
     if (addToParent) {
       const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_user`)
+      if (annotationsContainerElement.firstElementChild.classList.contains("wsiNoAnnotationsMsg")) {
+        annotationsContainerElement.removeChild(annotationsContainerElement.firstElementChild)
+      }
       annotationsContainerElement.appendChild(document.createElement("hr"))
       annotationsContainerElement.appendChild(annotationElement)
       annotationElement.scrollIntoView({block: 'end'})
@@ -624,14 +662,31 @@ const getOthersAnnotations = (annotationName, fileAnnotations) => {
 annotations.getNumCompletedAnnotations = (metadata) => {
   let numAnnotationsCompleted = 0
   if (path.datasetConfig && path.datasetConfig.annotations) {
-    numAnnotationsCompleted = path.datasetConfig.annotations.reduce((total, {
-      metaName
-    }) => {
-      if (metadata[metaName] && window.localStorage.userId in JSON.parse(metadata[metaName])) {
-        total += 1
+    
+    if (path.isWSI) {
+      numAnnotationsCompleted = path.datasetConfig.annotations.reduce((total, {
+        metaName
+      }) => {
+        if (metadata[`${wsi.metadataPathPrefix}_${metaName}`] && window.localStorage.userId in JSON.parse(metadata[`${wsi.metadataPathPrefix}_${metaName}`])) {
+          total += JSON.parse(metadata[`${wsi.metadataPathPrefix}_${metaName}`])[window.localStorage.userId].length
+        }
+        return total
+      }, 0)
+
+      if (metadata[wsi.customMetadataPathPrefix] && window.localStorage.userId in JSON.parse(metadata[wsi.customMetadataPathPrefix])) {
+        numAnnotationsCompleted += JSON.parse(metadata[wsi.customMetadataPathPrefix])[window.localStorage.userId].length
       }
-      return total
-    }, 0)
+    
+    } else {
+      numAnnotationsCompleted = path.datasetConfig.annotations.reduce((total, {
+        metaName
+      }) => {
+        if (metadata[metaName] && window.localStorage.userId in JSON.parse(metadata[metaName])) {
+          total += 1
+        }
+        return total
+      }, 0)
+    }
   }
   return numAnnotationsCompleted
 }
@@ -644,11 +699,14 @@ annotations.showNextImageButton = (metadata) => {
    
     if (path.datasetConfig.annotations.length > 0) {
       metadata = metadata || JSON.parse(window.localStorage.fileMetadata)
-      if (!path.isWSI) {
-        const numAnnotationsCompleted = annotations.getNumCompletedAnnotations(metadata)
-        const nextImageText = `<b><span style='color:darkorchid'>${numAnnotationsCompleted}</span> / ${path.datasetConfig.annotations.length} Annotations Completed!</b>`
-        nextImageMessage.innerHTML = nextImageText
+      const numAnnotationsCompleted = annotations.getNumCompletedAnnotations(metadata)
+      let nextImageText = ""
+      if (path.isWSI) {
+        nextImageText = `<span><b><span style='color:darkorchid'>${numAnnotationsCompleted}</span></b> Annotations Made On Image.</span>`
+      } else {
+        nextImageText = `<b><span style='color:darkorchid'>${numAnnotationsCompleted}</span> / ${path.datasetConfig.annotations.length} Annotations Completed!</b>`
       }
+      nextImageMessage.innerHTML = nextImageText
     
       const nextImageButton = document.getElementById("nextImageBtn") || document.createElement("button")
       nextImageButton.setAttribute("type", "button")
