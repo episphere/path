@@ -718,6 +718,10 @@ canvas {
   grid-template-columns: 90px auto;
 }
 
+button.wsiAnnotation_predictionFeedback.active {
+  background-color: green;
+}
+
 .wsiNoAnnotationsMsg {
   display:flex;
   align-items:center;
@@ -860,7 +864,8 @@ canvas {
 }
 
 .wsiSettings_hideLabelBtn {
-  padding: 0 0.5rem 0 0;
+  margin-right: 0.3rem;
+  padding: 0.3rem;
   box-shadow: none;
   color: lightgrey;
   border: none;
@@ -868,9 +873,12 @@ canvas {
 
 .wsiSettings_hideLabelBtn.active, .wsiSettings_hideLabelBtn:active {
   background-color: transparent !important;
-  color: var(--info) !important;
+  color: var(--danger) !important;
   border: none;
-  box-shadow: none !important;
+}
+
+.wsiSettings_hideLabelBtn.active>i, .wsiSettings_hideLabelBtn:active>i {
+  text-shadow: 0px 0px 2px rgba(240,128,128,0.8);
 }
 
 .wsiSettings_hideLabelBtn:hover {
@@ -893,7 +901,7 @@ canvas {
 }
 
 .wsiModelAnnotation:hover, .wsiModelAnnotation.hover {
-  box-shadow: 0px 0px 3px 3px rgba(144, 238, 144, var(--wsiOverlayOpacity));
+  /* box-shadow: 0px 0px 3px 3px rgba(144, 238, 144, var(--wsiOverlayOpacity)); */
 }
 
 .wsiUserAnnotation:hover, .wsiUserAnnotation.hover {
@@ -906,7 +914,7 @@ canvas {
 }
 
 .wsiProcessing {
-  outline: 1px dashed rgba(65, 105, 225, var(--wsiOverlayOpacity));
+  outline: 1px dashed rgba(65, 105, 225, 0.6);
 }
 
 .tileProcessing {
@@ -991,12 +999,14 @@ canvas {
   left: 45%;
   font-size: 18px;
   background-color: unset;
+  /* box-shadow: 0px 0px 2px 2px rgba(150, 150, 150, 0.5) */
 }
 
 .toast-header {
   background-color: rgba(0, 0, 0, 0.6);
-  color: rgba(250, 250, 250);
+  color: rgba(255, 255, 255);
   font-weight: lighter;
+  z-index: 1000010;
 }
 
 #addAnnotationsModal {
