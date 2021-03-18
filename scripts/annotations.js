@@ -175,40 +175,39 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
 }
 
 annotations.populateAnnotationCard = async (annotationCardContentDiv, annotationId, annotationName, displayName, metaName, labels, isWSI=path.isWSI, enableComments=false) => {
-  const positiveLabel = labels[0]
-  annotations.populateWSIAnnotations = async (clickedButton, forceReload=false) => {
-    const addControls = (annotationsContainerElement, annotationId, showModelPredictions) => {
-      let controlsDiv = annotationsContainerElement.querySelector(".wsiAnnotationControls")
-      if (!controlsDiv) {
-        if (showModelPredictions) {
-          controlsDiv = document.createElement("div")
-          controlsDiv.setAttribute("class", "wsiAnnotationControls")
+  annotations.populateWSIAnnotations = async (clickedButton=document.getElementById("wsiAnnotationTypeModel"), forceReload=false) => {
+  //   const addControls = (annotationsContainerElement, annotationId, showModelPredictions) => {
+  //     let controlsDiv = annotationsContainerElement.querySelector(".wsiAnnotationControls")
+  //     if (!controlsDiv) {
+  //       if (showModelPredictions) {
+  //         controlsDiv = document.createElement("div")
+  //         controlsDiv.setAttribute("class", "wsiAnnotationControls")
           
-          const displayLabelSelectSpan = document.createElement("span")
-          const displayLabelSelectText = document.createElement("label")
-          displayLabelSelectText.innerText = "View Predictions for: "
-          const displayLabelSelect = document.createElement("select")
-          path.datasetConfig?.annotations.find(annot => annot.annotationId === annotationId)?.labels.forEach((label,ind) => {
-            const labelOption = document.createElement("option")
-            labelOption.setAttribute("value", label.label)
-            labelOption.innerText = label.displayText
-            if (ind === 0) {
-              labelOption.setAttribute("selected", "selected")
-            }
-            displayLabelSelect.appendChild(labelOption)
-          })
-          displayLabelSelect.insertAdjacentHTML('beforeend', `<option value="all">All Labels</option>`)
-          displayLabelSelectSpan.appendChild(displayLabelSelectText)
-          displayLabelSelectSpan.appendChild(displayLabelSelect)
-          controlsDiv.appendChild(displayLabelSelectSpan)
+  //         const displayLabelSelectSpan = document.createElement("span")
+  //         const displayLabelSelectText = document.createElement("label")
+  //         displayLabelSelectText.innerText = "View Predictions for: "
+  //         const displayLabelSelect = document.createElement("select")
+  //         path.datasetConfig?.annotations.find(annot => annot.annotationId === annotationId)?.labels.forEach((label,ind) => {
+  //           const labelOption = document.createElement("option")
+  //           labelOption.setAttribute("value", label.label)
+  //           labelOption.innerText = label.displayText
+  //           if (ind === 0) {
+  //             labelOption.setAttribute("selected", "selected")
+  //           }
+  //           displayLabelSelect.appendChild(labelOption)
+  //         })
+  //         displayLabelSelect.insertAdjacentHTML('beforeend', `<option value="all">All Labels</option>`)
+  //         displayLabelSelectSpan.appendChild(displayLabelSelectText)
+  //         displayLabelSelectSpan.appendChild(displayLabelSelect)
+  //         controlsDiv.appendChild(displayLabelSelectSpan)
 
-          const scoreThresholdSlider = document.createElement("input")
-          scoreThresholdSlider.setAttribute("type", "range")
+  //         const scoreThresholdSlider = document.createElement("input")
+  //         scoreThresholdSlider.setAttribute("type", "range")
 
-        }
-        annotationsContainerElement.appendChild(controlsDiv)
-      }
-    }
+  //       }
+  //       annotationsContainerElement.appendChild(controlsDiv)
+  //     }
+  //   }
 
     if (!forceReload && clickedButton.classList.contains("active")) {
       return        
@@ -235,14 +234,18 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
         
         if (modelPredictions && modelPredictions.length !== Math.ceil(annotationsContainerElement.querySelectorAll(".wsiAnnotationElement").length / 2)) {
           annotationsContainerElement.innerHTML = ""
-          addControls(annotationsContainerElement, annotationId, true)
+          // addControls(annotationsContainerElement, annotationId, true)
           const tempDocumentFragment = document.createDocumentFragment()
 
           modelPredictions.forEach((data, ind) => {
-            const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, metaName, data, true, false)
-            tempDocumentFragment.appendChild(annotationElement)
-            if (ind !== modelPredictions.length - 1) {
-              tempDocumentFragment.appendChild(document.createElement("hr"))
+            if (data.prediction) {
+              const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, metaName, data, {modelAnnotation: true, addToParent: false, selectedLabels: wsi.defaultSelectedLabels, requestedTileSize: wsi.defaultTizeSize})
+              if (annotationElement) {
+                tempDocumentFragment.appendChild(annotationElement)
+                if (ind !== modelPredictions.length - 1) {
+                  tempDocumentFragment.appendChild(document.createElement("hr"))
+                }
+              }
             }
           })
           annotationsContainerElement.appendChild(tempDocumentFragment)
@@ -263,7 +266,7 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
 
           userAnnotations.forEach(({rectBounds, label, createdAt, comment}, ind) => {
             label = label || `${displayName} ${labels[0].displayText}`
-            const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, metaName, { label, createdAt, comment, ...rectBounds }, false, false)
+            const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, metaName, { label, createdAt, comment, ...rectBounds }, {modelAnnotation: false, addToParent: false})
             tempDocumentFragment.appendChild(annotationElement)
             if (ind !== userAnnotations.length - 1) {
               tempDocumentFragment.appendChild(document.createElement("hr"))
@@ -384,51 +387,64 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
   }
 }
 
-annotations.createWSIAnnotationElement = (annotationId, displayName, metaName, annotationData={}, modelAnnotation=false, addToParent=false) => {
-  const annotationElement = document.createElement("div")
+annotations.createWSIAnnotationElement = (annotationId, displayName, metaName, annotationData={}, options={}) => {
+  const { modelAnnotation=false, addToParent=false } = options
+  let annotationElement
   let { x, y, width, height } = annotationData
   if (modelAnnotation) {
+    const { selectedLabels=wsi.defaultSelectedLabels, requestedTileSize=wsi.defaultTileSize } = options
     const { prediction } = annotationData
     const { label, prob } = prediction.reduce((max, current) => current.prob > max.prob ? current : max, {prob: 0})
-    
-    annotationElement.setAttribute("class", "wsiAnnotationElement")
-    annotationElement.setAttribute("id", `wsiAnnotationDetails_model_${annotationId}_${x}_${y}_${width}_${height}`)
-    annotationElement.innerHTML = `
-      <div>
-        <i style="color:gray">Prediction:</i> ${displayName} ${label}<br/>
-        <i style="color:gray">Score:</i> ${Math.round((prob + Number.EPSILON) * 10000) / 10000}<br/>
-      </div>
-      <div style="display: flex; flex-direction: row; margin: auto;">
-      </div>
-    `
-    // <i>Position in Image:</i> ${x}, ${y}, ${x+width}, ${y+height}<br/>
-    
-    const approveButton = document.createElement("button")
-    approveButton.setAttribute("type", "button")
-    approveButton.setAttribute("class", "btn btn-light")
-    approveButton.setAttribute("disabled", "true")
-    approveButton.style.fontSize = "18px"
-    approveButton.innerText = "👍"
-    
-    const rejectButton = document.createElement("button")
-    rejectButton.setAttribute("type", "button")
-    rejectButton.setAttribute("class", "btn btn-light")
-    rejectButton.setAttribute("disabled", "true")
-    rejectButton.style.fontSize = "18px"
-    rejectButton.innerText = "👎"
-    
-    annotationElement.lastElementChild.appendChild(approveButton)
-    annotationElement.lastElementChild.appendChild(rejectButton)
-    
-    if (addToParent) {
-      const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_model`)
-      annotationsContainerElement.appendChild(document.createElement("hr"))
-      annotationsContainerElement.appendChild(annotationElement)
-      annotationElement.scrollIntoView({block: 'end'})
-      setTimeout(() => {
-        annotationElement.classList.add("highlightedAnnotation")
-        setTimeout(() => annotationElement.classList.remove("highlightedAnnotation"), 2000)
-      }, 100)
+    if (selectedLabels.find(selectedLabel => selectedLabel.label === label) && width === requestedTileSize) {
+      annotationElement = document.createElement("div")
+      annotationElement.setAttribute("class", "wsiAnnotationElement")
+      annotationElement.setAttribute("id", `wsiAnnotationDetails_model_${annotationId}_${x}_${y}_${width}_${height}`)
+      annotationElement.innerHTML = `
+        <div>
+          <i style="color:gray">Prediction:</i> ${displayName} ${label}<br/>
+          <i style="color:gray">Score:</i> ${Math.round((prob + Number.EPSILON) * 10000) / 10000}<br/>
+        </div>
+        <div style="display: flex; flex-direction: row; margin: auto;">
+        </div>
+      `
+      // <i>Position in Image:</i> ${x}, ${y}, ${x+width}, ${y+height}<br/>
+      
+      const approveButton = document.createElement("button")
+      approveButton.setAttribute("type", "button")
+      approveButton.setAttribute("class", "btn btn-light wsiAnnotation_predictionFeedback")
+      // approveButton.setAttribute("disabled", "true")
+      approveButton.style.fontSize = "18px"
+      approveButton.innerText = "👍"
+      approveButton.onclick = (e) => {
+        e.stopPropagation()
+        // approveButton.classList.add("active")
+        // await box.updateMetadata(`/${wsi.metadataPathPrefix}_${annotationId}_${}`)
+      }
+      
+      const rejectButton = document.createElement("button")
+      rejectButton.setAttribute("type", "button")
+      rejectButton.setAttribute("class", "btn btn-light wsiAnnotation_predictionFeedback")
+      // rejectButton.setAttribute("disabled", "true")
+      rejectButton.style.fontSize = "18px"
+      rejectButton.innerText = "👎"
+      rejectButton.onclick = (e) => {
+        e.stopPropagation()
+        // rejectButton.classList.add("active")
+      }
+      
+      annotationElement.lastElementChild.appendChild(approveButton)
+      annotationElement.lastElementChild.appendChild(rejectButton)
+      
+      if (addToParent) {
+        const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_model`)
+        annotationsContainerElement.appendChild(document.createElement("hr"))
+        annotationsContainerElement.appendChild(annotationElement)
+        annotationElement.scrollIntoView({block: 'end'})
+        setTimeout(() => {
+          annotationElement.classList.add("highlightedAnnotation")
+          setTimeout(() => annotationElement.classList.remove("highlightedAnnotation"), 2000)
+        }, 100)
+      }
     }
 
   } else {
@@ -439,7 +455,8 @@ annotations.createWSIAnnotationElement = (annotationId, displayName, metaName, a
     // const yPos = Math.round(positionInImage.y)
     const createdAtTime = new Date(createdAt)
     const createdAtTimeString = createdAtTime.toLocaleString('default', {year: 'numeric', month: 'long', day: 'numeric', hour:'numeric', minute: 'numeric'})
-
+    
+    annotationElement = document.createElement("div")
     annotationElement.setAttribute("class", "wsiAnnotationElement")
     annotationElement.setAttribute("id", `wsiAnnotationDetails_user_${annotationId}_${positionInImageForElementId}`)
     let annotationElementHTMLString = `
@@ -499,37 +516,37 @@ annotations.createWSIAnnotationElement = (annotationId, displayName, metaName, a
       setTimeout(() => annotationElement.classList.remove("highlightedAnnotation"), 2000)
     }
   }
-
-  annotationElement.onclick = () => {
-    path.wsiViewer.viewport.fitBoundsWithConstraints(path.wsiViewer.viewport.imageToViewportRectangle(new OpenSeadragon.Rect(x, y, width, height, 0)))
-  }
-
-  annotationElement.onmouseover = () => {
-    if (annotationElement.getAttribute("overlay_element_id")) {
-      document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.add("hover")
-    } else {
-      const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === x && overlay.bounds.y === y && overlay.bounds.width === width && overlay.bounds.height === height)?.element
-      if (overlayElement) {
-        overlayElement.classList.add("hover")
-        annotationElement.setAttribute("overlay_element_id", overlayElement.id)
-      }
+  if (annotationElement) {
+    annotationElement.onclick = () => {
+      path.wsiViewer.viewport.fitBoundsWithConstraints(path.wsiViewer.viewport.imageToViewportRectangle(new OpenSeadragon.Rect(x, y, width, height, 0)))
     }
-  }
   
-  annotationElement.onmouseleave = () => {
-    if (annotationElement.getAttribute("overlay_element_id")) {
-      document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.remove("hover")
-    } else {
-      const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === x && overlay.bounds.y === y && overlay.bounds.width === width && overlay.bounds.height === height)?.element
-      if (overlayElement) {
-        overlayElement.classList.remove("hover")
-        annotationElement.setAttribute("overlay_element_id", overlayElement.id)
+    annotationElement.onmouseover = () => {
+      if (annotationElement.getAttribute("overlay_element_id")) {
+        document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.add("hover")
+      } else {
+        const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === x && overlay.bounds.y === y && overlay.bounds.width === width && overlay.bounds.height === height)?.element
+        if (overlayElement) {
+          overlayElement.classList.add("hover")
+          annotationElement.setAttribute("overlay_element_id", overlayElement.id)
+        }
       }
     }
+    
+    annotationElement.onmouseleave = () => {
+      if (annotationElement.getAttribute("overlay_element_id")) {
+        document.getElementById(annotationElement.getAttribute("overlay_element_id")).classList.remove("hover")
+      } else {
+        const overlayElement = path.wsiViewer.currentOverlays.find(overlay => overlay.element.classList.contains("wsiUserAnnotation") && overlay.bounds.x === x && overlay.bounds.y === y && overlay.bounds.width === width && overlay.bounds.height === height)?.element
+        if (overlayElement) {
+          overlayElement.classList.remove("hover")
+          annotationElement.setAttribute("overlay_element_id", overlayElement.id)
+        }
+      }
+    }
+  
+    return annotationElement
   }
-
-  return annotationElement
-
 }
 
 annotations.showQualitySelectors = async (annotation) => {

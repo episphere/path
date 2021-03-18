@@ -8,6 +8,28 @@ wsi.tileServerBasePath = "https://dl-test-tma.uc.r.appspot.com/iiif"
 
 const reloadImageAfterURLTimeout = (id) => wsi.loadImage(id)
 
+wsi.checkServiceWorkerRegistration = async () => {
+  const addedServiceWorkers = await window.navigator.serviceWorker.getRegistrations()
+  let addedServiceWorker = addedServiceWorkers.find(sw => sw.scope.includes(window.location.hostname))
+  if (!addedServiceWorker) {
+    addedServiceWorker = await wsi.registerServiceWorker()
+  }
+  wsi.tileServerBasePath = `${addedServiceWorker.scope}/iiif`
+}
+
+wsi.registerServiceWorker = () => new Promise((resolve, reject) => {
+  window.navigator.serviceWorker.register('/wsiServiceWorker.js')
+  .then((reg) => {
+    // registration worked
+    console.log('SW Registration succeeded. Scope is ' + reg.scope);
+    resolve(reg)
+  }).catch((error) => {
+    // registration failed
+    console.log('SW Registration failed with ' + error);
+    reject(error)
+  });
+})
+
 wsi.loadImage = async (id, fileMetadata={}) => {
   if (!path.wsiOptions) {
     path.loadWSIOptions()
@@ -21,6 +43,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
 
   const loaderElementId = "imgLoaderDiv"
   showLoader(loaderElementId, path.wsiViewerDiv)
+  // await wsi.checkServiceWorkerRegistration()
   const url = await box.getFileContent(id, false, true)
   
   const tileServerRequestURL = `${wsi.tileServerBasePath}/?iiif=${url}`;
@@ -45,7 +68,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
     "profile": ["http://iiif.io/api/image/2/level2.json"],
     "protocol": "http://iiif.io/api/image",
     "tiles": [{
-      "scaleFactors": [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576],
+      "scaleFactors": [1, 4, 16, 64, 256, 1024],
       "width": 256
     }]
   }
@@ -69,6 +92,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       navigationControlAnchor: OpenSeadragon.ControlAnchor["TOP_RIGHT"],
       // debugMode: true,
       immediateRender: false,
+      // imageLoaderLimit: 5,
       timeout: 60*1000
     });
 
@@ -147,7 +171,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
                     'label': newAnnotation.label || `${displayName} ${labels[0].displayText}`,
                     'createdAt': newAnnotation.createdAt
                   }
-                  annotations.createWSIAnnotationElement(annotationId, displayName, metaName, annotationOverlayData, false, true)
+                  annotations.createWSIAnnotationElement(annotationId, displayName, metaName, annotationOverlayData, {modelAnnotation: true, selectedLabels: wsi.defaultSelectedLabels, requestedTileSize: wsi.defaultTileSize, addToParent: true})
                 })
               }
             }
@@ -321,149 +345,181 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       visibilitySettingsWSIButton.setAttribute("data-toggle", "dropdown")
       visibilitySettingsWSIButton.innerHTML = `<i class="fas fa-sliders-h"></i>`
       visibilitySettingsWSIButtonDiv.appendChild(visibilitySettingsWSIButton)
-      visibilitySettingsWSIButtonDiv.title = "Visibility Settings"
+      visibilitySettingsWSIButtonDiv.title = "Overlay Settings"
 
-      const showVisibilitySettingsControl = () => {
-        const visibilitySettingsControlDiv = document.createElement("div")
-        visibilitySettingsControlDiv.style.color = "white"
-        
-        visibilitySettingsControlDiv.style.width = path.wsiViewer.canvas.offsetWidth
-        visibilitySettingsControlDiv.style.height = path.wsiViewer.controls[0].element.clientHeight* 1.5
-        visibilitySettingsControlDiv.style.backgroundColor = "rgba(0, 0, 0, 0.5)"
-
-        const selectPredictionLabelsBtnDiv = document.createElement("div")
-        selectPredictionLabelsBtnDiv.className = "dropup"
-        selectPredictionLabelsBtnDiv.style.padding = "1rem";
-        const selectPredictionLabelsBtn = document.createElement("button")
-        selectPredictionLabelsBtn.className = "btn btn-outline-dark"
-        selectPredictionLabelsBtn.id = "wsiSettingsLabelOptionsBtn"
-        selectPredictionLabelsBtn.setAttribute("type", "button")
-        selectPredictionLabelsBtn.setAttribute("data-toggle", "dropdown")
-        selectPredictionLabelsBtn.innerText = "Show Predictions For..."
-        selectPredictionLabelsBtn.style.color = "white"
-        if (path.datasetConfig?.annotations.length === 0) {
-          selectPredictionLabelsBtn.setAttribute("disabled", "true")
-        }
-        selectPredictionLabelsBtnDiv.appendChild(selectPredictionLabelsBtn)
-        
-        const selectPredictionLabelsDropdownDiv = document.createElement("div")
-        selectPredictionLabelsDropdownDiv.setAttribute("id", "selectPredictionLabelsDropdownDiv")
-        selectPredictionLabelsDropdownDiv.className = "dropdown-menu"
-        
-        path.datasetConfig.annotations.forEach((annot, ind) => {
-          const annotationSection = document.createElement("div")
-          const annotationHeader = document.createElement("b")
-          annotationHeader.innerText = annot.displayName
-          annotationSection.appendChild(annotationHeader)
-          annotationSection.insertAdjacentHTML('beforeend', `<hr style="margin: 0.2rem 0;">`)
-          annot.labels.forEach(label => {
-            const labelIdentifier = `${annot.annotationId}_${label.label}`
-            const predictionLabelOptionsDiv = document.createElement("div")
-            predictionLabelOptionsDiv.className = "wsiSettings_selectLabelParent"            
-            
-            const hideLabelBtn = document.createElement("button")
-            hideLabelBtn.id = `hdieLabelBtn_${labelIdentifier}`
-            hideLabelBtn.className = "btn btn-outline-danger btn-sm wsiSettings_hideLabelBtn"
-            hideLabelBtn.setAttribute("type", "button")
-            hideLabelBtn.innerHTML = `<i class="fas fa-eye-slash"></i>`
-
-            if (!wsi.defaultSelectedLabels.find(selectedLabel => selectedLabel.label === label.label)) {
-              hideLabelBtn.classList.add("active")
-            }
-
-            hideLabelBtn.setAttribute("name", `${annot.metaName}_${label.label}`)
-            hideLabelBtn.setAttribute("value", labelIdentifier)
-            
-            const labelColorInput = document.createElement("input")
-            labelColorInput.setAttribute("type", "color")
-            labelColorInput.setAttribute("value", wsi.activeLabelOverlayColors[labelIdentifier].slice(0, -2))
-            if (hideLabelBtn.classList.contains("active")) {
-              labelColorInput.setAttribute("disabled", "true")
-            }
-            labelColorInput.style.width = "2rem"
-            labelColorInput.style.marginRight = "0.4rem"
-            
-            hideLabelBtn.onclick = () => {
-              if (hideLabelBtn.classList.contains("active")) {
-                hideLabelBtn.classList.remove("active")
-                wsi.defaultSelectedLabels.push({
-                  'label': label.label,
-                  'threshold': 0.5
-                })
-                wsi.overlayPreviousPredictions()
-                labelColorInput.removeAttribute("disabled")
-              } else {
+      const visibilitySettingsControl = (show=true) => {
+        let visibilitySettingsControlDiv = document.getElementById("wsiVisibilitySettingsControl")
+        if (visibilitySettingsControlDiv) {
+          visibilitySettingsControlDiv.style.display = show ? "grid" : "none"
+        } else {
+          visibilitySettingsControlDiv = document.createElement("div")
+          visibilitySettingsControlDiv.id = "wsiVisibilitySettingsControl"
+          visibilitySettingsControlDiv.style.color = "white"
+          visibilitySettingsControlDiv.style.width = path.wsiViewer.canvas.offsetWidth
+          visibilitySettingsControlDiv.style.height = path.wsiViewer.controls[0].element.clientHeight* 1.5
+          visibilitySettingsControlDiv.style.backgroundColor = "rgba(0, 0, 0, 0.5)"
+          visibilitySettingsControlDiv.style.zIndex = (10**6)
+  
+          const selectPredictionLabelsBtnDiv = document.createElement("div")
+          selectPredictionLabelsBtnDiv.className = "dropup"
+          selectPredictionLabelsBtnDiv.style.padding = "1rem";
+          const selectPredictionLabelsBtn = document.createElement("button")
+          selectPredictionLabelsBtn.className = "btn btn-outline-dark wsiVisibilitySettingsBtn"
+          selectPredictionLabelsBtn.id = "wsiSettingsLabelOptionsBtn"
+          selectPredictionLabelsBtn.setAttribute("type", "button")
+          selectPredictionLabelsBtn.setAttribute("data-toggle", "dropdown")
+          selectPredictionLabelsBtn.innerText = "Show Predictions For..."
+          selectPredictionLabelsBtn.style.color = "white"
+          if (path.datasetConfig?.annotations.length === 0) {
+            selectPredictionLabelsBtn.setAttribute("disabled", "true")
+          }
+          selectPredictionLabelsBtnDiv.appendChild(selectPredictionLabelsBtn)
+          
+          const selectPredictionLabelsDropdownDiv = document.createElement("div")
+          selectPredictionLabelsDropdownDiv.setAttribute("id", "selectPredictionLabelsDropdownDiv")
+          selectPredictionLabelsDropdownDiv.className = "dropdown-menu"
+          
+          path.datasetConfig.annotations.forEach((annot, ind) => {
+            const annotationSection = document.createElement("div")
+            const annotationHeader = document.createElement("b")
+            annotationHeader.innerText = annot.displayName
+            annotationSection.appendChild(annotationHeader)
+            annotationSection.insertAdjacentHTML('beforeend', `<hr style="margin: 0.2rem 0;">`)
+            annot.labels.forEach(label => {
+              const labelIdentifier = `${annot.annotationId}_${label.label}`
+              const predictionLabelOptionsDiv = document.createElement("div")
+              predictionLabelOptionsDiv.className = "wsiSettings_selectLabelParent"            
+              
+              const hideLabelBtn = document.createElement("button")
+              hideLabelBtn.id = `hdieLabelBtn_${labelIdentifier}`
+              hideLabelBtn.className = "btn btn-outline-danger btn-sm wsiSettings_hideLabelBtn"
+              hideLabelBtn.setAttribute("type", "button")
+              hideLabelBtn.innerHTML = `<i class="fas fa-eye-slash"></i>`
+  
+              if (!wsi.defaultSelectedLabels.find(selectedLabel => selectedLabel.label === label.label)) {
                 hideLabelBtn.classList.add("active")
-                wsi.defaultSelectedLabels = wsi.defaultSelectedLabels.filter(selectedLabel => selectedLabel.label !== label.label)
-                path.wsiViewer.currentOverlays.forEach(overlay => {
-                  if (overlay.element.getAttribute("descriptor") === hideLabelBtn.getAttribute("value")) {
-                    requestAnimationFrame(() => path.wsiViewer.removeOverlay(overlay.element))
-                  }
-                })
+              }
+  
+              hideLabelBtn.setAttribute("name", `${annot.metaName}_${label.label}`)
+              hideLabelBtn.setAttribute("value", labelIdentifier)
+              
+              const labelColorInput = document.createElement("input")
+              labelColorInput.setAttribute("type", "color")
+              labelColorInput.setAttribute("value", wsi.activeLabelOverlayColors[labelIdentifier].slice(0, -2))
+              if (hideLabelBtn.classList.contains("active")) {
                 labelColorInput.setAttribute("disabled", "true")
               }
-            }
-
-            labelColorInput.oninput = (e) => {
-              wsi.activeLabelOverlayColors[labelIdentifier] = e.target.value + (parseInt(document.getElementById("abcd1234").value).toString(16) || "99")
-              console.log(wsi.activeLabelOverlayColors[labelIdentifier])
-              document.documentElement.style.setProperty(`--${labelIdentifier}`, wsi.activeLabelOverlayColors[labelIdentifier])
-            }
-
-            const overlayTransparencySpan = document.createElement("span")
-            overlayTransparencySpan.style.padding = "1rem"
-            const overlayTransparencySliderLabel = document.createElement("label")
-            overlayTransparencySliderLabel.setAttribute("for", "wsiSettingsOverlayTransparencySlider")
-            overlayTransparencySliderLabel.innerText = "Overlay Transparency "
-            const overlayTransparencySlider = document.createElement("input")
-            overlayTransparencySlider.setAttribute("type", "range")
-            overlayTransparencySlider.setAttribute("min", 0)
-            overlayTransparencySlider.setAttribute("max", 255)
-            overlayTransparencySlider.setAttribute("step", 5)
-            overlayTransparencySlider.setAttribute("value", 255*0.6)
-            overlayTransparencySlider.onchange = (e) => {
-              Object.keys(wsi.activeLabelOverlayColors).forEach(labelIdentifier => {
-                wsi.activeLabelOverlayColors[labelIdentifier] = wsi.activeLabelOverlayColors[labelIdentifier].slice(0, -2) + (parseInt(e.target.value).toString(16) || "99")
+              labelColorInput.style.width = "2rem"
+              labelColorInput.style.marginRight = "0.4rem"
+              
+              hideLabelBtn.onclick = () => {
+                if (hideLabelBtn.classList.contains("active")) {
+                  hideLabelBtn.classList.remove("active")
+                  wsi.defaultSelectedLabels.push({
+                    'label': label.label,
+                    'threshold': 0.5
+                  })
+                  wsi.overlayPreviousPredictions(wsi.defaultSelectedLabels, parseInt(document.getElementById(`wsiVisibilitySettings_tileSizeSelect`).value))
+                  annotations.populateWSIAnnotations(document.getElementById("wsiAnnotationTypeModel"), true)
+                  labelColorInput.removeAttribute("disabled")
+                  labelOpacitySlider.removeAttribute("disabled")
+                } else {
+                  hideLabelBtn.classList.add("active")
+                  wsi.defaultSelectedLabels = wsi.defaultSelectedLabels.filter(selectedLabel => selectedLabel.label !== label.label)
+                  path.wsiViewer.currentOverlays.forEach(overlay => {
+                    if (overlay.element.getAttribute("descriptor") === hideLabelBtn.getAttribute("value")) {
+                      requestAnimationFrame(() => path.wsiViewer.removeOverlay(overlay.element))
+                    }
+                  })
+                  labelColorInput.setAttribute("disabled", "true")
+                  labelOpacitySlider.setAttribute("disabled", "true")
+                  annotations.populateWSIAnnotations(document.getElementById("wsiAnnotationTypeModel"), true)
+                }
+              }
+  
+              labelColorInput.oninput = (e) => {
+                wsi.activeLabelOverlayColors[labelIdentifier] = e.target.value + wsi.activeLabelOverlayColors[labelIdentifier].slice(-2)
                 document.documentElement.style.setProperty(`--${labelIdentifier}`, wsi.activeLabelOverlayColors[labelIdentifier])
-              })
+              }
+  
+              const labelOpacitySlider = document.createElement("input")
+              labelOpacitySlider.setAttribute("type", "range")
+              labelOpacitySlider.setAttribute("min", 20)
+              labelOpacitySlider.setAttribute("max", 255)
+              labelOpacitySlider.setAttribute("step", 5)
+              labelOpacitySlider.setAttribute("value", parseInt(wsi.activeLabelOverlayColors[labelIdentifier].slice(-2), 16) || 255*0.6)
+              if (hideLabelBtn.classList.contains("active")) {
+                labelOpacitySlider.setAttribute("disabled", "true")
+              }
+              labelOpacitySlider.onchange = (e) => {
+                wsi.activeLabelOverlayColors[labelIdentifier] = wsi.activeLabelOverlayColors[labelIdentifier].slice(0,-2) + (parseInt(e.target.value).toString(16) || "99")
+                document.documentElement.style.setProperty(`--${labelIdentifier}`, wsi.activeLabelOverlayColors[labelIdentifier])
+              }
+          
+              predictionLabelOptionsDiv.appendChild(hideLabelBtn)
+              predictionLabelOptionsDiv.appendChild(labelColorInput)
+              predictionLabelOptionsDiv.insertAdjacentHTML('beforeend', `<label class="form-check-label" for=hdieLabelBtn_${annot.annotationId}_${label.label}>${label.displayText}</label><br>`)
+              predictionLabelOptionsDiv.appendChild(labelOpacitySlider)
+              annotationSection.appendChild(predictionLabelOptionsDiv)
+            })
+            if (ind !== path.datasetConfig.annotations.length - 1) {
+              annotationSection.insertAdjacentHTML('beforeend', "<br>")
             }
-        
-        overlayTransparencySpan.appendChild(overlayTransparencySliderLabel)
-        overlayTransparencySpan.appendChild(overlayTransparencySlider)
-
-            predictionLabelOptionsDiv.appendChild(hideLabelBtn)
-            predictionLabelOptionsDiv.appendChild(labelColorInput)
-            predictionLabelOptionsDiv.insertAdjacentHTML('beforeend', `<label class="form-check-label" for=hdieLabelBtn_${annot.annotationId}_${label.label}>${label.displayText}</label><br>`)
-            annotationSection.appendChild(predictionLabelOptionsDiv)
+            selectPredictionLabelsDropdownDiv.appendChild(annotationSection)
           })
-          if (ind !== path.datasetConfig.annotations.length - 1) {
-            annotationSection.insertAdjacentHTML('beforeend', "<br>")
+          selectPredictionLabelsBtnDiv.appendChild(selectPredictionLabelsDropdownDiv)
+
+          const predictionTileSizeSelectDiv = document.createElement("div")
+          predictionTileSizeSelectDiv.style.margin = "auto 0"
+          const predictionTileSizeSelect = document.createElement("select")
+          predictionTileSizeSelect.id = `wsiVisibilitySettings_tileSizeSelect`
+          predictionTileSizeSelect.className = "wsiVisibilitySettingsBtn"
+          let tileSizes = [2048,1024,512,256]
+          tileSizes.forEach((value, ind) => {
+            const predictionTileSizeSelectOption = document.createElement("option")
+            predictionTileSizeSelectOption.setAttribute("value", value)
+            if (value === wsi.defaultTileSize) {
+              predictionTileSizeSelectOption.setAttribute("selected", "true")
+            }
+            predictionTileSizeSelectOption.innerText = `${10*(ind+1)}x`
+            predictionTileSizeSelect.appendChild(predictionTileSizeSelectOption)
+          })
+
+          predictionTileSizeSelect.onchange = (e) => {
+            path.wsiViewer.currentOverlays.forEach(overlay => {
+              if (overlay.element.classList.contains("wsiModelAnnotation") && !overlay.element.id.endsWith(`${e.target.value}_${e.target.value}`)) {
+                requestAnimationFrame(() => path.wsiViewer.removeOverlay(overlay.element))
+              }
+            })
+            wsi.defaultTileSize = parseInt(e.target.value)
+            wsi.overlayPreviousPredictions(wsi.defaultSelectedLabels, wsi.defaultTileSize)
+            annotations.populateWSIAnnotations(document.getElementById("wsiAnnotationTypeModel"), true)
           }
-          selectPredictionLabelsDropdownDiv.appendChild(annotationSection)
-        })
 
-        selectPredictionLabelsBtnDiv.appendChild(selectPredictionLabelsDropdownDiv)
-        visibilitySettingsControlDiv.appendChild(selectPredictionLabelsBtnDiv)
+          const predictionTileSizeSelectLabel = `<label class="form-check-label" for="wsiVisibilitySettings_tileSizeSelect">Predictions Zoom Level: &nbsp</label>`
+          predictionTileSizeSelectDiv.insertAdjacentHTML('beforeend', predictionTileSizeSelectLabel)
+          predictionTileSizeSelectDiv.appendChild(predictionTileSizeSelect)
 
-        path.wsiViewer.addControl(visibilitySettingsControlDiv, {
-          anchor: OpenSeadragon.ControlAnchor["BOTTOM_LEFT"]
-        }, path.wsiViewer.controls.bottomLeft)
-        path.wsiViewer.controls[2].element.style.display = "grid"
-        path.wsiViewer.controls[2].element.style.gridTemplateColumns = "300px 400px"
-        new BSN.Dropdown(selectPredictionLabelsBtn, true)
+          visibilitySettingsControlDiv.appendChild(selectPredictionLabelsBtnDiv)
+          visibilitySettingsControlDiv.appendChild(predictionTileSizeSelectDiv)
+  
+          path.wsiViewer.addControl(visibilitySettingsControlDiv, {
+            anchor: OpenSeadragon.ControlAnchor["BOTTOM_LEFT"]
+          }, path.wsiViewer.controls.bottomLeft)
+          path.wsiViewer.controls[2].element.style.display = "grid"
+          path.wsiViewer.controls[2].element.style.gridTemplateColumns = "300px 400px"
+          new BSN.Dropdown(selectPredictionLabelsBtn, true)
+        }
 
-        
-        visibilitySettingsControlDiv.appendChild(overlayTransparencySpan)
       }
-
 
       visibilitySettingsWSIButton.onclick = () => {
         if (visibilitySettingsWSIButtonDiv.classList.contains("active")) {
-          path.wsiViewer.removeControl(path.wsiViewer.controls[path.wsiViewer.controls.length - 1].element)
+          visibilitySettingsControl(false)
           visibilitySettingsWSIButtonDiv.classList.remove("active")
         } else {
           visibilitySettingsWSIButtonDiv.classList.add("active")
-          showVisibilitySettingsControl()
+          visibilitySettingsControl(true)
         }
       }
       return visibilitySettingsWSIButtonDiv
@@ -555,8 +611,15 @@ wsi.loadImage = async (id, fileMetadata={}) => {
   
   path.wsiViewer.removeAllHandlers('open')
   path.wsiViewer.addOnceHandler('open', (e) => {
-    path.wsiViewer.element.querySelectorAll("button.wsiControlBtn").forEach(element => {
+    path.wsiViewer.element.querySelectorAll(".wsiControlBtn").forEach(element => {
       element.setAttribute("disabled", "true")
+      element.style.cursor = "not-allowed"
+    })
+    path.wsiViewer.element.querySelectorAll(".wsiVisibilitySettingsBtn").forEach(element => {
+      element.setAttribute("disabled", "true")
+      if (element.Dropdown) {
+        element.Dropdown.hide()
+      }
       element.style.cursor = "not-allowed"
     })
     
@@ -566,7 +629,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       path.wsiCanvasLoaded = true
       wsi.handlePanAndZoom()
       wsi.setDefaultOverlayOptions()
-      
+      utils.showToast("Loading Predictions...")
       document.removeEventListener("datasetConfigSet", wsi.datasetChangeHandler)
       wsi.datasetChangeHandler = () => {
         wsi.stopModel()
@@ -586,6 +649,10 @@ wsi.loadImage = async (id, fileMetadata={}) => {
           }
           element.removeAttribute("disabled")
           element.style.cursor = "pointer"
+        })
+        path.wsiViewer.element.querySelectorAll(".wsiVisibilitySettingsBtn").forEach(element => {
+          element.removeAttribute("disabled")
+          element.style.cursor = "auto"
         })
       }
       enableOptions()
@@ -609,41 +676,41 @@ wsi.loadImage = async (id, fileMetadata={}) => {
     console.error("Error opening Tile Source", e)
   })
 
-  const handleBoxURLExpiry = () => {
-    path.wsiViewer.removeAllHandlers("tile-load-failed")
-    clearTimeout(wsi.failedTileHandlerTimeout)
-    // Handle Box URL expiry. Get new URL and replace the tile source.
-    wsi.failedTileHandlerTimeout = setTimeout(() => path.wsiViewer.addOnceHandler("tile-load-failed", async (e) => {
-      console.log("Tile Load Failed, trying to reset URL!!!!!!!", e)
-      // Box URLs expire in 15 mins, so checking to see if enough time has elapsed for the load failure reason to be URL expiry.
-      if (Date.now() > path.wsiViewer.imageLoadedAtTime + (14*60*1000)) {
-        showLoader(loaderElementId, path.wsiViewer.element)
-        const oldImage = path.wsiViewer.world.getItemAt(0)
-        const oldBounds = oldImage.getBounds()
-        const oldTileSource = oldImage.source
+  // const handleBoxURLExpiry = () => {
+  //   path.wsiViewer.removeAllHandlers("tile-load-failed")
+  //   clearTimeout(wsi.failedTileHandlerTimeout)
+  //   // Handle Box URL expiry. Get new URL and replace the tile source.
+  //   wsi.failedTileHandlerTimeout = setTimeout(() => path.wsiViewer.addOnceHandler("tile-load-failed", async (e) => {
+  //     console.log("Tile Load Failed, trying to reset URL!!!!!!!", e)
+  //     // Box URLs expire in 15 mins, so checking to see if enough time has elapsed for the load failure reason to be URL expiry.
+  //     if (Date.now() > path.wsiViewer.imageLoadedAtTime + (14*60*1000)) {
+  //       showLoader(loaderElementId, path.wsiViewer.element)
+  //       const oldImage = path.wsiViewer.world.getItemAt(0)
+  //       const oldBounds = oldImage.getBounds()
+  //       const oldTileSource = oldImage.source
         
-        const refreshedFileURL = await box.getFileContent(id, false, true)
-        const newTileSourceURL = `${wsi.tileServerBasePath}/?iiif=${refreshedFileURL}`
-        const newTileSource = {
-          ...oldTileSource,
-          "@id": newTileSourceURL
-        }
+  //       const refreshedFileURL = await box.getFileContent(id, false, true)
+  //       const newTileSourceURL = `${wsi.tileServerBasePath}/?iiif=${refreshedFileURL}`
+  //       const newTileSource = {
+  //         ...oldTileSource,
+  //         "@id": newTileSourceURL
+  //       }
 
-        path.wsiViewer.addTiledImage({
-          tileSource: newTileSource,
-          x: oldBounds.x,
-          y: oldBounds.y,
-          width: oldBounds.width,
-          success: () => {
-            path.wsiViewer.world.removeItem(oldImage)
-            hideLoader(loaderElementId)
-            handleBoxURLExpiry()
-          }
-        })
-      }
-    }), 2*60*1000)
-  }
-  handleBoxURLExpiry()
+  //       path.wsiViewer.addTiledImage({
+  //         tileSource: newTileSource,
+  //         x: oldBounds.x,
+  //         y: oldBounds.y,
+  //         width: oldBounds.width,
+  //         success: () => {
+  //           path.wsiViewer.world.removeItem(oldImage)
+  //           hideLoader(loaderElementId)
+  //           handleBoxURLExpiry()
+  //         }
+  //       })
+  //     }
+  //   }), 2*60*1000)
+  // }
+  // handleBoxURLExpiry()
 
   path.tmaCanvasLoaded = false
   path.isImageFromBox = true
@@ -702,11 +769,12 @@ wsi.setDefaultOverlayOptions = (forceReload=false) => {
     wsi.activeLabelOverlayColors = wsi.userPreferences?.labelOverlayColors || {}
     wsi.defaultSelectedLabels = wsi.userPreferences?.selectedLabels || undefined
   }
-
+  
   wsi.activeLabelOverlayColors = wsi.activeLabelOverlayColors || wsi.userPreferences?.labelOverlayColors || {}
+  
   if (Object.values(wsi.activeLabelOverlayColors).length !== path.datasetConfig.annotations.reduce((sum, curr) => sum += curr.labels.length, 0)) {
     path.datasetConfig.annotations.forEach(annot => {
-      annot.labels.forEach(label => {
+      annot.labels.forEach(label => {``
         const labelIdentifier = `${annot.annotationId}_${label.label}`
         if (!wsi.activeLabelOverlayColors[labelIdentifier]) {
           wsi.activeLabelOverlayColors[labelIdentifier] = wsi.defaultLabelOverlayColors.find(overlayColor => !Object.values(wsi.activeLabelOverlayColors).includes(overlayColor)) || "#00000099"
@@ -725,7 +793,8 @@ wsi.setDefaultOverlayOptions = (forceReload=false) => {
       // 'threshold': 1/path.datasetConfig.annotations[0].labels.length
     })
   }
-
+  
+  wsi.defaultTileSize = wsi.defaultTileSize || 512
 }
 
 wsi.createOverlayRect = (opts) => {
@@ -737,7 +806,6 @@ wsi.createOverlayRect = (opts) => {
     hidden=false,
     processing=false,
     showAsTooltip=false,
-    positivePrediction=false,
     descriptor 
   } = opts
 
@@ -861,9 +929,6 @@ wsi.createOverlayRect = (opts) => {
       } else {
         openAnnotationCard()
       }
-
-      
-      
     }
     rect.focus()
   }
@@ -939,8 +1004,8 @@ wsi.handleMessage = (data, op) => {
     return
   } else if (op === "stop") {
     if (data.success) {
-      wsi.modelRunning = false
       utils.showToast("Stopping Model...")
+      wsi.stopModel()
     }
   } else if (data.imageId === hashParams.image) {
     if (data.message) {
@@ -957,17 +1022,17 @@ wsi.handleMessage = (data, op) => {
       if (data.prediction) {
         const highestValuePrediction = data.prediction.reduce((maxPred, current) => maxPred.prob > current.prob ? maxPred : current, {prob: 0})
         const annotation = path.datasetConfig.annotations.find(annot => annot.annotationId === data.annotationId)
-        const positiveLabelValue = annotation.labels[0].label
-        if (highestValuePrediction.label === positiveLabelValue) {
-          const tooltip = `${annotation.displayName}\n${annotation.labels.find(label => label.label === positiveLabelValue).displayText || annotation.labels[0].label}: ${Math.round((highestValuePrediction.prob + Number.EPSILON) * 1000) / 1000 }`
+        annotations.createWSIAnnotationElement(annotation.annotationId, annotation.displayName, annotation.metaName, data, {modelAnnotation: true, selectedLabels: wsi.defaultSelectedLabels, addToParent:true})
+        
+        if (wsi.defaultSelectedLabels.find(selectedLabel => selectedLabel.label === highestValuePrediction.label) ) {
+          const tooltip = `${annotation.displayName}\n${annotation.labels.find(definedLabel => definedLabel.label === highestValuePrediction.label).displayText}: ${Math.round((highestValuePrediction.prob + Number.EPSILON) * 1000) / 1000 }`
           wsi.createOverlayRect({
             "type": "model",
             "rectBounds": osdRect,
             "tooltipText": tooltip,
             "annotationId": data.annotationId,
             "showAsTooltip": true,
-            "positivePrediction": highestValuePrediction.prob === data.prediction[0].prob,
-            "descriptor": `${annotationId}_${highestValuePrediction.label}`
+            "descriptor": `${data.annotationId}_${highestValuePrediction.label}`
           })
         }
       }
@@ -996,11 +1061,15 @@ wsi.stopModel = () => {
       element.removeAttribute("disabled") 
       element.checked = false
     })
+    dropdownDiv.parentElement.classList.remove("active")
+    dropdownDiv.parentElement.selected = false
+    dropdownDiv.previousElementSibling.innerHTML = `<i class="fas fa-microchip"></i>`
     dropdownDiv.querySelector("#stopWSIModelButtonDiv").style.display = "none"
     // dropdownDiv.querySelectorAll("button").forEach(element => element.removeAttribute("disabled"))
     
     path.wsiViewer.controls[path.wsiViewer.controls.length - 1].autoFade = true
     wsi.stopWorkers()
+    wsi.modelRunning = false
   }
 }
 
@@ -1098,8 +1167,8 @@ wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reje
       cursorRequest.onsuccess = (e) => {
         const cursor = e.target.result
         if (!cursor) {
-          console.log("No cursor", queryOpts)
-          resolve({result: []})
+          // console.log(`No cursor, found ${queryResult.length} items for query`, queryOpts)
+          resolve({result: queryResult, offset})
           return
         }
 
@@ -1109,8 +1178,8 @@ wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reje
           cursor.advance(queryOpts.offset)
           return
         }
-        
-        if (cursor && queryResult.length < queryOpts.limit) {
+
+        if (queryResult.length < queryOpts.limit) {
           if (queryOpts?.query?.lower && Array.isArray(queryOpts?.query?.lower) && queryOpts?.query?.upper && Array.isArray(queryOpts?.query?.upper)) {
             for (let i = 1; i < queryOpts.query.lower.length; i++) {
               if (window.indexedDB.cmp(cursor.key.slice(i, queryOpts.query.lower.length), queryOpts.query.lower.slice(i)) < 0) {
@@ -1141,7 +1210,6 @@ wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reje
           offset++
           cursor.continue()
         } else {
-          // console.log(queryResult, offset)
           resolve({result: queryResult, offset})
         }
       }
@@ -1163,17 +1231,15 @@ wsi.clearIndexedDB = () => new Promise (resolveAll => {
   })
 })
 
-wsi.overlayPreviousPredictions = (labelsToDisplay=wsi.defaultSelectedLabels, requestedTileSize=512, bounds=[]) => {
-
+wsi.overlayPreviousPredictions = (labelsToDisplay=wsi.defaultSelectedLabels, requestedTileSize=wsi.defaultTileSize, bounds=[]) => {
   if (!Array.isArray(labelsToDisplay)) {
     labelsToDisplay = [labelsToDisplay]
   }
   labelsToDisplay.forEach(label => {
-    const { label: labelToDisplay, threshold, overlayColor } = label
+    const { label: labelToDisplay, threshold } = label
     Object.values(wsi.predsDB.objectStoreNames).forEach(async objectStore => {
       const annotation = path.datasetConfig.annotations.find(annot => annot.annotationId === parseInt(objectStore.split(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_`)[1]))
       if (annotation && annotation.labels.find(label => label.label === labelToDisplay)) {
-  
         const currentViewportBounds = path.wsiViewer.viewport.viewportToImageRectangle(path.wsiViewer.viewport.getBounds(true))
         const limit = 100
         let offset = 0
@@ -1194,7 +1260,6 @@ wsi.overlayPreviousPredictions = (labelsToDisplay=wsi.defaultSelectedLabels, req
           const { result: dataInIndexedDB, offset: newOffset } = await wsi.getFromIndexedDB(objectStore, indexedDBQueryOpts)
           dataInIndexedDB.forEach(({x, y, width, height, prediction}) => {
             const positivePrediction = prediction.find(pred => pred.label === labelToDisplay)
-            
             if (width === requestedTileSize) {
               
               if (positivePrediction && positivePrediction.prob >= threshold) {
