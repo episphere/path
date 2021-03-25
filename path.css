@@ -718,8 +718,12 @@ canvas {
   grid-template-columns: 90px auto;
 }
 
-button.wsiAnnotation_predictionFeedback.active {
-  background-color: green;
+.wsiPredsUserFeedback>.btn-light:first-child.active {
+  background-color: var(--success);
+}
+
+.wsiPredsUserFeedback>.btn-light:last-child.active {
+  background-color: var(--danger);
 }
 
 .wsiNoAnnotationsMsg {

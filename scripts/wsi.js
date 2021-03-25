@@ -1028,22 +1028,19 @@ wsi.handleMessage = (data, op) => {
       const osdRect = path.wsiViewer.viewport.imageToViewportRectangle(data.x, data.y, data.width, data.height)
       path.wsiViewer.removeOverlay(path.wsiViewer.currentOverlays.find(({element}) => element.tileX === osdRect.x && element.tileY === osdRect.y && element.tileWidth === osdRect.width && element.tileHeight === osdRect.height)?.element)
 
-      if (data.prediction) {
+      if (data.prediction && wsi.defaultSelectedLabels.find(selectedLabel => selectedLabel.label === highestValuePrediction.label) && data.width === wsi.defaultTileSize) {
         const highestValuePrediction = data.prediction.reduce((maxPred, current) => maxPred.prob > current.prob ? maxPred : current, {prob: 0})
         const annotation = path.datasetConfig.annotations.find(annot => annot.annotationId === data.annotationId)
         annotations.createWSIAnnotationElement(annotation.annotationId, annotation.metaName, data, {modelAnnotation: true, selectedLabels: wsi.defaultSelectedLabels, addToParent:true})
-        
-        if (wsi.defaultSelectedLabels.find(selectedLabel => selectedLabel.label === highestValuePrediction.label) ) {
-          const tooltip = `${annotation.displayName}\n${annotation.labels.find(definedLabel => definedLabel.label === highestValuePrediction.label).displayText}: ${Math.round((highestValuePrediction.prob + Number.EPSILON) * 1000) / 1000 }`
-          wsi.createOverlayRect({
-            "type": "model",
-            "rectBounds": osdRect,
-            "tooltipText": tooltip,
-            "annotationId": data.annotationId,
-            "showAsTooltip": true,
-            "descriptor": `${data.annotationId}_${highestValuePrediction.label}`
-          })
-        }
+        const tooltip = `${annotation.displayName}\n${annotation.labels.find(definedLabel => definedLabel.label === highestValuePrediction.label).displayText}: ${Math.round((highestValuePrediction.prob + Number.EPSILON) * 1000) / 1000 }`
+        wsi.createOverlayRect({
+          "type": "model",
+          "rectBounds": osdRect,
+          "tooltipText": tooltip,
+          "annotationId": data.annotationId,
+          "showAsTooltip": true,
+          "descriptor": `${data.annotationId}_${highestValuePrediction.label}`
+        })
       }
     } else if (data.processing) {
       const { x, y, width, height } = data
