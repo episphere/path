@@ -141,6 +141,7 @@ onmessage = async (evt) => {
                   width,
                   height,
                   prediction,
+                  'modelId': models[annotationId].modelId,
                   'success': true
                 }
            
@@ -210,6 +211,15 @@ onmessage = async (evt) => {
         let isBottomMostTile = false
         let wsiDone = false
         let activeCalls = 0
+
+        const commitToBox = (data=prediction) => {
+          const formData = new FormData()
+          const dataBlob = new Blob([JSON.stringify(data)], {
+            type: "application/json"
+          })
+          formData.append("file", dataBlob)
+          uploadFileToBox(formData, wsiPredsFileId)
+        }
 
         const getNextTileInfo = (imageId) => {
           if (currentX === -1 && currentY === -1 && currentTileWidth === -1 && currentTileHeight === -1) {
@@ -299,19 +309,15 @@ onmessage = async (evt) => {
                     'y': data.y,
                     'width': data.width,
                     'height': data.height,
-                    'prediction': data.prediction
+                    'prediction': data.prediction,
+                    'modelId': data.modelId
                   }
                   
                   insertWSIDataToIndexedDB(addObjToDb, annotationId).then(result => {
                     if (result && result.length === indexedDBConfig['wsi'].objectStoreOpts.keyPath.length) {
                       prediction.push(addObjToDb)
-                      if (prediction.length % 30 === 0) {
-                        const formData = new FormData()
-                        const dataBlob = new Blob([JSON.stringify(prediction)], {
-                          type: "application/json"
-                        })
-                        formData.append("file", dataBlob)
-                        uploadFileToBox(formData, wsiPredsFileId)
+                      if (prediction.length % 10 === 0) {
+                        commitToBox(prediction)
                       }
                     } else {
                       console.log(result)
@@ -334,6 +340,7 @@ onmessage = async (evt) => {
                 return
          
               } else if (activeCalls === 0) {
+                commitToBox(prediction)
                 postMessage({
                   op,
                   'body': {
@@ -394,7 +401,7 @@ onmessage = async (evt) => {
       const { previousPredictions, ...otherChanges } = await getPredsFromBox(imageId, annotationId, modelId, datasetConfig, wsiPredsFiles)
       const positiveLabel = data.body.positiveLabel || datasetConfig.annotations.find(annot => annot.annotationId === annotationId).labels[0]
       previousPredictions
-      .sort((a, b) => b.prediction.find(({label}) => label === positiveLabel.displayText).prob - a.prediction.find(({label}) => label === positiveLabel.displayText).prob)
+      // .sort((a, b) => b.prediction.find(({label}) => label === positiveLabel.displayText).prob - a.prediction.find(({label}) => label === positiveLabel.displayText).prob)
       .forEach(pred => {
         const { label: predictedLabel, prob: predictionScore } = pred.prediction.reduce((max, current) => current.prob > max.prob ? current : max, {prob: 0})
         const predictionForIDB = {

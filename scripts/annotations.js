@@ -175,7 +175,7 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
 }
 
 annotations.populateAnnotationCard = async (annotationCardContentDiv, annotationId, annotationName, displayName, metaName, labels, isWSI=path.isWSI, enableComments=false) => {
-  annotations.populateWSIAnnotations = async (clickedButton=document.getElementById("wsiAnnotationTypeModel"), forceReload=false) => {
+  annotations.populateWSIAnnotations = async (modelTab=true, forceReload=false) => {
   //   const addControls = (annotationsContainerElement, annotationId, showModelPredictions) => {
   //     let controlsDiv = annotationsContainerElement.querySelector(".wsiAnnotationControls")
   //     if (!controlsDiv) {
@@ -208,17 +208,16 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
   //       annotationsContainerElement.appendChild(controlsDiv)
   //     }
   //   }
-
-    if (!forceReload && clickedButton.classList.contains("active")) {
+    const activeButton = modelTab ? document.getElementById("wsiAnnotationTypeModel") : document.getElementById("wsiAnnotationTypeUser")
+    if (!forceReload && activeButton.classList.contains("active")) {
       return        
     } else {
-      if (clickedButton.parentElement.querySelector(".active")?.id !== clickedButton.id) {
-        clickedButton.parentElement.querySelector(".active")?.classList.remove("active")
-        clickedButton.classList.add("active")
+      if (activeButton.parentElement.querySelector(".active")?.id !== activeButton.id) {
+        activeButton.parentElement.querySelector(".active")?.classList.remove("active")
+        activeButton.classList.add("active")
       }
-      const showModelPredictions = clickedButton.getAttribute("id") === "wsiAnnotationTypeModel"
 
-      if (showModelPredictions) {
+      if (modelTab) {
         const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_model`)
         annotationsContainerElement.previousElementSibling.style.display = "none"
         annotationsContainerElement.style.display = "flex"
@@ -239,7 +238,7 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
 
           modelPredictions.forEach((data, ind) => {
             if (data.prediction) {
-              const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, metaName, data, {modelAnnotation: true, addToParent: false, selectedLabels: wsi.defaultSelectedLabels, requestedTileSize: wsi.defaultTizeSize})
+              const annotationElement = annotations.createWSIAnnotationElement(annotationId, metaName, data, {modelAnnotation: true, addToParent: false, selectedLabels: wsi.defaultSelectedLabels, requestedTileSize: wsi.defaultTizeSize})
               if (annotationElement) {
                 tempDocumentFragment.appendChild(annotationElement)
                 if (ind !== modelPredictions.length - 1) {
@@ -266,7 +265,7 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
 
           userAnnotations.forEach(({rectBounds, label, createdAt, comment}, ind) => {
             label = label || `${displayName} ${labels[0].displayText}`
-            const annotationElement = annotations.createWSIAnnotationElement(annotationId, displayName, metaName, { label, createdAt, comment, ...rectBounds }, {modelAnnotation: false, addToParent: false})
+            const annotationElement = annotations.createWSIAnnotationElement(annotationId, metaName, { label, createdAt, comment, ...rectBounds }, {modelAnnotation: false, addToParent: false})
             tempDocumentFragment.appendChild(annotationElement)
             if (ind !== userAnnotations.length - 1) {
               tempDocumentFragment.appendChild(document.createElement("hr"))
@@ -296,13 +295,13 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
       userAnnotationsBtn.setAttribute("class", "btn btn-outline-secondary active wsiAnnotationType")
       userAnnotationsBtn.setAttribute("id", "wsiAnnotationTypeUser")
       userAnnotationsBtn.insertAdjacentHTML('beforeend', `<i class="fas fa-edit"></i>`)
-      userAnnotationsBtn.onclick = (e) => annotations.populateWSIAnnotations(e.currentTarget)
+      userAnnotationsBtn.onclick = (e) => annotations.populateWSIAnnotations(false)
       
       const modelPredictionsBtn = document.createElement("button")
       modelPredictionsBtn.setAttribute("class", "btn btn-outline-secondary wsiAnnotationType")
       modelPredictionsBtn.setAttribute("id", "wsiAnnotationTypeModel")
       modelPredictionsBtn.insertAdjacentHTML('beforeend', `<i class="fas fa-microchip"></i>`)
-      modelPredictionsBtn.onclick = (e) => annotations.populateWSIAnnotations(e.currentTarget)
+      modelPredictionsBtn.onclick = (e) => annotations.populateWSIAnnotations(true)
       
       annotationTypesBtnGrp.appendChild(userAnnotationsBtn)
       annotationTypesBtnGrp.appendChild(modelPredictionsBtn)
@@ -331,7 +330,7 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
       annotationCardContentDiv.insertAdjacentElement('beforeend', parentContentDiv)
 
     }
-    annotations.populateWSIAnnotations(annotationCardContentDiv.querySelector(".wsiAnnotationType.active"), true)
+    annotations.populateWSIAnnotations(annotationCardContentDiv.querySelector(".wsiAnnotationType.active").id === "wsiAnnotationTypeModel", true)
     // annotationsElement.style.contentVisibility = "auto"
 
   } else {
@@ -387,28 +386,27 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
   }
 }
 
-annotations.createWSIAnnotationElement = (annotationId, displayName, metaName, annotationData={}, options={}) => {
+annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData={}, options={}) => {
   const { modelAnnotation=false, addToParent=false } = options
   let annotationElement
   let { x, y, width, height } = annotationData
   if (modelAnnotation) {
     const { selectedLabels=wsi.defaultSelectedLabels, requestedTileSize=wsi.defaultTileSize } = options
-    const { prediction } = annotationData
+    const { prediction, modelId, userFeedback } = annotationData
     const { label, prob } = prediction.reduce((max, current) => current.prob > max.prob ? current : max, {prob: 0})
-    if (selectedLabels.find(selectedLabel => selectedLabel.label === label) && width === requestedTileSize) {
+    const predictionScore = Math.round((prob + Number.EPSILON) * 10000) / 10000
+    if (selectedLabels?.find(selectedLabel => selectedLabel.label === label) && width === requestedTileSize) {
       annotationElement = document.createElement("div")
       annotationElement.setAttribute("class", "wsiAnnotationElement")
       annotationElement.setAttribute("id", `wsiAnnotationDetails_model_${annotationId}_${x}_${y}_${width}_${height}`)
       annotationElement.innerHTML = `
         <div>
-          <i style="color:gray">Prediction:</i> ${displayName} ${label}<br/>
-          <i style="color:gray">Score:</i> ${Math.round((prob + Number.EPSILON) * 10000) / 10000}<br/>
+          <i style="color:gray">Prediction:</i> ${label}<br/>
+          <i style="color:gray">Score:</i> ${predictionScore}<br/>
         </div>
-        <div style="display: flex; flex-direction: row; margin: auto;">
-        </div>
+        <div class="wsiPredsUserFeedback" style="display:flex; flex-direction:row; margin:auto;"></div>
       `
       // <i>Position in Image:</i> ${x}, ${y}, ${x+width}, ${y+height}<br/>
-      
       const approveButton = document.createElement("button")
       approveButton.setAttribute("type", "button")
       approveButton.setAttribute("class", "btn btn-light wsiAnnotation_predictionFeedback")
@@ -417,8 +415,38 @@ annotations.createWSIAnnotationElement = (annotationId, displayName, metaName, a
       approveButton.innerText = "👍"
       approveButton.onclick = (e) => {
         e.stopPropagation()
-        // approveButton.classList.add("active")
-        // await box.updateMetadata(`/${wsi.metadataPathPrefix}_${annotationId}_${}`)
+        if (!e.target.classList.contains("active")) {
+          const feedbackUpdate = {
+            'predictedLabel': label,
+            predictionScore,
+            'userFeedback': true,
+            'createdAt': Date.now()
+          }
+          annotationData.userFeedback = feedbackUpdate
+          wsi.previousUserFeedback[`${x}_${y}_${width}_${height}`] = feedbackUpdate
+
+          const wsiPreviousUserFeedbackFileId = JSON.parse(JSON.parse(window.localStorage.fileMetadata).wsiPredsFiles).find(file => file.annotationId === annotationId && file.modelId === modelId)?.userFeedbackFiles?.[window.localStorage.userId]
+
+          const newFeedbackFormData = new FormData()
+          
+          const newFeedbackBlob = new Blob([JSON.stringify(wsi.previousUserFeedback)], {
+            type: "application/json"
+          })
+          newFeedbackFormData.append("file", newFeedbackBlob)
+
+          box.uploadFile(newFeedbackFormData, wsiPreviousUserFeedbackFileId).then((resp) => {
+            utils.showToast("Feedback Saved!")
+            if (e.target.nextElementSibling.classList.contains("active")) {
+              e.target.nextElementSibling.classList.remove("active")
+            }
+            e.target.classList.add("active")
+          }).catch((err) => {
+            console.log("Error saving feedback to Box!", err)
+            utils.showToast("Some error occurred! Please try later.")
+          })
+          wsi.insertIntoIndexedDB(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, annotationData, [x, y, width, height])
+          
+        }
       }
       
       const rejectButton = document.createElement("button")
@@ -429,9 +457,46 @@ annotations.createWSIAnnotationElement = (annotationId, displayName, metaName, a
       rejectButton.innerText = "👎"
       rejectButton.onclick = (e) => {
         e.stopPropagation()
+        if (!e.target.classList.contains("active")) {
+          const feedbackUpdate = {
+            'predictedLabel': label,
+            predictionScore,
+            'userFeedback': false,
+            'createdAt': Date.now()
+          }
+          annotationData.userFeedback = feedbackUpdate
+          wsi.previousUserFeedback[`${x}_${y}_${width}_${height}`] = feedbackUpdate
+
+          const wsiPreviousUserFeedbackFileId = JSON.parse(JSON.parse(window.localStorage.fileMetadata).wsiPredsFiles).find(file => file.annotationId === annotationId && file.modelId === modelId)?.userFeedbackFiles?.[window.localStorage.userId]
+
+          const newFeedbackFormData = new FormData()
+          const newFeedbackBlob = new Blob([JSON.stringify(wsi.previousUserFeedback)], {
+            type: "application/json"
+          })
+          newFeedbackFormData.append("file", newFeedbackBlob)
+
+          box.uploadFile(newFeedbackFormData, wsiPreviousUserFeedbackFileId).then((resp) => {
+            utils.showToast("Feedback Saved!")
+            if (e.target.previousElementSibling.classList.contains("active")) {
+              e.target.previousElementSibling.classList.remove("active")
+            }
+            e.target.classList.add("active")
+          }).catch((err) => {
+            console.log("Error saving feedback to Box!", err)
+            utils.showToast("Some error occurred! Please try later.")
+          })
+          wsi.insertIntoIndexedDB(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, annotationData, [x, y, width, height])
+
+        }
         // rejectButton.classList.add("active")
       }
       
+      if (userFeedback && userFeedback === true) {
+        approveButton.classList.add("active")
+      } else if (userFeedback && userFeedback === false) {
+        rejectButton.classList.add("active")
+      }
+
       annotationElement.lastElementChild.appendChild(approveButton)
       annotationElement.lastElementChild.appendChild(rejectButton)
       
@@ -496,7 +561,7 @@ annotations.createWSIAnnotationElement = (annotationId, displayName, metaName, a
       }
       parentElement.removeChild(annotationElement)
       if (parentElement.childElementCount === 0) {
-        annotations.populateWSIAnnotations(document.querySelectorAll('.wsiAnnotationType')[0], true)
+        annotations.populateWSIAnnotations(false, true)
       }
       utils.showToast("Annotation Deleted!")
       annotations.showNextImageButton()

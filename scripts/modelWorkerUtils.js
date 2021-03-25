@@ -33,6 +33,12 @@ const fetchIndexedDBInstance = (key) => new Promise(resolve => {
   }
 })
 
+const getBoxUserId = () => new Promise(resolve => {
+  boxCredsDB.transaction(indexedDBConfig['box'].objectStoreName, "readonly").objectStore(indexedDBConfig['box'].objectStoreName).get(1).onsuccess = async (evt) => {
+    resolve(evt.target.result.userId)
+  }
+})
+
 const createFolderInBox = (folderName, parentFolderId=0) => new Promise(resolve => {
   const createFolderEndpoint = "https://api.box.com/2.0/folders"
   const folderDetails = {
@@ -162,30 +168,89 @@ const updateMetadataInBox = (id, path, updateData) => new Promise(resolve => {
 })
 
 const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, wsiPredsFiles=[]) => {
+  const userId = await getBoxUserId()
+  let { wsiPredsFolderId } = datasetConfig
+
   let datasetConfigChanged = false
   let fileMetadataChanged = false
 
-  let wsiPredsFileId = wsiPredsFiles.find(file => file.annotationId === annotationId && file.modelId === modelId)?.fileId || undefined
-  
-  if (wsiPredsFileId) {
+  let returnObj = {}
+
+  let wsiPredsFile = wsiPredsFiles.find(file => file.annotationId === annotationId && file.modelId === modelId) || undefined
+  if (wsiPredsFile?.fileId) {
+    
     try {
-      const previousPredictions = await getFileContentFromBox(wsiPredsFileId, false, "json")
-      return {
-        datasetConfigChanged,
-        fileMetadataChanged,
-        previousPredictions
+      let wsiPredsUserFeedback = {}
+      
+      if (wsiPredsFile.userFeedbackFiles?.[userId]) {
+        wsiPredsUserFeedback = await getFileContentFromBox(wsiPredsFile.userFeedbackFiles[userId], false, "json")     
+      } else {
+        wsiPredsFile.userFeedbackFiles = wsiPredsFile.userFeedbackFiles || {}
+        
+        const dataBlob = new Blob([JSON.stringify({})], {
+          type: "application/json"
+        })
+        let fileAttributes = {
+          'name': `${imageId}_${annotationId}_${modelId}_${userId}_feedback.json`,
+          'parent': {
+            'id': wsiPredsFolderId
+          }
+        }
+        
+        let formData = new FormData()
+        formData.append("attributes", JSON.stringify(fileAttributes))
+        formData.append("file", dataBlob)
+        
+        const wsiPredsUserFeedbackFileReq = await uploadFileToBox(formData)
+        wsiPredsFile.userFeedbackFiles[userId] = wsiPredsUserFeedbackFileReq.entries[0].id
+        
+        const metadataIndexToUpdate = wsiPredsFiles.findIndex(file => file.annotationId === annotationId && file.modelId === modelId)
+        wsiPredsFiles[metadataIndexToUpdate] = wsiPredsFile
+
+        const metadataPath = "/wsiPredsFiles"
+        const newMetadata = await updateMetadataInBox(imageId, metadataPath, JSON.stringify(wsiPredsFiles))
+        fileMetadataChanged = true
+
+        returnObj = {
+          fileMetadataChanged,
+          newMetadata,
+          ...returnObj
+        }
       }
+      const previousPredictions = await getFileContentFromBox(wsiPredsFile.fileId, false, "json")
+      previousPredictions.forEach((prediction, index) => {
+        prediction = {
+          modelId,
+          ...prediction
+        }
+        if (Object.keys(wsiPredsUserFeedback).length > 0) {
+          const tileKey = `${prediction.x}_${prediction.y}_${prediction.width}_${prediction.height}`
+          if (wsiPredsUserFeedback[tileKey]) {
+            prediction = {
+              userFeedback: wsiPredsUserFeedback[tileKey].userFeedback,
+              ...prediction
+            }
+          }
+        }
+        previousPredictions[index] = prediction
+      })
+
+      returnObj = {
+        datasetConfigChanged,
+        previousPredictions,
+        ...returnObj
+      }
+      return returnObj
     } catch (e) {
       console.log("Error getting previously made predictions from Box!", e.message)
       if (e.message === "404") {
-        const predsFilesWithoutCurrentId = wsiPredsFiles.filter(file => file.fileId !== wsiPredsFileId)
-        return getPredsFromBox(imageId, annotationId, modelId, predsFilesWithoutCurrentId, datasetConfig)
+        const predsFilesWithoutCurrentId = wsiPredsFiles.filter(file => file.fileId !== wsiPredsFile.fileId)
+        return getPredsFromBox(imageId, annotationId, modelId, datasetConfig, predsFilesWithoutCurrentId)
       }
     }
 
   } else {
     const { datasetConfigFolderId } = datasetConfig
-    let { wsiPredsFolderId } = datasetConfig
  
     if (!wsiPredsFolderId) {
       const wsiPredsFolderEntry = await createFolderInBox("wsiPreds", datasetConfigFolderId)
@@ -202,25 +267,40 @@ const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, ws
       datasetConfigChanged = true
     }
 
-    const formData = new FormData()
     const dataBlob = new Blob([JSON.stringify([])], {
       type: "application/json"
     })
-    const fileAttributes = {
+    let fileAttributes = {
       'name': `${imageId}_${annotationId}_${modelId}.json`,
       'parent': {
         'id': wsiPredsFolderId
       }
     }
+    
+    let formData = new FormData()
     formData.append("attributes", JSON.stringify(fileAttributes))
     formData.append("file", dataBlob)
-    let wsiPredsFileReq = await uploadFileToBox(formData)
+    const wsiPredsFileReq = await uploadFileToBox(formData)
+
+    fileAttributes = {
+      'name': `${imageId}_${annotationId}_${modelId}_${userId}_feedback.json`,
+      'parent': {
+        'id': wsiPredsFolderId
+      }
+    }
+    formData = new FormData()
+    formData.append("attributes", JSON.stringify(fileAttributes))
+    formData.append("file", dataBlob)
+    const wsiPredsUserFeedbackFileReq = await uploadFileToBox(formData)
+    const userFeedbackFiles = {}
+    userFeedbackFiles[userId] = wsiPredsUserFeedbackFileReq.entries[0].id
 
     wsiPredsFiles = wsiPredsFiles || []
     const newPredFileMetadata = {
       'fileId': wsiPredsFileReq.entries[0].id,
       annotationId,
-      modelId
+      modelId,
+      userFeedbackFiles
     }
     wsiPredsFiles.push(newPredFileMetadata)
 
@@ -228,7 +308,7 @@ const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, ws
     const newMetadata = await updateMetadataInBox(imageId, metadataPath, JSON.stringify(wsiPredsFiles))
     fileMetadataChanged = true
     
-    const returnObj = {
+    returnObj = {
       'previousPredictions': [],
       datasetConfigChanged,
       fileMetadataChanged

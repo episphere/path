@@ -73,7 +73,10 @@ const box = async () => {
         }
       })
       if (resp["access_token"]) {
-        storeCredsToLS(resp)
+        box.storeCredsToLS({
+          'userId': window.localStorage?.userId,
+          ...resp
+        })
         return true
       }
     } catch (err) {
@@ -83,16 +86,16 @@ const box = async () => {
     throw new Error("Failed to get access token from Box!", type)
   }
 
-  const storeCredsToLS = (boxCreds) => {
+  box.storeCredsToLS = (boxCreds) => {
     const newCreds = {
       'created_at': Date.now(),
       ...boxCreds
     }
     window.localStorage.box = JSON.stringify(newCreds)
-    storeCredsToIndexedDB(newCreds)
+    box.storeCredsToIndexedDB(newCreds)
   }
 
-  const storeCredsToIndexedDB = (boxCreds) => {
+  box.storeCredsToIndexedDB = (boxCreds) => {
     path.boxCredsDB.transaction(indexedDBConfig['box'].objectStoreName, "readwrite").objectStore(indexedDBConfig['box'].objectStoreName).put(boxCreds, 1)
     if (box.refreshTokenBeforeExpiry) {
       clearTimeout(box.refreshTokenBeforeExpiry)
@@ -158,6 +161,10 @@ const box = async () => {
 box.getUserProfile = async () => {
   const { id, name, login } = await utils.boxRequest(box.endpoints["user"])
   window.localStorage.userId = id
+  box.storeCredsToLS({
+    'userId': id,
+    ...JSON.parse(window.localStorage.box)
+  })
   window.localStorage.username = name
   window.localStorage.email = login
   return name

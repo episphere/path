@@ -3,7 +3,8 @@ const EPSILON = Math.pow(10, -11)
 wsi.defaultLabelOverlayColors = ['#33a02c99','#e31a1c99','#1f78b499','#6a3d9a99','#ff7f0099','#b1592899','#a6cee399','#b2df8a99','#fb9a9999','#fdbf6f99','#cab2d699','#ffff9999']
 
 wsi.metadataPathPrefix = "wsi"
-wsi.customMetadataPathPrefix = "wsi_customAnnotation_0"
+wsi.customMetadataPathPrefix = `${wsi.metadataPathPrefix}_customAnnotation_0`
+wsi.userFeedbackForPredictionPrefix = `${wsi.metadataPathPrefix}_feedback`
 wsi.tileServerBasePath = "https://dl-test-tma.uc.r.appspot.com/iiif"
 
 const reloadImageAfterURLTimeout = (id) => wsi.loadImage(id)
@@ -171,7 +172,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
                     'label': newAnnotation.label || `${displayName} ${labels[0].displayText}`,
                     'createdAt': newAnnotation.createdAt
                   }
-                  annotations.createWSIAnnotationElement(annotationId, displayName, metaName, annotationOverlayData, {modelAnnotation: true, selectedLabels: wsi.defaultSelectedLabels, requestedTileSize: wsi.defaultTileSize, addToParent: true})
+                  annotations.createWSIAnnotationElement(annotationId, metaName, annotationOverlayData, {modelAnnotation: false, addToParent: true})
                 })
               }
             }
@@ -420,7 +421,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
                     'threshold': 0.5
                   })
                   wsi.overlayPreviousPredictions(wsi.defaultSelectedLabels, parseInt(document.getElementById(`wsiVisibilitySettings_tileSizeSelect`).value))
-                  annotations.populateWSIAnnotations(document.getElementById("wsiAnnotationTypeModel"), true)
+                  annotations.populateWSIAnnotations(true, true)
                   labelColorInput.removeAttribute("disabled")
                   labelOpacitySlider.removeAttribute("disabled")
                 } else {
@@ -433,7 +434,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
                   })
                   labelColorInput.setAttribute("disabled", "true")
                   labelOpacitySlider.setAttribute("disabled", "true")
-                  annotations.populateWSIAnnotations(document.getElementById("wsiAnnotationTypeModel"), true)
+                  annotations.populateWSIAnnotations(true, true)
                 }
               }
   
@@ -493,7 +494,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
             })
             wsi.defaultTileSize = parseInt(e.target.value)
             wsi.overlayPreviousPredictions(wsi.defaultSelectedLabels, wsi.defaultTileSize)
-            annotations.populateWSIAnnotations(document.getElementById("wsiAnnotationTypeModel"), true)
+            annotations.populateWSIAnnotations(true, true)
           }
 
           const predictionTileSizeSelectLabel = `<label class="form-check-label" for="wsiVisibilitySettings_tileSizeSelect">Predictions Zoom Level: &nbsp</label>`
@@ -605,7 +606,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
     path.wsiViewer.imageLoadedAtTime = Date.now()
     wsi.removePanAndZoomFromHash()
     wsi.clearIndexedDB().then(() => {
-      annotations.populateWSIAnnotations(document.querySelector(`.wsiAnnotationType.active`), true)
+      annotations.populateWSIAnnotations(true, true)
     })
   }
   
@@ -629,7 +630,6 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       path.wsiCanvasLoaded = true
       wsi.handlePanAndZoom()
       wsi.setDefaultOverlayOptions()
-      utils.showToast("Loading Predictions...")
       document.removeEventListener("datasetConfigSet", wsi.datasetChangeHandler)
       wsi.datasetChangeHandler = () => {
         wsi.stopModel()
@@ -676,45 +676,45 @@ wsi.loadImage = async (id, fileMetadata={}) => {
     console.error("Error opening Tile Source", e)
   })
 
-  // const handleBoxURLExpiry = () => {
-  //   path.wsiViewer.removeAllHandlers("tile-load-failed")
-  //   clearTimeout(wsi.failedTileHandlerTimeout)
-  //   // Handle Box URL expiry. Get new URL and replace the tile source.
-  //   wsi.failedTileHandlerTimeout = setTimeout(() => path.wsiViewer.addOnceHandler("tile-load-failed", async (e) => {
-  //     console.log("Tile Load Failed, trying to reset URL!!!!!!!", e)
-  //     // Box URLs expire in 15 mins, so checking to see if enough time has elapsed for the load failure reason to be URL expiry.
-  //     if (Date.now() > path.wsiViewer.imageLoadedAtTime + (14*60*1000)) {
-  //       showLoader(loaderElementId, path.wsiViewer.element)
-  //       const oldImage = path.wsiViewer.world.getItemAt(0)
-  //       const oldBounds = oldImage.getBounds()
-  //       const oldTileSource = oldImage.source
+  const handleBoxURLExpiry = () => {
+    path.wsiViewer.removeAllHandlers("tile-load-failed")
+    clearTimeout(wsi.failedTileHandlerTimeout)
+    // Handle Box URL expiry. Get new URL and replace the tile source.
+    wsi.failedTileHandlerTimeout = setTimeout(() => path.wsiViewer.addOnceHandler("tile-load-failed", async (e) => {
+      console.log("Tile Load Failed, trying to reset URL!!!!!!!", e)
+      // Box URLs expire in 15 mins, so checking to see if enough time has elapsed for URL expiry to be the reason for tile failure.
+      if (Date.now() > path.wsiViewer.imageLoadedAtTime + (14*60*1000)) {
+        showLoader(loaderElementId, path.wsiViewer.element)
+        const oldImage = path.wsiViewer.world.getItemAt(0)
+        const oldBounds = oldImage.getBounds()
+        const oldTileSource = oldImage.source
         
-  //       const refreshedFileURL = await box.getFileContent(id, false, true)
-  //       const newTileSourceURL = `${wsi.tileServerBasePath}/?iiif=${refreshedFileURL}`
-  //       const newTileSource = {
-  //         ...oldTileSource,
-  //         "@id": newTileSourceURL
-  //       }
+        const refreshedFileURL = await box.getFileContent(id, false, true)
+        const newTileSourceURL = `${wsi.tileServerBasePath}/?iiif=${refreshedFileURL}`
+        const newTileSource = {
+          ...oldTileSource,
+          "@id": newTileSourceURL
+        }
 
-  //       path.wsiViewer.addTiledImage({
-  //         tileSource: newTileSource,
-  //         x: oldBounds.x,
-  //         y: oldBounds.y,
-  //         width: oldBounds.width,
-  //         success: () => {
-  //           path.wsiViewer.world.removeItem(oldImage)
-  //           hideLoader(loaderElementId)
-  //           handleBoxURLExpiry()
-  //         }
-  //       })
-  //     }
-  //   }), 2*60*1000)
-  // }
-  // handleBoxURLExpiry()
+        path.wsiViewer.addTiledImage({
+          tileSource: newTileSource,
+          x: oldBounds.x,
+          y: oldBounds.y,
+          width: oldBounds.width,
+          success: () => {
+            path.wsiViewer.world.removeItem(oldImage)
+            hideLoader(loaderElementId)
+            handleBoxURLExpiry()
+          }
+        })
+      }
+    }), 2*60*1000)
+  }
+  handleBoxURLExpiry()
 
   path.tmaCanvasLoaded = false
   path.isImageFromBox = true
-  path.isThumbnail = false
+  path.isThumbnail = false  
 
 }
 
@@ -730,8 +730,8 @@ wsi.startPrediction = (annotationId, imageId, width, height, predictionBounds, w
   wsi.createOverlayRect({
     "type": "wsiProcessing",
     "rectBounds": processOverlayRect,
-    "tooltipText": "Running Model over this region"
-  })
+      "tooltipText": "Running Model over this region"
+    })
   path.wsiViewer.controls[path.wsiViewer.controls.length - 1].autoFade = false
 }
 
@@ -967,21 +967,29 @@ wsi.createOverlayRect = (opts) => {
   
 }
 
-wsi.getPreviousPredsFromBox = (fileMetadata=JSON.parse(window.localStorage.fileMetadata)) => {
-  const annotationId = path.datasetConfig?.annotations[0]?.annotationId
-  if (!annotationId) {
+wsi.getPreviousPredsFromBox = async (fileMetadata=JSON.parse(window.localStorage.fileMetadata)) => {
+  const annotation = path.datasetConfig?.annotations[0]
+  if (!annotation) {
     return
   }
 
   const imageId = hashParams.image
-  const modelId = path.datasetConfig.models.trainedModels.filter(x => x.correspondingAnnotation === annotationId).reduce((maxVersion, current) => maxVersion.version < current.version ? current : maxVersion, {version: -1}).id
+  const modelId = path.datasetConfig.models.trainedModels.filter(x => x.correspondingAnnotation === annotation.annotationId).reduce((maxVersion, current) => maxVersion.version < current.version ? current : maxVersion, {version: -1}).id
   const wsiPredsFiles = fileMetadata.wsiPredsFiles ? JSON.parse(fileMetadata.wsiPredsFiles) : undefined
+  wsi.previousUserFeedback = {}
+  if (wsiPredsFiles) {
+    const wsiPreviousUserFeedbackFileId = wsiPredsFiles.find(file => file.annotationId === annotation.annotationId && file.modelId === modelId)?.userFeedbackFiles?.[window.localStorage.userId]
+    if (wsiPreviousUserFeedbackFileId) {
+      wsi.userFeedbackFileId = wsiPreviousUserFeedbackFileId
+      wsi.previousUserFeedback = await box.getFileContent(wsiPreviousUserFeedbackFileId, true, false)
+    }
+  }
   const datasetConfig = {
     ...path.datasetConfig,
     'datasetConfigFileId': box.currentDatasetConfigFileId
   }
-
-  models.getPreviousWSIPredsFromBox(imageId, annotationId, modelId, datasetConfig, wsiPredsFiles)
+  utils.showToast("Loading Predictions...")
+  models.getPreviousWSIPredsFromBox(imageId, annotation.annotationId, modelId, datasetConfig, wsiPredsFiles)
 }
 
 wsi.handleMessage = (data, op) => {
@@ -1000,6 +1008,7 @@ wsi.handleMessage = (data, op) => {
       document.dispatchEvent(previousPredsReadyEvent)
     }
     wsi.overlayPreviousPredictions()
+    annotations.populateWSIAnnotations(true, true)
 
     return
   } else if (op === "stop") {
@@ -1022,7 +1031,7 @@ wsi.handleMessage = (data, op) => {
       if (data.prediction) {
         const highestValuePrediction = data.prediction.reduce((maxPred, current) => maxPred.prob > current.prob ? maxPred : current, {prob: 0})
         const annotation = path.datasetConfig.annotations.find(annot => annot.annotationId === data.annotationId)
-        annotations.createWSIAnnotationElement(annotation.annotationId, annotation.displayName, annotation.metaName, data, {modelAnnotation: true, selectedLabels: wsi.defaultSelectedLabels, addToParent:true})
+        annotations.createWSIAnnotationElement(annotation.annotationId, annotation.metaName, data, {modelAnnotation: true, selectedLabels: wsi.defaultSelectedLabels, addToParent:true})
         
         if (wsi.defaultSelectedLabels.find(selectedLabel => selectedLabel.label === highestValuePrediction.label) ) {
           const tooltip = `${annotation.displayName}\n${annotation.labels.find(definedLabel => definedLabel.label === highestValuePrediction.label).displayText}: ${Math.round((highestValuePrediction.prob + Number.EPSILON) * 1000) / 1000 }`
@@ -1080,7 +1089,9 @@ wsi.stopWorkers = () => {
 
 wsi.removeOverlays = (removeAll, className="") => {
   if (removeAll) {
-    path.wsiViewer.currentOverlays.forEach(overlay => requestAnimationFrame(() => path.wsiViewer.removeOverlay(overlay.element)))
+    path.wsiViewer.currentOverlays.forEach(overlay => requestAnimationFrame(() => {
+      path.wsiViewer.removeOverlay(overlay.element)
+    }))
   } else if (className) {
     path.wsiViewer.currentOverlays.forEach(overlay => {
       if (overlay.element.classList.contains(className)) {
@@ -1144,7 +1155,8 @@ wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reje
       resolve({result: e.target.result})
     }
   } else if (Array.isArray(queryOpts.query) || typeof(queryOpts.query) === "string" || typeof(queryOpts.query) === "number") {
-    const attemptGet = objectStoreTransaction.get(key)
+    // Return a single row.
+    const attemptGet = objectStoreTransaction.get(queryOpts.query)
     attemptGet.onsuccess = (e) => {
       resolve({result: e.target.result})
     }
@@ -1152,6 +1164,7 @@ wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reje
       reject(e.target.result)
     }
   } else {
+    // Return a paginated response.
     // let numRecords = 0
     objectStoreTransaction.count(queryOpts.query).onsuccess = (e) => {
       // numRecords = e.target.result
@@ -1219,6 +1232,18 @@ wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reje
     }
   }
    
+})
+
+wsi.insertIntoIndexedDB = (objectStore, data, key) => new Promise(resolve => {
+  const objectStoreTransaction = wsi.predsDB.transaction(objectStore, "readwrite").objectStore(objectStore)
+  if (key) {
+    const cursorRequest = objectStoreTransaction.openCursor(key)
+    cursorRequest.onsuccess = (evt) => {
+      evt.target.result.update(data).onsuccess = ({target}) => resolve(target.result)
+    }
+  } else {
+    objectStoreTransaction.put(data).onsuccess = ({target}) => resolve(target.result)  
+  }
 })
 
 wsi.clearIndexedDB = () => new Promise (resolveAll => {

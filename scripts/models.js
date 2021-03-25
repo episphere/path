@@ -95,7 +95,7 @@ models.getWSIPrediction = (annotationId, imageId=hashParams.image, imageInfo={},
   }
 }
 
-models.getPreviousWSIPredsFromBox = (imageId, annotationId, modelId, datasetConfig, wsiPredsFiles) => {
+models.getPreviousWSIPredsFromBox = (imageId, annotationId, modelId, datasetConfig, wsiPredsFiles, wsiPredsUserFeedback) => {
   if (dataset.predictionWorkers[annotationId]) {
     dataset.predictionWorkers[annotationId].postMessage({
       'op': "getPreviousPreds",
