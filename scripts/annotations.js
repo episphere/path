@@ -502,6 +502,9 @@ annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData
       
       if (addToParent) {
         const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_model`)
+        if (!annotationsContainerElement.firstElementChild.classList.contains(annotationElement.className)) {
+          annotationsContainerElement.removeChild(annotationsContainerElement.firstElementChild)
+        }
         annotationsContainerElement.appendChild(document.createElement("hr"))
         annotationsContainerElement.appendChild(annotationElement)
         annotationElement.scrollIntoView({block: 'end'})
@@ -571,7 +574,7 @@ annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData
 
     if (addToParent) {
       const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_user`)
-      if (annotationsContainerElement.firstElementChild.classList.contains("wsiNoAnnotationsMsg")) {
+      if (!annotationsContainerElement.firstElementChild.classList.contains(annotationElement.className)) {
         annotationsContainerElement.removeChild(annotationsContainerElement.firstElementChild)
       }
       annotationsContainerElement.appendChild(document.createElement("hr"))

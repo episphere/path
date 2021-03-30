@@ -757,7 +757,7 @@ path.loadWSIOptions = () => {
 //   tools.addPredictionOptions()
 // }
 
-path.modifyHashString = (hashObj) => {
+path.modifyHashString = (hashObj, removeFromHistory=false) => {
   // hashObj contains hash keys with corresponding values to update. To remove a hash parameter, the
   // value corresponding to the hash param should be undefined in the hashObj.
   let hash = decodeURIComponent(window.location.hash)
@@ -784,6 +784,10 @@ path.modifyHashString = (hashObj) => {
     }
   })
   window.location.hash = hash
+
+  if (removeFromHistory) {
+    history.replaceState({}, '', window.location.pathname + window.location.hash)
+  }
 }
 
 path.selectImage = (imageId) => {

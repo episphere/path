@@ -35,6 +35,11 @@ wsi.loadImage = async (id, fileMetadata={}) => {
   if (!path.wsiOptions) {
     path.loadWSIOptions()
   }
+  if (path.datasetConfig) {
+    wsi.setDefaultOverlayOptions()
+  } else {
+    document.addEventListener("datasetConfigSet", wsi.setDefaultOverlayOptions)
+  }
   // path.toolsDiv.parentElement.style.display = "none"
   // path.tmaOptions = false
   path.tmaCanvas.parentElement.style.display = "none"
@@ -586,7 +591,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
           'wsiCenterX': center.x,
           'wsiCenterY': center.y,
           'wsiZoom': zoom
-        })
+        }, true)
       }
       if (wsi.predsDB) {
         wsi.overlayPreviousPredictions()
@@ -609,7 +614,6 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       annotations.populateWSIAnnotations(true, true)
     })
   }
-  
   path.wsiViewer.removeAllHandlers('open')
   path.wsiViewer.addOnceHandler('open', (e) => {
     path.wsiViewer.element.querySelectorAll(".wsiControlBtn").forEach(element => {
@@ -629,7 +633,6 @@ wsi.loadImage = async (id, fileMetadata={}) => {
     path.wsiViewer.world.getItemAt(0).addOnceHandler('fully-loaded-change', async (e) => {
       path.wsiCanvasLoaded = true
       wsi.handlePanAndZoom()
-      wsi.setDefaultOverlayOptions()
       document.removeEventListener("datasetConfigSet", wsi.datasetChangeHandler)
       wsi.datasetChangeHandler = () => {
         wsi.stopModel()
@@ -761,7 +764,7 @@ wsi.removePanAndZoomFromHash = () => {
     'wsiCenterX': undefined,
     'wsiCenterY': undefined,
     'wsiZoom': undefined
-  })
+  }, true)
 }
 
 wsi.setDefaultOverlayOptions = (forceReload=false) => {
