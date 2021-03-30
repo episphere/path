@@ -100,8 +100,6 @@ const box = async () => {
     if (box.refreshTokenBeforeExpiry) {
       clearTimeout(box.refreshTokenBeforeExpiry)
     }
-
-    console.log("Resetting Refresh Timeout for ", new Date(boxCreds.created_at + ((boxCreds.expires_in - 2 * 60) * 1000)))
     box.refreshTokenBeforeExpiry = setTimeout(() => {
       console.log("REFRESH SUCCESSFUL")
       box.isLoggedIn()
