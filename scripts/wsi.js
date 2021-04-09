@@ -584,7 +584,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
 
     path.wsiViewer.addHandler('animation-finish', (e) => {
       const center = path.wsiViewer.viewport.getCenter()
-      const zoom = path.wsiViewer.viewport.getZoom()
+      const zoom = utils.roundToPrecision(path.wsiViewer.viewport.getZoom(), 3)
 
       if (center.x !== parseFloat(hashParams.wsiCenterX) || center.y !== parseFloat(hashParams.wsiCenterY) || zoom !== parseFloat(hashParams.wsiZoom)) {
         path.modifyHashString({
@@ -603,7 +603,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       // console.log(e)
       // })
   } else {
-    showLoader(loaderElementId, path.wsiViewerDiv)
+    showLoader(loaderElementId, path.wsiViewer.canvas)
     const wsiCanvas = path.wsiViewer.canvas.querySelector("canvas")
     const wsiCtx = wsiCanvas.getContext("2d")
     wsiCtx.clearRect(0, 0, wsiCanvas.width, wsiCanvas.height)
@@ -628,11 +628,15 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       element.style.cursor = "not-allowed"
     })
     
+    wsi.loadZoomSlider()
     wsi.stopModel()
     
     path.wsiViewer.world.getItemAt(0).addOnceHandler('fully-loaded-change', async (e) => {
       path.wsiCanvasLoaded = true
       wsi.handlePanAndZoom()
+      document.getElementById("wsiZoomSliderDiv").querySelectorAll("input").forEach(element => {
+        element.removeAttribute("disabled")
+      })
       document.removeEventListener("datasetConfigSet", wsi.datasetChangeHandler)
       wsi.datasetChangeHandler = () => {
         wsi.stopModel()
@@ -687,7 +691,7 @@ wsi.loadImage = async (id, fileMetadata={}) => {
       console.log("Tile Load Failed, trying to reset URL!!!!!!!", e)
       // Box URLs expire in 15 mins, so checking to see if enough time has elapsed for URL expiry to be the reason for tile failure.
       if (Date.now() > path.wsiViewer.imageLoadedAtTime + (14*60*1000)) {
-        showLoader(loaderElementId, path.wsiViewer.element)
+        showLoader(loaderElementId, path.wsiViewer.canvas)
         const oldImage = path.wsiViewer.world.getItemAt(0)
         const oldBounds = oldImage.getBounds()
         const oldTileSource = oldImage.source
@@ -719,6 +723,84 @@ wsi.loadImage = async (id, fileMetadata={}) => {
   path.isImageFromBox = true
   path.isThumbnail = false  
 
+}
+
+wsi.loadZoomSlider = () => {
+  const handleZoom = (element) => {
+    let zoomValue = parseFloat(element.value)
+    if (zoomValue < path.wsiViewer.viewport.getMinZoom()) {
+      zoomValue = path.wsiViewer.viewport.getMinZoom()
+    } else if (zoomValue > path.wsiViewer.viewport.getMaxZoom()) {
+      zoomValue = path.wsiViewer.viewport.getMaxZoom()
+    }
+    path.wsiViewer.viewport.zoomTo(zoomValue)
+  }
+
+  let zoomSliderDiv = document.getElementById("wsiZoomSliderDiv")
+  if (!zoomSliderDiv) {
+    zoomSliderDiv = document.createElement("div")
+    zoomSliderDiv.setAttribute("id", "wsiZoomSliderDiv")
+    zoomSliderDiv.innerHTML = `
+      <div style="display:flex;"><i class="fas fa-search-plus" style="margin: 0.3rem 0; font-size: 20px;"></i></div>
+      <div style="width:100%;"></div>
+    `
+    const zoomSliderRange = document.createElement("input")
+    zoomSliderRange.setAttribute("id", "wsiZoomSlider")
+    zoomSliderRange.setAttribute("type", "range")
+    zoomSliderRange.setAttribute("min", "1")
+    zoomSliderRange.setAttribute("max", "40")
+    zoomSliderRange.setAttribute("value", `${Math.min(40, path.wsiViewer?.viewport?.getZoom())}`)
+    zoomSliderRange.setAttribute("list", "zoomSteps")
+    zoomSliderRange.setAttribute("disabled", "true")
+    zoomSliderRange.oninput = () => handleZoom(zoomSliderRange)
+    const zoomSliderDatalist = `
+      <datalist id="zoomSteps" style="--list-length: 9;">
+        <option value="1">1X</option>
+        <option value="5">5X</option>
+        <option value="10">10X</option>
+        <option value="15">15X</option>
+        <option value="20">20X</option>
+        <option value="25">25X</option>
+        <option value="30">30X</option>
+        <option value="35">35X</option>
+        <option value="40">40X</option>
+      </datalist>
+    `
+    zoomSliderDiv.lastElementChild.appendChild(zoomSliderRange)
+    zoomSliderDiv.lastElementChild.insertAdjacentHTML('beforeend', zoomSliderDatalist)
+
+    const zoomSliderText = document.createElement("input")
+    zoomSliderText.setAttribute("id", "wsiZoomSliderText")
+    zoomSliderText.setAttribute("type", "text")
+    zoomSliderText.setAttribute("value", `${utils.roundToPrecision(path.wsiViewer?.viewport?.getZoom(), 3)}X`)
+    zoomSliderText.setAttribute("disabled", "true")
+    zoomSliderText.addEventListener("focusin", () => {
+      zoomSliderText.value = zoomSliderText.value.slice(0, -1)
+      zoomSliderText.setAttribute('type', 'number')
+    })
+    zoomSliderText.addEventListener("focusout", () => {
+      zoomSliderText.setAttribute('type', 'text')
+      zoomSliderText.value = zoomSliderText.value + 'X';
+    })
+    zoomSliderText.onchange = () => handleZoom(zoomSliderText)
+    
+    zoomSliderDiv.appendChild(zoomSliderText)
+    path.wsiViewerDiv.appendChild(zoomSliderDiv)
+   
+    path.wsiViewer.addHandler('zoom', () => {
+      const currentZoomLevel = utils.roundToPrecision(path.wsiViewer.viewport.getZoom(), 3)
+      zoomSliderRange.value = Math.min(currentZoomLevel, parseFloat(zoomSliderRange.getAttribute("max")))
+      zoomSliderText.value = currentZoomLevel
+      if (zoomSliderText.getAttribute("type") === "text") {
+        zoomSliderText.value += "X"
+      }
+    })
+  } else {
+    zoomSliderDiv.querySelectorAll("input").forEach(element => {
+      element.setAttribute("disabled", "true")
+    })
+  }
+  
 }
 
 wsi.startPrediction = (annotationId, imageId, width, height, predictionBounds, wsiPredsFileId) => {
@@ -1251,7 +1333,7 @@ wsi.clearIndexedDB = () => new Promise (resolveAll => {
     const objectStore = wsi.predsDB.transaction(objectStoreName, "readwrite").objectStore(objectStoreName)
     return objectStore.clear()
   })).then(() => {
-    wsi.predsDB.transaction(wsi.predsDB.objectStoreNames[0], "readonly").objectStore(wsi.predsDB.objectStoreNames[0]).count().onsuccess = (e)=> console.log(e.target)
+    // wsi.predsDB.transaction(wsi.predsDB.objectStoreNames[0], "readonly").objectStore(wsi.predsDB.objectStoreNames[0]).count().onsuccess = (e)=> console.log(e.target)
     resolveAll()
   })
 })

@@ -158,6 +158,10 @@ const utils = {
         }
       }, 7000) //For bug where toast doesn't go away the second time an annotation is made.
     }
+  },
+
+  roundToPrecision: (value, precision) => {
+    return Math.round((parseFloat(value)  + Number.EPSILON) * 10**precision) / 10**precision
   }
 }
 
