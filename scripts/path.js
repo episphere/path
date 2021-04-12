@@ -513,7 +513,7 @@ const loadImageFromBox = async (id, url) => {
           document.documentElement.style.setProperty("--tabsContainerWidth", "35%")
           document.documentElement.style.setProperty("--tmaCanvasWidth", "65%")
           path.tmaImage.setAttribute("entry_id", id)
-          wsi.loadImage(id, fileMetadata)
+          wsi.loadImage(id, name, fileMetadata)
         } else {
 
           if (name.endsWith(".tiff")) {

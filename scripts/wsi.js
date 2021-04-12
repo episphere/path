@@ -5,9 +5,9 @@ wsi.defaultLabelOverlayColors = ['#33a02c99','#e31a1c99','#1f78b499','#6a3d9a99'
 wsi.metadataPathPrefix = "wsi"
 wsi.customMetadataPathPrefix = `${wsi.metadataPathPrefix}_customAnnotation_0`
 wsi.userFeedbackForPredictionPrefix = `${wsi.metadataPathPrefix}_feedback`
-wsi.tileServerBasePath = "https://dl-test-tma.uc.r.appspot.com/iiif"
+wsi.tileServerBasePath = "https://imageboxv2-oxxe7c4jbq-uc.a.run.app/iiif"
 
-const reloadImageAfterURLTimeout = (id) => wsi.loadImage(id)
+const reloadImageAfterURLTimeout = (id, name) => wsi.loadImage(id, name)
 
 wsi.checkServiceWorkerRegistration = async () => {
   const addedServiceWorkers = await window.navigator.serviceWorker.getRegistrations()
@@ -31,7 +31,7 @@ wsi.registerServiceWorker = () => new Promise((resolve, reject) => {
   });
 })
 
-wsi.loadImage = async (id, fileMetadata={}) => {
+wsi.loadImage = async (id, name, fileMetadata={}) => {
   if (!path.wsiOptions) {
     path.loadWSIOptions()
   }
@@ -51,8 +51,8 @@ wsi.loadImage = async (id, fileMetadata={}) => {
   showLoader(loaderElementId, path.wsiViewerDiv)
   // await wsi.checkServiceWorkerRegistration()
   const url = await box.getFileContent(id, false, true)
-  
-  const tileServerRequestURL = `${wsi.tileServerBasePath}/?iiif=${url}`;
+  const format = name.substring(name.lastIndexOf(".") + 1)
+  const tileServerRequestURL = `${wsi.tileServerBasePath}/?format=${format}&iiif=${url}`;
   const infoURL = `${tileServerRequestURL}/info.json`
   let imageInfo = fileMetadata.wsiInfo ? JSON.parse(fileMetadata.wsiInfo) : undefined
   if (!imageInfo) {
