@@ -104,9 +104,10 @@ onmessage = async (evt) => {
       annotationId = data.body.annotationId
       prediction = await getAllWSIDataFromIndexedDB(annotationId)
       imageId = data.body.imageData.imageId
-      let { imageInfo, predictionBounds, wsiPredsFileId } = data.body.imageData
-      
-      const tileServerBasePath = "https://dl-test-tma.uc.r.appspot.com/iiif"
+      let { imageName, imageInfo, predictionBounds, wsiPredsFileId } = data.body.imageData
+      const fileFormat = imageName.substring(imageName.lastIndexOf(".") + 1)
+
+      const tileServerBasePath = "https://imageboxv2-oxxe7c4jbq-uc.a.run.app/iiif"
       
       const wsiTilePrediction = async (tileInfo) => {
         const { imageId, imageURL, x, y, width, height, attemptNum } = tileInfo
@@ -120,7 +121,7 @@ onmessage = async (evt) => {
             'fromLocalDB': true
           }
         } else if (x >= 0 && y >= 0 && width >= 0 && height >= 0) {
-          const tileServerRequest = `${tileServerBasePath}/?iiif=${imageURL}/${x},${y},${width},${height}/${width > maxTileImageDimension ? maxTileImageDimension: width},/0/default.jpg`
+          const tileServerRequest = `${tileServerBasePath}/?format=${fileFormat}&iiif=${imageURL}/${x},${y},${width},${height}/${width > maxTileImageDimension ? maxTileImageDimension: width},/0/default.jpg`
           try {
             const tileBlob = await (await fetch(tileServerRequest)).blob()
             const tileImageBitmap = await createImageBitmap(tileBlob)
@@ -186,7 +187,7 @@ onmessage = async (evt) => {
         lastURLRefreshTime = Date.now()
         
         if (!imageInfo) {
-          const p = `${tileServerBasePath}/?iiif=${url}`
+          const p = `${tileServerBasePath}/?format=${fileFormat}&iiif=${url}`
           const infoURL = `${p}/info.json`
           imageInfo = await (await fetch(infoURL)).json()
         }

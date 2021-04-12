@@ -75,7 +75,7 @@ models.getTMAPrediction = (annotationId, annotationType, imageId=hashParams.imag
   //   return tmpCanvas.toDataURL().split("base64,")[1]
   // }
 
-models.getWSIPrediction = (annotationId, imageId=hashParams.image, imageInfo={}, predictionBounds={}, wsiPredsFileId, forceModel=false) => {
+models.getWSIPrediction = (annotationId, imageId=hashParams.image, imageName, imageInfo={}, predictionBounds={}, wsiPredsFileId, forceModel=false) => {
   if (dataset.predictionWorkers[annotationId] && dataset.modelsLoaded[annotationId])  {
     dataset.predictionWorkers[annotationId].postMessage({
       'op': "predictWSI",
@@ -83,6 +83,7 @@ models.getWSIPrediction = (annotationId, imageId=hashParams.image, imageInfo={},
         annotationId,
         'imageData': {
           imageId,
+          imageName,
           imageInfo,
           predictionBounds,
           wsiPredsFileId

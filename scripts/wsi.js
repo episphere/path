@@ -254,10 +254,10 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
             document.addEventListener("previousPredsReady", (e) => {
               e.preventDefault()
               wsiPredsFileId = e.detail.wsiPredsFileId
-              wsi.startPrediction(annotationId, imageId, width, height, predictionBounds, wsiPredsFileId)
+              wsi.startPrediction(annotationId, imageId, name, width, height, predictionBounds, wsiPredsFileId)
             }, {once: true})
           } else {
-            wsi.startPrediction(annotationId, imageId, width, height, predictionBounds, wsiPredsFileId)
+            wsi.startPrediction(annotationId, imageId, name, width, height, predictionBounds, wsiPredsFileId)
           }
           
         } else {
@@ -803,8 +803,8 @@ wsi.loadZoomSlider = () => {
   
 }
 
-wsi.startPrediction = (annotationId, imageId, width, height, predictionBounds, wsiPredsFileId) => {
-  const predicting = models.getWSIPrediction(annotationId, imageId, { width, height }, predictionBounds, wsiPredsFileId)
+wsi.startPrediction = (annotationId, imageId, imageName, width, height, predictionBounds, wsiPredsFileId) => {
+  const predicting = models.getWSIPrediction(annotationId, imageId, imageName, { width, height }, predictionBounds, wsiPredsFileId)
   wsi.modelRunning = true
   if (!predicting) {
     wsi.stopModel()
