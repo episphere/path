@@ -510,6 +510,10 @@ const loadImageFromBox = async (id, url) => {
       if (!url) {
         
         if (path.isWSI) {
+          path.tmaCanvasLoaded = false
+          path.isImageFromBox = true
+          path.isThumbnail = false
+          
           document.documentElement.style.setProperty("--tabsContainerWidth", "35%")
           document.documentElement.style.setProperty("--tmaCanvasWidth", "65%")
           path.tmaImage.setAttribute("entry_id", id)

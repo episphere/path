@@ -103,7 +103,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
     });
 
     path.wsiViewer.imageLoadedAtTime = Date.now()
-    
+
     path.wsiViewer.buttons.buttons.forEach(button => {
       // Make interface consistent for all control buttons.
       button.imgGroup.style.display = "none"
@@ -597,7 +597,6 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
         wsi.overlayPreviousPredictions()
       }
     })
-    path.onCanvasLoaded(true, true)
     
     // path.wsiViewer.addHandler("tile-drawn", (e) => {
       // console.log(e)
@@ -633,6 +632,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
     
     path.wsiViewer.world.getItemAt(0).addOnceHandler('fully-loaded-change', async (e) => {
       path.wsiCanvasLoaded = true
+      path.onCanvasLoaded(true, true)
       wsi.handlePanAndZoom()
       document.getElementById("wsiZoomSliderDiv").querySelectorAll("input").forEach(element => {
         element.removeAttribute("disabled")
@@ -718,10 +718,6 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
     }), 2*60*1000)
   }
   handleBoxURLExpiry()
-
-  path.tmaCanvasLoaded = false
-  path.isImageFromBox = true
-  path.isThumbnail = false  
 
 }
 
