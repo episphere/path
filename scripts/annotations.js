@@ -392,17 +392,17 @@ annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData
   let { x, y, width, height } = annotationData
   if (modelAnnotation) {
     const { selectedLabels=wsi.defaultSelectedLabels, requestedTileSize=wsi.defaultTileSize } = options
-    const { prediction, modelId, userFeedback } = annotationData
-    const { label, prob } = prediction.reduce((max, current) => current.prob > max.prob ? current : max, {prob: 0})
-    const predictionScore = Math.round((prob + Number.EPSILON) * 10000) / 10000
-    if (selectedLabels?.find(selectedLabel => selectedLabel.label === label) && width === requestedTileSize) {
+    const { predictedLabel, predictionScore, modelId, userFeedback } = annotationData
+    const predictionScoreRounded = Math.round((predictionScore + Number.EPSILON) * 10000) / 10000
+    
+    if (selectedLabels?.find(selectedLabel => selectedLabel.label === predictedLabel) && width === requestedTileSize) {
       annotationElement = document.createElement("div")
       annotationElement.setAttribute("class", "wsiAnnotationElement")
       annotationElement.setAttribute("id", `wsiAnnotationDetails_model_${annotationId}_${x}_${y}_${width}_${height}`)
       annotationElement.innerHTML = `
         <div>
-          <i style="color:gray">Prediction:</i> ${label}<br/>
-          <i style="color:gray">Score:</i> ${predictionScore}<br/>
+          <i style="color:gray">Prediction:</i> ${predictedLabel} <br/>
+          <i style="color:gray">Score:</i> ${predictionScoreRounded} <br/>
         </div>
         <div class="wsiPredsUserFeedback" style="display:flex; flex-direction:row; margin:auto;"></div>
       `
@@ -417,12 +417,12 @@ annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData
         e.stopPropagation()
         if (!e.target.classList.contains("active")) {
           const feedbackUpdate = {
-            'predictedLabel': label,
-            predictionScore,
+            predictedLabel,
+            'predictionScore': predictionScoreRounded,
             'userFeedback': true,
             'createdAt': Date.now()
           }
-          annotationData.userFeedback = feedbackUpdate
+          annotationData.userFeedback = feedbackUpdate.userFeedback
           wsi.previousUserFeedback[`${x}_${y}_${width}_${height}`] = feedbackUpdate
 
           const wsiPreviousUserFeedbackFileId = JSON.parse(JSON.parse(window.localStorage.fileMetadata).wsiPredsFiles).find(file => file.annotationId === annotationId && file.modelId === modelId)?.userFeedbackFiles?.[window.localStorage.userId]
@@ -459,12 +459,12 @@ annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData
         e.stopPropagation()
         if (!e.target.classList.contains("active")) {
           const feedbackUpdate = {
-            'predictedLabel': label,
-            predictionScore,
+            predictedLabel,
+            'predictionScore': predictionScoreRounded,
             'userFeedback': false,
             'createdAt': Date.now()
           }
-          annotationData.userFeedback = feedbackUpdate
+          annotationData.userFeedback = feedbackUpdate.userFeedback
           wsi.previousUserFeedback[`${x}_${y}_${width}_${height}`] = feedbackUpdate
 
           const wsiPreviousUserFeedbackFileId = JSON.parse(JSON.parse(window.localStorage.fileMetadata).wsiPredsFiles).find(file => file.annotationId === annotationId && file.modelId === modelId)?.userFeedbackFiles?.[window.localStorage.userId]
@@ -485,15 +485,15 @@ annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData
             console.log("Error saving feedback to Box!", err)
             utils.showToast("Some error occurred! Please try later.")
           })
-          wsi.insertIntoIndexedDB(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, annotationData, [x, y, width, height])
+          wsi.insertIntoIndexedDB(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, annotationData, [x, y, width, height]).then(console.log).catch(console.log)
 
         }
         // rejectButton.classList.add("active")
       }
-      
-      if (userFeedback && userFeedback === true) {
+
+      if (userFeedback === true) { // Hard check to handle case where userFeedback is undefined.
         approveButton.classList.add("active")
-      } else if (userFeedback && userFeedback === false) {
+      } else if (userFeedback === false) {
         rejectButton.classList.add("active")
       }
 
@@ -502,7 +502,7 @@ annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData
       
       if (addToParent) {
         const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_model`)
-        if (!annotationsContainerElement.firstElementChild.classList.contains(annotationElement.className)) {
+        if (!annotationsContainerElement.firstElementChild?.classList.contains(annotationElement.className)) {
           annotationsContainerElement.removeChild(annotationsContainerElement.firstElementChild)
         }
         annotationsContainerElement.appendChild(document.createElement("hr"))
