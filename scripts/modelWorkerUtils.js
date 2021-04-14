@@ -208,12 +208,12 @@ const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, ws
         wsiPredsFiles[metadataIndexToUpdate] = wsiPredsFile
 
         const metadataPath = "/wsiPredsFiles"
-        const newMetadata = await updateMetadataInBox(imageId, metadataPath, JSON.stringify(wsiPredsFiles))
+        const newFileMetadata = await updateMetadataInBox(imageId, metadataPath, JSON.stringify(wsiPredsFiles))
         fileMetadataChanged = true
 
         returnObj = {
           fileMetadataChanged,
-          newMetadata,
+          newFileMetadata,
           ...returnObj
         }
       }
@@ -305,7 +305,7 @@ const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, ws
     wsiPredsFiles.push(newPredFileMetadata)
 
     const metadataPath = "/wsiPredsFiles"
-    const newMetadata = await updateMetadataInBox(imageId, metadataPath, JSON.stringify(wsiPredsFiles))
+    const newFileMetadata = await updateMetadataInBox(imageId, metadataPath, JSON.stringify(wsiPredsFiles))
     fileMetadataChanged = true
     
     returnObj = {
@@ -318,7 +318,7 @@ const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, ws
       returnObj['newDatasetConfig'] = newDatasetConfig
     }
     if (fileMetadataChanged) {
-      returnObj['newFileMetadata'] = newMetadata
+      returnObj['newFileMetadata'] = newFileMetadata
     }
 
     return returnObj
