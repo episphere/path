@@ -697,7 +697,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
         const oldTileSource = oldImage.source
         
         const refreshedFileURL = await box.getFileContent(id, false, true)
-        const newTileSourceURL = `${wsi.tileServerBasePath}/?iiif=${refreshedFileURL}`
+        const newTileSourceURL = `${wsi.tileServerBasePath}/?format=${format}&iiif=${refreshedFileURL}`
         const newTileSource = {
           ...oldTileSource,
           "@id": newTileSourceURL
