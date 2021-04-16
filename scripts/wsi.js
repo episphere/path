@@ -98,7 +98,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
       navigationControlAnchor: OpenSeadragon.ControlAnchor["TOP_RIGHT"],
       // debugMode: true,
       immediateRender: false,
-      // imageLoaderLimit: 5,
+      imageLoaderLimit: 20,
       timeout: 60*1000
     });
 
