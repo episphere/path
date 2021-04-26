@@ -102,7 +102,7 @@ onmessage = async (evt) => {
     case 'predictWSI':
       stopPreds = false
       annotationId = data.body.annotationId
-      prediction = await getAllWSIDataFromIndexedDB(annotationId)
+      prediction = await getAllWSIDataFromIndexedDB(annotationId, {'removeKeys': ["userFeedback"]})
       imageId = data.body.imageData.imageId
       let { imageName, imageInfo, predictionBounds, wsiPredsFileId } = data.body.imageData
       const fileFormat = imageName.substring(imageName.lastIndexOf(".") + 1)
@@ -304,6 +304,8 @@ onmessage = async (evt) => {
               activeCalls -= 1
             
               if (data.success) {
+                let predictedLabel=undefined
+                let predictionScore=undefined
                 if (!data.isTileBlank && !data.fromLocalDB) {
                   const addObjToDb = {
                     'x': data.x,
@@ -311,10 +313,17 @@ onmessage = async (evt) => {
                     'width': data.width,
                     'height': data.height,
                     'prediction': data.prediction,
-                    'modelId': data.modelId
+                    'modelId': data.modelId,
                   }
-                  
-                  insertWSIDataToIndexedDB(addObjToDb, annotationId).then(result => {
+                  const highestValuePrediction = data.prediction.reduce((max, current) => current.prob > max.prob ? current : max, {prob: 0})
+                  predictedLabel = highestValuePrediction.label
+                  predictionScore = highestValuePrediction.prob
+
+                  insertWSIDataToIndexedDB({
+                    predictedLabel,
+                    predictionScore,
+                    ...addObjToDb
+                  }, annotationId).then(result => {
                     if (result && result.length === indexedDBConfig['wsi'].objectStoreOpts.keyPath.length) {
                       prediction.push(addObjToDb)
                       if (prediction.length % 10 === 0) {
@@ -330,6 +339,8 @@ onmessage = async (evt) => {
                   op,
                   'body': {
                     'success': true,
+                    predictedLabel,
+                    predictionScore,
                     ...data
                   }
                 })

@@ -341,10 +341,22 @@ const getWSIDataFromIndexedDB = (query, annotationId) => new Promise (async reso
   }
 })
 
-const getAllWSIDataFromIndexedDB = (annotationId) => new Promise (async resolve => {
+const getAllWSIDataFromIndexedDB = (annotationId, opts={}) => new Promise (async resolve => {
+  const { removeKeys=[] } = opts
   wsiPredsDB = wsiPredsDB || await fetchIndexedDBInstance('wsi')
   const objectStore = wsiPredsDB.transaction(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, "readonly").objectStore(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`)
-  objectStore.getAll().onsuccess = ({target}) => resolve(target.result)
+  objectStore.getAll().onsuccess = ({target}) => {
+    let { result } = target
+    if (removeKeys.length > 0) {
+      result = result.map(row => {
+        removeKeys.forEach(key => {
+          delete row[key]
+        })
+        return row
+      })
+    }
+    resolve(target.result)
+  }
 })
 
 const clearWSIDataFromIndexedDB = () => new Promise (async resolve => {
