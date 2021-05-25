@@ -1209,6 +1209,9 @@ wsi.setupIndexedDB = (forceCreateNewVersion=false) => new Promise (async resolve
       resolve()
     } else {
       dbRequest.result.onversionchange = () => {
+        if (wsi.predsDB) {
+          wsi.predsDB.close()
+        }
         dbRequest.result.close()
       }
       await wsi.setupIndexedDB(true)
