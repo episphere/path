@@ -426,8 +426,7 @@ box.getUserConfig = async () => {
   let appConfigFileEntry = await box.iterativeSearchInFolder(userConfigFileName, appFolderId, "DESC")
     
   if (!appConfigFileEntry?.id) {
-    userConfig = await box.getFileContent(appConfigFileEntry.id, true)
-  } else {
+    
     // Creates user config file if it doesn't exist.
     const newUserConfigFD = new FormData()
     const configFileAttributes = {
@@ -449,6 +448,9 @@ box.getUserConfig = async () => {
     const uploadResp = await box.uploadFile(newUserConfigFD)
     appConfigFileEntry = uploadResp.entries[0]
     userConfig = userConfigTemplate
+  
+  } else {
+    userConfig = await box.getFileContent(appConfigFileEntry.id, true)
   }
   
   box.appConfigFileId = appConfigFileEntry.id
