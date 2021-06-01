@@ -425,7 +425,7 @@ box.getUserConfig = async () => {
   let userConfig = {}
   let appConfigFileEntry = await box.iterativeSearchInFolder(userConfigFileName, appFolderId, "DESC")
     
-  if (appConfigFileEntry) {
+  if (!appConfigFileEntry?.id) {
     userConfig = await box.getFileContent(appConfigFileEntry.id, true)
   } else {
     // Creates user config file if it doesn't exist.
@@ -544,7 +544,6 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
       return
     } else {
       datasetConfig = await box.getFileContent(appConfigFileEntry.id, true)
-      console.log(datasetFolderId, datasetConfig.datasetFolderId)
       box.currentDatasetConfigFileId = appConfigFileEntry.id
      
       if (false && datasetFolderId != datasetConfig.datasetFolderId) {
