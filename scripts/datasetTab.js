@@ -70,7 +70,7 @@ dataset.populateInfo = (datasetConfig, forceRedraw=false) => {
     const downloadAnnotationsBtn = document.createElement("button")
     downloadAnnotationsBtn.setAttribute("class", "btn btn-outline-primary downloadAnnotations")
     downloadAnnotationsBtn.innerText = "Download Annotations"
-    downloadAnnotationsBtn.onclick = (e) => dataset.getAnnotations(document.getElementById("annotationsFileTypeDropdownBtn").getAttribute("value"), e.target, datasetFolderName)
+    downloadAnnotationsBtn.onclick = (e) => dataset.getTMAAnnotations(document.getElementById("annotationsFileTypeDropdownBtn").getAttribute("value"), e.target, datasetFolderName)
     downloadButtonSpan.appendChild(downloadAnnotationsBtn)
     downloadButtonSpan.insertAdjacentHTML('beforeend', "&nbsp as ")
 
@@ -206,12 +206,12 @@ dataset.populateInfo = (datasetConfig, forceRedraw=false) => {
   }
 }
 
-dataset.getAnnotations = async (requestedFormat="json", targetElement, datasetFolderName) => {
+dataset.getTMAAnnotations = async (requestedFormat="json", targetElement, datasetFolderName) => {
   targetElement.insertAdjacentHTML('beforeend', `<span>&nbsp&nbsp<i class="fas fa-spinner fa-spin"></i></span>`)
   utils.showToast("Retrieving Annotations...")
   targetElement.setAttribute("disabled", "true")
   
-  const op = "getAnnotations"
+  const op = "getTMAAnnotations"
   path.miscProcessingWorker.postMessage({
     op,
     'data': {

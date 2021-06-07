@@ -263,7 +263,7 @@ const saveThumbnailToBox = async (imageId, thumbnailImage, name, wsiThumbnailsFo
   }
 }
 
-const retriveAnnotations = async (op, folderId, annotations, format) => {
+const retriveTMAAnnotations = async (op, folderId, annotations, format) => {
   const limit = 1000
   let offset = 0
   let annotationsObj = []
@@ -283,10 +283,21 @@ const retriveAnnotations = async (op, folderId, annotations, format) => {
       const { id, name, metadata:{global:{properties: fileMetadata}} } = entry
       annotations.forEach(annot => {
         const { displayName, metaName, labels } = annot
-        const annotationsOnFile = fileMetadata[metaName] ? Object.values(JSON.parse(fileMetadata[metaName])).reduce((obj, current) => {
-          const selectedLabel = labels.find(label => label.label === current.value)
-          if (selectedLabel) {
-            obj[current.username] = selectedLabel.displayText
+        const annotationsOnFile = fileMetadata[metaName] ? Object.entries(JSON.parse(fileMetadata[metaName])).reduce((obj, [key, current]) => {
+          if (key === "model") {
+            current.forEach(model => {
+              const highestValuePrediction = model.prediction.reduce((max, current) => current.prob > max.prob ? current : max, {prob: 0})
+              const selectedLabel = labels.find(label => label.label === highestValuePrediction.label)
+              if (selectedLabel) {
+                obj[`model_${model.modelId}_prediction`] = selectedLabel.displayText
+                obj[`model_${model.modelId}_score`] = highestValuePrediction.prob
+              }
+            })
+          } else {
+            const selectedLabel = labels.find(label => label.label === current.value)
+            if (selectedLabel) {
+              obj[current.username] = selectedLabel.displayText
+            }
           }
           return obj
         }, {}) : {}
@@ -306,7 +317,6 @@ const retriveAnnotations = async (op, folderId, annotations, format) => {
   })
   if (annotationsObj.length > 0) {
     const convertedAnnotations = convertAnnotations(annotationsObj, format)
-    console.log(convertedAnnotations)
     postMessage({
       op,
       convertedAnnotations
@@ -372,9 +382,9 @@ onmessage = async (evt) => {
         console.log("Error saving thumbnail to Box", e)
       }
 
-    case "getAnnotations":
+    case "getTMAAnnotations":
       const { folderToGetFrom, annotations, format } = data
-      await retriveAnnotations(op, folderToGetFrom, annotations, format)
+      await retriveTMAAnnotations(op, folderToGetFrom, annotations, format)
   }
 }
 
