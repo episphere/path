@@ -6,9 +6,10 @@ const childWorkers = []
 const models = {}
 const wsiFileTypes = [".svs", ".ndpi"]
 const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff", ...wsiFileTypes]
-const minTileWidth = 256
-const minTileHeight = 256
-const maxTileImageDimension = 2048
+const minTileWidth = 512
+const minTileHeight = 512
+const tileWidthRendered = 256
+const maxTileImageDimension = 512
 
 let stopPreds = false
 
@@ -121,7 +122,8 @@ onmessage = async (evt) => {
             'fromLocalDB': true
           }
         } else if (x >= 0 && y >= 0 && width >= 0 && height >= 0) {
-          const tileServerRequest = `${tileServerBasePath}/?format=${fileFormat}&iiif=${imageURL}/${x},${y},${width},${height}/${width > maxTileImageDimension ? maxTileImageDimension: width},/0/default.jpg`
+          // const tileServerRequest = `${tileServerBasePath}/?format=${fileFormat}&iiif=${imageURL}/${x},${y},${width},${height}/${width > maxTileImageDimension ? maxTileImageDimension: width},/0/default.jpg`
+          const tileServerRequest = `${tileServerBasePath}/?format=${fileFormat}&iiif=${imageURL}/${x},${y},${width},${height}/${tileWidthRendered},/0/default.jpg`
           try {
             const tileBlob = await (await fetch(tileServerRequest)).blob()
             const tileImageBitmap = await createImageBitmap(tileBlob)

@@ -208,7 +208,7 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
   //       annotationsContainerElement.appendChild(controlsDiv)
   //     }
   //   }
-    const activeButton = modelTab ? document.getElementById("wsiAnnotationTypeModel") : document.getElementById("wsiAnnotationTypeUser")
+    const activeButton = modelTab ? annotationCardContentDiv.querySelector("#wsiAnnotationTypeModel") : annotationCardContentDiv.querySelector("#wsiAnnotationTypeUser")
     if (!forceReload && activeButton.classList.contains("active")) {
       return        
     } else {
@@ -218,41 +218,45 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
       }
 
       if (modelTab) {
-        const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_model`)
+        const annotationsContainerElement = annotationCardContentDiv.querySelector(`#wsiAnnotations_${annotationId}_model`)
         annotationsContainerElement.previousElementSibling.style.display = "none"
         annotationsContainerElement.style.display = "flex"
 
-        const indexedDBQueryOpts = {
-          'index': indexedDBConfig['wsi'].objectStoreIndexes[1].name,
-          'query': "all",
-          'direction': "prev",
-          'offset': 0,
-          'limit': 25
-        }
-        const { result: modelPredictions, offset } = await wsi.getFromIndexedDB(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, indexedDBQueryOpts)
-        
-        if (modelPredictions && modelPredictions.length !== Math.ceil(annotationsContainerElement.querySelectorAll(".wsiAnnotationElement").length / 2)) {
-          annotationsContainerElement.innerHTML = ""
-          // addControls(annotationsContainerElement, annotationId, true)
-          const tempDocumentFragment = document.createDocumentFragment()
-
-          modelPredictions.forEach((data, ind) => {
-            if (data.prediction) {
-              const annotationElement = annotations.createWSIAnnotationElement(annotationId, metaName, data, {modelAnnotation: true, addToParent: false, selectedLabels: wsi.defaultSelectedLabels, requestedTileSize: wsi.defaultTizeSize})
-              if (annotationElement) {
-                tempDocumentFragment.appendChild(annotationElement)
-                if (ind !== modelPredictions.length - 1) {
-                  tempDocumentFragment.appendChild(document.createElement("hr"))
+        if (path.datasetConfig.models.trainedModels.some((model) => model.correspondingAnnotation === annotationId)) {
+          const indexedDBQueryOpts = {
+            'index': indexedDBConfig['wsi'].objectStoreIndexes[1].name,
+            'query': "all",
+            'direction': "prev",
+            'offset': 0,
+            'limit': 25
+          }
+          const { result: modelPredictions, offset } = await wsi.getFromIndexedDB(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, indexedDBQueryOpts)
+          
+          if (modelPredictions && modelPredictions.length !== Math.ceil(annotationsContainerElement.querySelectorAll(".wsiAnnotationElement").length / 2)) {
+            annotationsContainerElement.innerHTML = ""
+            // addControls(annotationsContainerElement, annotationId, true)
+            const tempDocumentFragment = document.createDocumentFragment()
+  
+            modelPredictions.forEach((data, ind) => {
+              if (data.prediction) {
+                const annotationElement = annotations.createWSIAnnotationElement(annotationId, metaName, data, {modelAnnotation: true, addToParent: false, selectedLabels: wsi.defaultSelectedLabels, requestedTileSize: wsi.defaultTizeSize})
+                if (annotationElement) {
+                  tempDocumentFragment.appendChild(annotationElement)
+                  if (ind !== modelPredictions.length - 1) {
+                    tempDocumentFragment.appendChild(document.createElement("hr"))
+                  }
                 }
               }
-            }
-          })
-          annotationsContainerElement.appendChild(tempDocumentFragment)
-        } else if (annotationsContainerElement.querySelectorAll("div.wsiAnnotationElement").length === 0) {
+            })
+            annotationsContainerElement.appendChild(tempDocumentFragment)
+          } else if (annotationsContainerElement.querySelectorAll("div.wsiAnnotationElement").length === 0) {
+            annotationsContainerElement.innerHTML = `<div class="wsiNoAnnotationsMsg"><i style="color:slategray; margin:auto; font-size:18px">-- Nothing to show --</i></div>`
+          }
+        } else {
           annotationsContainerElement.innerHTML = `<div class="wsiNoAnnotationsMsg"><i style="color:slategray; margin:auto; font-size:18px">-- Nothing to show --</i></div>`
         }
       } else {
-        const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_user`)
+        const annotationsContainerElement = annotationCardContentDiv.querySelector(`#wsiAnnotations_${annotationId}_user`)
         annotationsContainerElement.nextElementSibling.style.display = "none"
         annotationsContainerElement.style.display = "flex"
 

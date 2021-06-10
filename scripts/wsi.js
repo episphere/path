@@ -195,19 +195,20 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
     const createRunModelButton = () => {
       const runModelWSIHandler = (e) => {
         const regionSelected = document.getElementById("runModelWSIDropdownDiv").querySelector(`input[type=radio]:checked`)?.value
-        const currentLevel = path.wsiViewer.world.getItemAt(0).lastDrawn.reduce((maxLevel, current) => maxLevel < current.level ? current.level : maxLevel, 0)
-        const tileSizeAtCurrentLevel = Math.pow(2, 8 + path.wsiViewer.source.maxLevel - currentLevel) // Start at 2^8 because 256 is the smallest tile size we consider.
+        // const currentLevel = path.wsiViewer.world.getItemAt(0).lastDrawn.reduce((maxLevel, current) => maxLevel < current.level ? current.level : maxLevel, 0)
+        // const tileSizeAtCurrentLevel = Math.pow(2, 8 + path.wsiViewer.source.maxLevel - currentLevel) // Start at 2^8 because 256 is the smallest tile size we consider.
+        const maxTileSizeToLookAt = 512
         if (regionSelected === "currentRegion") {
-          const currentBounds = path.wsiViewer.viewport.getBounds()
-          const { x: topLeftX, y: topLeftY } = path.wsiViewer.source.getTileAtPoint(currentLevel, new OpenSeadragon.Point(currentBounds.x, currentBounds.y))
-          const { x: bottomRightX, y: bottomRightY } = path.wsiViewer.source.getTileAtPoint(currentLevel, new OpenSeadragon.Point(currentBounds.x + currentBounds.width, currentBounds.y + currentBounds.height))
-          
-          const startX = topLeftX * tileSizeAtCurrentLevel
-          const startY = topLeftY * tileSizeAtCurrentLevel
-          const endX = (bottomRightX * tileSizeAtCurrentLevel) + tileSizeAtCurrentLevel < imageInfo.width ? (bottomRightX * tileSizeAtCurrentLevel) + tileSizeAtCurrentLevel : imageInfo.width
-          const endY = (bottomRightY * tileSizeAtCurrentLevel) + tileSizeAtCurrentLevel < imageInfo.height ? (bottomRightY * tileSizeAtCurrentLevel) + tileSizeAtCurrentLevel : imageInfo.height
-          runModelWSI(startX, startY, endX, endY, tileSizeAtCurrentLevel)
-
+          const currentBounds = path.wsiViewer.viewport.viewportToImageRectangle(path.wsiViewer.viewport.getBounds())
+          const widthWiseTiles = Array.from({length: Math.ceil(path.wsiViewer.source.width / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
+          const heightWiseTiles = Array.from({length: Math.ceil(path.wsiViewer.source.height / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
+          const startX = Math.max(...widthWiseTiles.filter(tileX => {if (tileX <= currentBounds.x) return tileX}))
+          const startY = Math.max(...heightWiseTiles.filter(tileY => {if (tileY <= currentBounds.y) return tileY}))
+          const endX = Math.max(...widthWiseTiles.filter(tileX => {if (tileX <= (currentBounds.x + currentBounds.width)) return tileX})) + maxTileSizeToLookAt
+          const endY = Math.max(...heightWiseTiles.filter(tileY => {if (tileY <= (currentBounds.y + currentBounds.height)) return tileY})) + maxTileSizeToLookAt
+          // runModelWSI(startX, startY, endX, endY, tileSizeAtCurrentLevel)
+          console.log(startX, startY, endX, endY)
+          runModelWSI(startX, startY, endX, endY, maxTileSizeToLookAt) // Keep dimensions fixed at 512 for now, uncomment line above to predict for tiles at all magnifications.
         } else if (regionSelected === "wholeImage") {
           const startX = 0
           const startY = 0
@@ -1227,10 +1228,7 @@ wsi.setupIndexedDB = (forceCreateNewVersion=false) => new Promise (async resolve
 
 wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reject) => {
   const objectStoreTransaction = wsi.predsDB.transaction(objectStore, "readonly").objectStore(objectStore)
-  const queryResult = []
-  let offset = typeof(queryOpts.offset) === "number" && queryOpts.offset >= 0 ? queryOpts.offset : 0 
-  queryOpts.limit = typeof(queryOpts.limit) === "number" && queryOpts.limit > 0 ? queryOpts.limit : 25
-
+  
   if (queryOpts.query === "all") {
     objectStoreTransaction.getAll().onsuccess = (e) => {
       resolve({result: e.target.result})
@@ -1246,6 +1244,9 @@ wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reje
     }
   } else {
     // Return a paginated response.
+    const queryResult = []
+    let offset = typeof(queryOpts.offset) === "number" && queryOpts.offset >= 0 ? queryOpts.offset : 0 
+    queryOpts.limit = typeof(queryOpts.limit) === "number" && queryOpts.limit > 0 ? queryOpts.limit : 25
     // let numRecords = 0
     objectStoreTransaction.count(queryOpts.query).onsuccess = (e) => {
       // numRecords = e.target.result

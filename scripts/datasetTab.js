@@ -4,7 +4,15 @@ dataset.predictionWorkers = {}
 dataset.loadModels = (modelsConfig) => {
   Object.values(dataset.predictionWorkers).forEach((predictionWorker) => predictionWorker.terminate())
   dataset.modelsLoaded = {}
-  modelsConfig.trainedModels.forEach(modelConfig => {
+  
+  const selectedModelPerAnnotation = modelsConfig.trainedModels.reduce((modelsPerAnnot, current) => {
+    if (!modelsPerAnnot[current.correspondingAnnotation] || modelsPerAnnot[current.correspondingAnnotation].version < current.version) {
+      modelsPerAnnot[current.correspondingAnnotation] = current
+    }
+    return modelsPerAnnot
+  }, {})
+  
+  Object.values(selectedModelPerAnnotation).forEach(modelConfig => {
     dataset.predictionWorkers[modelConfig.correspondingAnnotation] = new Worker(`${basePath}scripts/modelPrediction.js`, {
       name: path.datasetConfig.annotations.find(annot => annot.annotationId === modelConfig.correspondingAnnotation).annotationName
     })

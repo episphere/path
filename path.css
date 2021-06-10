@@ -244,7 +244,7 @@ canvas {
 
 #wsiZoomSlider + datalist {
   display: grid;
-  grid-template-columns: calc((var(--slider-width) / ((var(--list-length) - 1) * 2)) * 4/5) repeat(calc(var(--list-length) - 2), calc(var(--slider-width) / (var(--list-length) - 1))) calc((var(--slider-width) - 12px)/ ((var(--list-length) - 1) * 2) + 6px);
+  grid-template-columns: calc((var(--slider-width) / ((var(--list-length) - 1) * 2)) * 4/5) repeat(calc(var(--list-length) - 2), calc(var(--slider-width) / (var(--list-length) - 1))) calc(var(--slider-width)/((var(--list-length) - 1) * 2) + 12px);
 }
 #wsiZoomSlider + datalist option {
   display: inline-block;

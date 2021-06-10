@@ -245,7 +245,7 @@ path.setupIndexedDB = (dbName, objectStoreName, objectStoreOpts={}, indexOpts) =
   })
 }
 
-path.loadModules = async (modules) => {
+path.loadModules = (modules) => {
   modules = modules || hashParams["extModules"]
 
   const loadModule = (modulePath) => {
