@@ -200,8 +200,8 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
         const maxTileSizeToLookAt = 512
         if (regionSelected === "currentRegion") {
           const currentBounds = path.wsiViewer.viewport.viewportToImageRectangle(path.wsiViewer.viewport.getBounds())
-          const widthWiseTiles = Array.from({length: Math.ceil(path.wsiViewer.source.width / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
-          const heightWiseTiles = Array.from({length: Math.ceil(path.wsiViewer.source.height / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
+          const widthWiseTiles = Array.from({length: Math.ceil(imageInfo.width / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
+          const heightWiseTiles = Array.from({length: Math.ceil(imageInfo.height / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
           const startX = Math.max(...widthWiseTiles.filter(tileX => {if (tileX <= currentBounds.x) return tileX}))
           const startY = Math.max(...heightWiseTiles.filter(tileY => {if (tileY <= currentBounds.y) return tileY}))
           const endX = Math.max(...widthWiseTiles.filter(tileX => {if (tileX <= (currentBounds.x + currentBounds.width)) return tileX})) + maxTileSizeToLookAt
