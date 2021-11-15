@@ -207,7 +207,6 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
           const endX = Math.max(...widthWiseTiles.filter(tileX => {if (tileX <= (currentBounds.x + currentBounds.width)) return tileX})) + maxTileSizeToLookAt
           const endY = Math.max(...heightWiseTiles.filter(tileY => {if (tileY <= (currentBounds.y + currentBounds.height)) return tileY})) + maxTileSizeToLookAt
           // runModelWSI(startX, startY, endX, endY, tileSizeAtCurrentLevel)
-          console.log(startX, startY, endX, endY)
           runModelWSI(startX, startY, endX, endY, maxTileSizeToLookAt) // Keep dimensions fixed at 512 for now, uncomment line above to predict for tiles at all magnifications.
         } else if (regionSelected === "wholeImage") {
           const startX = 0
@@ -672,7 +671,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
           'height': imageInfo.height,
         }
         fileMetadata = await box.updateMetadata(id, "/wsiInfo", JSON.stringify(imageInfoForMetadata))
-        window.localStorage.fileMetadata = JSON.stringify(metadata)
+        window.localStorage.fileMetadata = JSON.stringify(fileMetadata)
       }
       wsi.getPreviousPredsFromBox(fileMetadata)
     })

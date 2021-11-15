@@ -506,7 +506,7 @@ annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData
       
       if (addToParent) {
         const annotationsContainerElement = document.getElementById(`wsiAnnotations_${annotationId}_model`)
-        if (!annotationsContainerElement.firstElementChild?.classList.contains(annotationElement.className)) {
+        if (annotationsContainerElement.childElementCount !== 0 && !annotationsContainerElement.firstElementChild.classList.contains(annotationElement.className)) {
           annotationsContainerElement.removeChild(annotationsContainerElement.firstElementChild)
         }
         annotationsContainerElement.appendChild(document.createElement("hr"))
