@@ -221,7 +221,7 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
         const annotationsContainerElement = annotationCardContentDiv.querySelector(`#wsiAnnotations_${annotationId}_model`)
         annotationsContainerElement.previousElementSibling.style.display = "none"
         annotationsContainerElement.style.display = "flex"
-
+        
         if (path.datasetConfig.models.trainedModels.some((model) => model.correspondingAnnotation === annotationId)) {
           const indexedDBQueryOpts = {
             'index': indexedDBConfig['wsi'].objectStoreIndexes[1].name,
@@ -234,6 +234,19 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
           
           if (modelPredictions && modelPredictions.length !== Math.ceil(annotationsContainerElement.querySelectorAll(".wsiAnnotationElement").length / 2)) {
             annotationsContainerElement.innerHTML = ""
+            annotations.handleThreshold = () => {
+              const val = document.getElementById("wsiAnnotationOptionThreshold").value
+              document.getElementById("wsiAnnotationOptionThresholdValue").value = val
+            }
+            annotationsContainerElement.insertAdjacentHTML('beforeend', 
+            `<div class="wsiAnnotationOptions" id="wsiAnnotationOption_${annotationId}_model_threshold">
+              <label for="wsiAnnotationOptionThreshold"><i style="color:gray">Score Threshold: </i></label>
+              <div>
+                <input type="range" min="0" max="1", step="0.01" value="0.7" id="wsiAnnotationOptionThreshold" onchange="annotations.handleThreshold()"/>
+                <input type="text" disabled="true" id="wsiAnnotationOptionThresholdValue" value="0.7"/></div>
+              </div>
+            </div>
+            <hr/> `)
             // addControls(annotationsContainerElement, annotationId, true)
             const tempDocumentFragment = document.createDocumentFragment()
   

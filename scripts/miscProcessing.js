@@ -1,5 +1,5 @@
 const epiPathBasePath = "https://episphere.github.io/path"
-const tileServerBasePath = "https://dl-test-tma.uc.r.appspot.com/iiif"
+const tileServerBasePath = "https://imageboxv2-oxxe7c4jbq-uc.a.run.app/iiif"
 const wsiFileTypes = [".svs", ".ndpi"]
 const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff", ...wsiFileTypes]
 
