@@ -104,7 +104,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
 
     path.wsiViewer.imageLoadedAtTime = Date.now()
 
-    path.wsiViewer.buttons.buttons.forEach(button => {
+    path.wsiViewer.buttonGroup.buttons.forEach(button => {
       // Make interface consistent for all control buttons.
       button.imgGroup.style.display = "none"
       button.element.style.cursor = "pointer"
