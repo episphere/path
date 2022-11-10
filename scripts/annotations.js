@@ -1,4 +1,5 @@
 const annotations = {}
+annotations.defaultThresholds = {}
 
 annotations.showAnnotationOptions = async (annotationsConfig=path?.datasetConfig?.annotations, isImageFromBox=false, forceRedraw=false) => {
   const annotationsAccordion = document.getElementById("annotationsAccordion")
@@ -41,7 +42,7 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
       annotationId,
       displayName,
       annotationName,
-      metaName,
+      metaName, 
       definition,
       enableComments,
       labels
@@ -175,7 +176,8 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
 }
 
 annotations.populateAnnotationCard = async (annotationCardContentDiv, annotationId, annotationName, displayName, metaName, labels, isWSI=path.isWSI, enableComments=false) => {
-  annotations.populateWSIAnnotations = async (modelTab=true, forceReload=false) => {
+  annotations.predictionScoreThreshold = annotations.predictionScoreThreshold || 0.7
+  annotations.populateWSIAnnotations = async (modelTab=true, forceReload=false, query="all") => {
   //   const addControls = (annotationsContainerElement, annotationId, showModelPredictions) => {
   //     let controlsDiv = annotationsContainerElement.querySelector(".wsiAnnotationControls")
   //     if (!controlsDiv) {
@@ -225,7 +227,7 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
         if (path.datasetConfig.models.trainedModels.some((model) => model.correspondingAnnotation === annotationId)) {
           const indexedDBQueryOpts = {
             'index': indexedDBConfig['wsi'].objectStoreIndexes[1].name,
-            'query': "all",
+            query,
             'direction': "prev",
             'offset': 0,
             'limit': 25
@@ -236,14 +238,22 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
             annotationsContainerElement.innerHTML = ""
             annotations.handleThreshold = () => {
               const val = document.getElementById("wsiAnnotationOptionThreshold").value
+              annotations.predictionScoreThreshold = val
+              wsi.removeOverlays(true)
+              wsi.setDefaultOverlayOptions(true)
+              wsi.overlayPreviousPredictions()
+              annotations.populateWSIAnnotations(modelTab, true, query)
+            }
+            annotations.changeThresholdTextboxValue = () => {
+              const val = document.getElementById("wsiAnnotationOptionThreshold").value
               document.getElementById("wsiAnnotationOptionThresholdValue").value = val
             }
             annotationsContainerElement.insertAdjacentHTML('beforeend', 
             `<div class="wsiAnnotationOptions" id="wsiAnnotationOption_${annotationId}_model_threshold">
               <label for="wsiAnnotationOptionThreshold"><i style="color:gray">Score Threshold: </i></label>
               <div>
-                <input type="range" min="0" max="1", step="0.01" value="0.7" id="wsiAnnotationOptionThreshold" onchange="annotations.handleThreshold()"/>
-                <input type="text" disabled="true" id="wsiAnnotationOptionThresholdValue" value="0.7"/></div>
+                <input type="range" min="0" max="1", step="0.01" value=${annotations.predictionScoreThreshold} id="wsiAnnotationOptionThreshold" onchange="annotations.handleThreshold()" oninput="annotations.changeThresholdTextboxValue()"/>
+                <input type="text" disabled="true" id="wsiAnnotationOptionThresholdValue" value=${annotations.predictionScoreThreshold} />
               </div>
             </div>
             <hr/> `)
@@ -252,7 +262,7 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
   
             modelPredictions.forEach((data, ind) => {
               if (data.prediction) {
-                const annotationElement = annotations.createWSIAnnotationElement(annotationId, metaName, data, {modelAnnotation: true, addToParent: false, selectedLabels: wsi.defaultSelectedLabels, requestedTileSize: wsi.defaultTizeSize})
+                const annotationElement = annotations.createWSIAnnotationElement(annotationId, metaName, data, {modelAnnotation: true, addToParent: false, selectedLabels: wsi.defaultSelectedLabels, scoreThreshold: annotations.predictionScoreThreshold, requestedTileSize: wsi.defaultTizeSize})
                 if (annotationElement) {
                   tempDocumentFragment.appendChild(annotationElement)
                   if (ind !== modelPredictions.length - 1) {
@@ -408,11 +418,11 @@ annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData
   let annotationElement
   let { x, y, width, height } = annotationData
   if (modelAnnotation) {
-    const { selectedLabels=wsi.defaultSelectedLabels, requestedTileSize=wsi.defaultTileSize } = options
+    const { selectedLabels=wsi.defaultSelectedLabels, requestedTileSize=wsi.defaultTileSize, scoreThreshold=annotations.predictionScoreThreshold  } = options
     const { predictedLabel, predictionScore, modelId, userFeedback } = annotationData
     const predictionScoreRounded = Math.round((predictionScore + Number.EPSILON) * 10000) / 10000
     
-    if (selectedLabels?.find(selectedLabel => selectedLabel.label === predictedLabel) && width === requestedTileSize) {
+    if (selectedLabels?.find(selectedLabel => selectedLabel.label === predictedLabel) && predictionScore >= scoreThreshold && width === requestedTileSize) {
       annotationElement = document.createElement("div")
       annotationElement.setAttribute("class", "wsiAnnotationElement")
       annotationElement.setAttribute("id", `wsiAnnotationDetails_model_${annotationId}_${x}_${y}_${width}_${height}`)
