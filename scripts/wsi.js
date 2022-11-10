@@ -104,7 +104,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
 
     path.wsiViewer.imageLoadedAtTime = Date.now()
 
-    path.wsiViewer.buttonGroup.buttons.forEach(button => {
+    path.wsiViewer.buttons.buttons.forEach(button => {
       // Make interface consistent for all control buttons.
       button.imgGroup.style.display = "none"
       button.element.style.cursor = "pointer"
@@ -423,7 +423,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
                   hideLabelBtn.classList.remove("active")
                   wsi.defaultSelectedLabels.push({
                     'label': label.label,
-                    'threshold': 0.5
+                    'threshold': annotations.predictionScoreThreshold
                   })
                   wsi.overlayPreviousPredictions(wsi.defaultSelectedLabels, parseInt(document.getElementById(`wsiVisibilitySettings_tileSizeSelect`).value))
                   annotations.populateWSIAnnotations(true, true)
@@ -870,7 +870,7 @@ wsi.setDefaultOverlayOptions = (forceReload=false) => {
     wsi.defaultSelectedLabels = []
     wsi.defaultSelectedLabels.push({
       'label': path.datasetConfig.annotations[0].labels[0].label,
-      'threshold': 0.5
+      'threshold': annotations.predictionScoreThreshold
       // 'threshold': 1/path.datasetConfig.annotations[0].labels.length
     })
   }
