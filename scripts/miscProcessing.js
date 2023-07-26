@@ -1,5 +1,10 @@
+importScripts("https://episphere.github.io/imagebox3/imagebox3.js")
+
 const epiPathBasePath = "https://episphere.github.io/path"
-const tileServerBasePath = "https://imageboxv2-oxxe7c4jbq-uc.a.run.app/iiif"
+const tileServerPathSuffix = "iiif"
+const tileServerBasePath = `https://imageboxv2-oxxe7c4jbq-uc.a.run.app/${tileServerPathSuffix}`
+// const imageBox3TileServerBasePath = `${location.origin}/${tileServerPathSuffix}`
+
 const wsiFileTypes = [".svs", ".ndpi"]
 const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff", ...wsiFileTypes]
 
@@ -167,15 +172,28 @@ const handleTIFFConversion = async (op, imageId, jpegRepresentationsFolderId, na
   })
 }
 
-const getWSIInfo = async (url) => {
-  const infoURL = `${tileServerBasePath}?iiif=${url}/info.json`
-  const imageInfo =  await fetch(infoURL)
+const getWSIInfo = async (url, imgbox3=false) => {
+  let imageInfo = {}
+  if (imgbox3) {
+    imageInfo = await imagebox3.getImageInfo(url)
+  } else {
+    const infoURL = `${tileServerBasePath}?iiif=${url}/info.json`
+    imageInfo =  await fetch(infoURL)
+  }
   return imageInfo.json()
 }
 
-const getWSIThumbnail = async (url, width, height) => {
-  const thumbnailURL = `${tileServerBasePath}?iiif=${url}/0,0,${width},${height}/256,/0/default.jpg`
-  const thumbnailImage = await fetch(thumbnailURL)
+const getWSIThumbnail = async (url, width, height, imgbox3=false) => {
+  let thumbnailImage = {}
+  if (imgbox3) {
+    const tileParams = {
+      thumbnailWidthToRender: 256
+    };
+    thumbnailImage = await imagebox3.getImageThumbnail(url, tileParams)
+  } else {
+    const thumbnailURL = `${tileServerBasePath}?iiif=${url}/0,0,${width},${height}/256,/0/default.jpg`
+    thumbnailImage = await fetch(thumbnailURL)
+  }
   return thumbnailImage.blob()
 }
 
@@ -189,8 +207,26 @@ const handleWSIThumbnailCreation = async (op, imageId, name, wsiThumbnailsFolder
   }
   
   const url = await getImageDownloadURL(imageId)
-  const { width, height } = await getWSIInfo(url)
-  const thumbnailImage = await getWSIThumbnail(url, width, height)
+  let imageInfo = undefined
+
+  const checkImageBox3Compatibility = async () => {
+    if (!name.endsWith('svs')) {
+      return false
+    }
+    try {
+      imageInfo = await getWSIInfo(url, true)
+      return true
+    } catch (e) {
+      console.warn("Error using Imagebox3, reverting to Imagebox2", e)
+      return false
+    }
+  }
+  
+  const isImageBox3Compatible = await checkImageBox3Compatibility()
+
+  const { width, height } = imageInfo || await getWSIInfo(url, isImageBox3Compatible)
+  const thumbnailImage = await getWSIThumbnail(url, width, height, isImageBox3Compatible)
+  
   const thumbnailURL = await URL.createObjectURL(thumbnailImage)
   let thumbnailSavedToBox = false
 
@@ -263,7 +299,7 @@ const saveThumbnailToBox = async (imageId, thumbnailImage, name, wsiThumbnailsFo
   }
 }
 
-const retriveTMAAnnotations = async (op, folderId, annotations, format) => {
+const retrieveTMAAnnotations = async (op, folderId, annotations, format) => {
   const limit = 1000
   let offset = 0
   let annotationsObj = []
@@ -384,7 +420,7 @@ onmessage = async (evt) => {
 
     case "getTMAAnnotations":
       const { folderToGetFrom, annotations, format } = data
-      await retriveTMAAnnotations(op, folderToGetFrom, annotations, format)
+      await retrieveTMAAnnotations(op, folderToGetFrom, annotations, format)
   }
 }
 

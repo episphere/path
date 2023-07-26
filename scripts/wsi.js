@@ -1,11 +1,14 @@
 const wsi = {}
 const EPSILON = Math.pow(10, -11)
+
 wsi.defaultLabelOverlayColors = ['#33a02c99','#e31a1c99','#1f78b499','#6a3d9a99','#ff7f0099','#b1592899','#a6cee399','#b2df8a99','#fb9a9999','#fdbf6f99','#cab2d699','#ffff9999']
 
+wsi.tileServerPathSuffix = "iiif"
 wsi.metadataPathPrefix = "wsi"
 wsi.customMetadataPathPrefix = `${wsi.metadataPathPrefix}_customAnnotation_0`
 wsi.userFeedbackForPredictionPrefix = `${wsi.metadataPathPrefix}_feedback`
-wsi.tileServerBasePath = "https://imageboxv2-oxxe7c4jbq-uc.a.run.app/iiif"
+wsi.tileServerBasePath = `https://imageboxv2-oxxe7c4jbq-uc.a.run.app/${wsi.tileServerPathSuffix}`
+wsi.imageBox3TileServerBasePath = `${window.location.origin}/${wsi.tileServerPathSuffix}`
 
 const reloadImageAfterURLTimeout = (id, name) => wsi.loadImage(id, name)
 
@@ -32,6 +35,7 @@ wsi.registerServiceWorker = () => new Promise((resolve, reject) => {
 })
 
 wsi.loadImage = async (id, name, fileMetadata={}) => {
+  wsi.isImagebox3Compatible = false
   if (!path.wsiOptions) {
     path.loadWSIOptions()
   }
@@ -52,31 +56,45 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
   // await wsi.checkServiceWorkerRegistration()
   const url = await box.getFileContent(id, false, true)
   const format = name.substring(name.lastIndexOf(".") + 1)
-  const tileServerRequestURL = `${wsi.tileServerBasePath}/?format=${format}&iiif=${url}`;
-  const infoURL = `${tileServerRequestURL}/info.json`
   let imageInfo = fileMetadata.wsiInfo ? JSON.parse(fileMetadata.wsiInfo) : undefined
-  if (!imageInfo) {
+  let tileServerRequestURL = undefined
+  const {default: {getImageInfo}} = await import("https://episphere.github.io/imagebox3/imagebox3.mjs")
+  try {
+    if (!imageInfo) {
+      imageInfo = await (await getImageInfo(url)).json()
+    }
+    wsi.isImagebox3Compatible = true
+  } catch(e) {
+    console.warn("Error occurred fetching image info using ImageBox3. Falling back to ImageBox2.", e)
+    tileServerRequestURL = `${wsi.tileServerBasePath}/?format=${format}&iiif=${url}`;
+    const infoURL = `${tileServerRequestURL}/info.json`
     try {
       imageInfo = await utils.request(infoURL, {}, true)
     } catch (e) {
       alert("An error occurred retrieving the image information. Please try again later.")
+      console.error(e)
       hideLoader(loaderElementId)
       return
     }
   }
   
   console.log("Image Info : ", imageInfo)
-  const tileSources = {
-    "@context": imageInfo["@context"],
-    "@id": tileServerRequestURL,
-    "height": parseInt(imageInfo.height),
-    "width": parseInt(imageInfo.width),
-    "profile": ["http://iiif.io/api/image/2/level2.json"],
-    "protocol": "http://iiif.io/api/image",
-    "tiles": [{
-      "scaleFactors": [1, 4, 16, 64, 256, 1024],
-      "width": 256
-    }]
+  let tileSources = {}
+  if (wsi.isImagebox3Compatible) {
+    tileSources = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(url, {logLatency: false}))[0]
+  } else {
+    tileSources = {
+      "@context": imageInfo["@context"],
+      "@id": tileServerRequestURL,
+      "height": parseInt(imageInfo.height),
+      "width": parseInt(imageInfo.width),
+      "profile": ["http://iiif.io/api/image/2/level2.json"],
+      "protocol": "http://iiif.io/api/image",
+      "tiles": [{
+        "scaleFactors": [1, 4, 16, 64, 256, 1024],
+        "width": 256
+      }]
+    }
   }
   
   
@@ -97,9 +115,9 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
       showZoomControl: false,
       navigationControlAnchor: OpenSeadragon.ControlAnchor["TOP_RIGHT"],
       // debugMode: true,
-      immediateRender: false,
-      imageLoaderLimit: 20,
-      timeout: 60*1000
+      // immediateRender: false,
+      // imageLoaderLimit: 5,
+      timeout: 180*1000
     });
 
     path.wsiViewer.imageLoadedAtTime = Date.now()
@@ -212,7 +230,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
           const startX = 0
           const startY = 0
           const {width: endX, height: endY } = imageInfo
-          runModelWSI(startX, startY, endX, endY, tileSizeAtCurrentLevel)
+          runModelWSI(startX, startY, endX, endY, maxTileSizeToLookAt)
         }
       }
 
@@ -697,7 +715,12 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
         const oldTileSource = oldImage.source
         
         const refreshedFileURL = await box.getFileContent(id, false, true)
-        const newTileSourceURL = `${wsi.tileServerBasePath}/?format=${format}&iiif=${refreshedFileURL}`
+        let newTileSourceURL = ""
+        if (wsi.isImagebox3Compatible) {
+          newTileSourceURL = refreshedFileURL
+        } else {
+          newTileSourceURL = `${wsi.tileServerBasePath}/?format=${format}&iiif=${refreshedFileURL}`
+        }
         const newTileSource = {
           ...oldTileSource,
           "@id": newTileSourceURL
@@ -799,7 +822,7 @@ wsi.loadZoomSlider = () => {
   
 }
 
-wsi.startPrediction = (annotationId, imageId, imageName, width, height, predictionBounds, wsiPredsFileId) => {
+wsi.startPrediction = (annotationId, imageId, imageName, width, height, predictionBounds, wsiPredsFileId, saveToBox=true) => {
   const predicting = models.getWSIPrediction(annotationId, imageId, imageName, { width, height }, predictionBounds, wsiPredsFileId)
   wsi.modelRunning = true
   if (!predicting) {

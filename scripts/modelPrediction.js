@@ -1,4 +1,5 @@
 importScripts("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs", "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl")
+importScripts("https://episphere.github.io/imagebox3/imagebox3.js")
 
 const MAX_PARALLEL_REQUESTS = 5
 const childWorkers = []
@@ -69,7 +70,7 @@ onmessage = async (evt) => {
         'modelVersion': modelConfig.version,
         model
       }
-      postMessage({ op, "annotationId": correspondingAnnotation, "modelLoaded": true})
+      postMessage({ op, "annotationId": correspondingAnnotation, "modelId": modelConfig.id, "modelLoaded": true})
       break
     
     case 'predict':
@@ -90,7 +91,6 @@ onmessage = async (evt) => {
       const offscreentCtx = offscreenCV.getContext('2d')
       offscreentCtx.drawImage(imageBitmap, 0, 0)
       prediction = await models[annotationId].model.classify(offscreenCV)
-      
       postMessage({
         op,
         prediction,
@@ -107,8 +107,11 @@ onmessage = async (evt) => {
       imageId = data.body.imageData.imageId
       let { imageName, imageInfo, predictionBounds, wsiPredsFileId } = data.body.imageData
       const fileFormat = imageName.substring(imageName.lastIndexOf(".") + 1)
-
-      const tileServerBasePath = "https://imageboxv2-oxxe7c4jbq-uc.a.run.app/iiif"
+      
+      const tileServerPathSuffix = "iiif"
+      const tileServerBasePath = `https://imageboxv2-oxxe7c4jbq-uc.a.run.app/${tileServerPathSuffix}`
+      // const imagebox3TileServerBasePath = `${location.origin}/${tileServerPathSuffix}`
+      let isImagebox3Compatible = undefined
       
       const wsiTilePrediction = async (tileInfo) => {
         const { imageId, imageURL, x, y, width, height, attemptNum } = tileInfo
@@ -122,10 +125,43 @@ onmessage = async (evt) => {
             'fromLocalDB': true
           }
         } else if (x >= 0 && y >= 0 && width >= 0 && height >= 0) {
+          let tile = undefined
+
+          if (typeof(isImagebox3Compatible) === "undefined") {
+            const getImageBox3Tile = async () => {
+              const tileParams = {
+                tileX: x,
+                tileY: y,
+                tileWidth: width,
+                tileHeight: height,
+                tileSize: tileWidthRendered
+              };
+              const tile = await imagebox3.getImageTile(imageURL, tileParams)
+              return tile
+            }
+            const checkImageBox3Compatibility = async () => {
+              if (fileFormat !== 'svs') {
+                return false
+              }
+              
+              try {
+                tile = await getImageBox3Tile()
+                return true
+              } catch (e) {
+                console.warn("Error using Imagebox3, reverting to Imagebox2", e)
+                return false
+              }
+            }
+            isImagebox3Compatible = await checkImageBox3Compatibility()
+          } else if (isImagebox3Compatible) {
+            tile = await getImageBox3Tile()
+          } else {
+            const tileServerRequest = `${tileServerBasePath}/?format=${fileFormat}&iiif=${imageURL}/${x},${y},${width},${height}/${tileWidthRendered},/0/default.jpg`
+            tile = await fetch(tileServerRequest)
+          }
           // const tileServerRequest = `${tileServerBasePath}/?format=${fileFormat}&iiif=${imageURL}/${x},${y},${width},${height}/${width > maxTileImageDimension ? maxTileImageDimension: width},/0/default.jpg`
-          const tileServerRequest = `${tileServerBasePath}/?format=${fileFormat}&iiif=${imageURL}/${x},${y},${width},${height}/${tileWidthRendered},/0/default.jpg`
           try {
-            const tileBlob = await (await fetch(tileServerRequest)).blob()
+            const tileBlob = await tile.blob()
             const tileImageBitmap = await createImageBitmap(tileBlob)
             
             if (tileImageBitmap) {
