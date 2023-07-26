@@ -185,9 +185,9 @@
 
         //To do: documentation necessary? Kind of an internal function...
         downloadTileStart:function(context){
+            let image = new Image();
+            let request=''+context.src;
             context.src.fetch().then(dataURL=>{
-                let image = new Image();
-                let request=''+context.src;
                 image.onload=function(){
                     context.finish(image);
                 }
@@ -195,6 +195,8 @@
                     context.finish(null,request,'Request aborted');
                 }
                 image.src = dataURL;
+            }).catch(e => {
+                context.finish(null, request, e.message)
             })
         },
         downloadTileAbort:function(context){
