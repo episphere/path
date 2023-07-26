@@ -826,40 +826,44 @@ annotations.showNextImageButton = (metadata) => {
       nextImageButton.setAttribute("class", "btn btn-link")
       nextImageButton.innerHTML = "Next Image >>"
     
+      const isImageInThumbnailsList = (imageId=hashParams.image) => document.querySelector(`div.thumbnailDiv->img.imagePickerThumbnail[entry_id='${imageId}']`)
       const isLastThumbnailsPage = () => document.getElementById("thumbnailPageSelector").querySelector("button:last-child").getAttribute("disabled") === "true"
-      const isLastImageInThumbnailsList = (imageId=hashParams.image.toString()) => document.querySelector("div.thumbnailDiv:last-of-type>img.imagePickerThumbnail").getAttribute("entry_id") === imageId
+      const isLastImageInThumbnailsList = (imageId=hashParams.image) => document.querySelector("div.thumbnailDiv:last-of-type>img.imagePickerThumbnail").getAttribute("entry_id") === imageId.toString()
 
       if (isLastThumbnailsPage() && isLastImageInThumbnailsList()) {
         nextImageButton.setAttribute("disabled", "true")
       }
       
       nextImageButton.onclick = async (_) => {
-       
-        if (isLastImageInThumbnailsList(hashParams.image.toString())) {
-          
-          const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
-          thumbnailCurrentPageText.stepUp()
-          thumbnailCurrentPageText.dispatchEvent(new Event("change"))
-          if (path.isWSI) {
-            showLoader("imgLoaderDiv", path.wsiViewer.canvas)
-          } else {
-            showLoader("imgLoaderDiv", path.tmaCanvas)
-          }
-          
-          document.addEventListener("thumbnailsLoaded", (e) => { // Needs to wait for new thumbnails list to be loaded.
-            path.selectImage(document.querySelector("img.imagePickerThumbnail").getAttribute("entry_id"))
-          }, {once: true})
-
-        } else {
-          const thumbnailElements = document.querySelectorAll("img.imagePickerThumbnail")
-          let nextImageIndex = -1
-          thumbnailElements.forEach((el,ind) => {
-            if (el.classList.contains("selectedThumbnail")) {
-              nextImageIndex = ind + 1
+        if (isImageInThumbnailsList(hashParams.image)) {
+          if (isLastImageInThumbnailsList(hashParams.image.toString())) {
+            
+            const thumbnailCurrentPageText = document.getElementById("thumbnailPageSelector_currentPage")
+            thumbnailCurrentPageText.stepUp()
+            thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+            if (path.isWSI) {
+              showLoader("imgLoaderDiv", path.wsiViewer.canvas)
+            } else {
+              showLoader("imgLoaderDiv", path.tmaCanvas)
             }
-          })
-        
-          path.selectImage(thumbnailElements[nextImageIndex].getAttribute("entry_id"))
+            
+            document.addEventListener("thumbnailsLoaded", (e) => { // Needs to wait for new thumbnails list to be loaded.
+              path.selectImage(document.querySelector("img.imagePickerThumbnail").getAttribute("entry_id"))
+            }, {once: true})
+
+          } else {
+            const thumbnailElements = document.querySelectorAll("img.imagePickerThumbnail")
+            let nextImageIndex = -1
+            thumbnailElements.forEach((el,ind) => {
+              if (el.classList.contains("selectedThumbnail")) {
+                nextImageIndex = ind + 1
+              }
+            })
+          
+            path.selectImage(thumbnailElements[nextImageIndex].getAttribute("entry_id"))
+          }
+        } else {
+          utils.showToast("Couldn't retrieve next image!")
         }
       }
   
@@ -872,10 +876,9 @@ annotations.showNextImageButton = (metadata) => {
   }
 }
 
-const selectQuality = async (annotation, qualitySelected) => {
+const selectQuality = async (annotation, qualitySelected, imageId=hashParams.image) => {
   const { annotationName, metaName } = annotation
   if (await box.isLoggedIn()) {
-    const imageId = hashParams.image
     const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
     const fileAnnotations = fileMetadata[metaName] ? JSON.parse(fileMetadata[metaName]) : {}
 
@@ -910,9 +913,9 @@ const selectQuality = async (annotation, qualitySelected) => {
     const newMetadata = await box.updateMetadata(imageId, boxMetadataPath, JSON.stringify(fileAnnotations))
 
     if (!newMetadata.status) { // status is returned only on error, check for errors properly later
-      window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+      // window.localStorage.fileMetadata = JSON.stringify(newMetadata)
       utils.showToast(`Annotation Successful!`)
-      thumbnails.borderByAnnotations(hashParams.image, newMetadata)
+      // thumbnails.borderByAnnotations(hashParams.image, newMetadata)
 
       if (imageId === hashParams.image) {
         annotations.activateQualitySelector(annotationName, fileAnnotations)
