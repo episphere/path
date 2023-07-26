@@ -127,23 +127,22 @@ onmessage = async (evt) => {
         } else if (x >= 0 && y >= 0 && width >= 0 && height >= 0) {
           let tile = undefined
 
+          const getImageBox3Tile = async () => {
+            const tileParams = {
+              tileX: x,
+              tileY: y,
+              tileWidth: width,
+              tileHeight: height,
+              tileSize: tileWidthRendered
+            };
+            const tile = await imagebox3.getImageTile(imageURL, tileParams, true)
+            return tile
+          }
           if (typeof(isImagebox3Compatible) === "undefined") {
-            const getImageBox3Tile = async () => {
-              const tileParams = {
-                tileX: x,
-                tileY: y,
-                tileWidth: width,
-                tileHeight: height,
-                tileSize: tileWidthRendered
-              };
-              const tile = await imagebox3.getImageTile(imageURL, tileParams)
-              return tile
-            }
             const checkImageBox3Compatibility = async () => {
               if (fileFormat !== 'svs') {
                 return false
               }
-              
               try {
                 tile = await getImageBox3Tile()
                 return true
@@ -390,6 +389,7 @@ onmessage = async (evt) => {
                 return
          
               } else if (activeCalls === 0) {
+                imagebox3.destroyPool()
                 commitToBox(prediction)
                 postMessage({
                   op,
@@ -418,6 +418,7 @@ onmessage = async (evt) => {
           } else if (!stopPreds) {
             stopPreds = true
             console.error("Image loading failed too many times! Further predictions cannot be made.")
+            imagebox3.destroyPool()
             postMessage({
               op,
               'body': {

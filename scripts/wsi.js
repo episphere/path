@@ -108,7 +108,6 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
       tileSources,
       gestureSettingsMouse: {
         clickToZoom: false,
-        dblClickToZoom: true
       },
       crossOriginPolicy: "Anonymous",
       showNavigator: false,
@@ -220,10 +219,10 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
           const currentBounds = path.wsiViewer.viewport.viewportToImageRectangle(path.wsiViewer.viewport.getBounds())
           const widthWiseTiles = Array.from({length: Math.ceil(imageInfo.width / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
           const heightWiseTiles = Array.from({length: Math.ceil(imageInfo.height / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
-          const startX = Math.max(...widthWiseTiles.filter(tileX => {if (tileX <= currentBounds.x) return tileX}))
-          const startY = Math.max(...heightWiseTiles.filter(tileY => {if (tileY <= currentBounds.y) return tileY}))
-          const endX = Math.max(...widthWiseTiles.filter(tileX => {if (tileX <= (currentBounds.x + currentBounds.width)) return tileX})) + maxTileSizeToLookAt
-          const endY = Math.max(...heightWiseTiles.filter(tileY => {if (tileY <= (currentBounds.y + currentBounds.height)) return tileY})) + maxTileSizeToLookAt
+          const startX = Math.max(0, Math.floor(currentBounds.x / maxTileSizeToLookAt) * maxTileSizeToLookAt)
+          const startY = Math.max(0, Math.floor(currentBounds.y / maxTileSizeToLookAt) * maxTileSizeToLookAt)
+          const endX = Math.min(Math.ceil((currentBounds.x + currentBounds.width) / maxTileSizeToLookAt) * maxTileSizeToLookAt, imageInfo.width)
+          const endY = Math.min(Math.ceil((currentBounds.y + currentBounds.height) / maxTileSizeToLookAt) * maxTileSizeToLookAt, imageInfo.height)
           // runModelWSI(startX, startY, endX, endY, tileSizeAtCurrentLevel)
           runModelWSI(startX, startY, endX, endY, maxTileSizeToLookAt) // Keep dimensions fixed at 512 for now, uncomment line above to predict for tiles at all magnifications.
         } else if (regionSelected === "wholeImage") {
@@ -715,15 +714,16 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
         const oldTileSource = oldImage.source
         
         const refreshedFileURL = await box.getFileContent(id, false, true)
-        let newTileSourceURL = ""
+        let newTileSource = ""
         if (wsi.isImagebox3Compatible) {
-          newTileSourceURL = refreshedFileURL
+          const newTileSourceURL = refreshedFileURL
+          newTileSource = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(newTileSourceURL, {logLatency: false}))[0]
         } else {
-          newTileSourceURL = `${wsi.tileServerBasePath}/?format=${format}&iiif=${refreshedFileURL}`
-        }
-        const newTileSource = {
-          ...oldTileSource,
-          "@id": newTileSourceURL
+          const newTileSourceURL = `${wsi.tileServerBasePath}/?format=${format}&iiif=${refreshedFileURL}`
+          newTileSource = {
+            ...oldTileSource,
+            "@id": newTileSourceURL
+          }
         }
 
         path.wsiViewer.addTiledImage({
@@ -823,6 +823,7 @@ wsi.loadZoomSlider = () => {
 }
 
 wsi.startPrediction = (annotationId, imageId, imageName, width, height, predictionBounds, wsiPredsFileId, saveToBox=true) => {
+  console.time("WSIPreds")
   const predicting = models.getWSIPrediction(annotationId, imageId, imageName, { width, height }, predictionBounds, wsiPredsFileId)
   wsi.modelRunning = true
   if (!predicting) {
@@ -1124,6 +1125,7 @@ wsi.handleMessage = (data, op) => {
     if (data.message) {
       utils.showToast(data.message)
       if (data.completed) {
+        console.timeEnd("WSIPreds")
         wsi.stopModel()
       } else if (data.error) {
         wsi.stopModel()
