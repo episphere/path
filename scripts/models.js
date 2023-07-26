@@ -1,8 +1,8 @@
 const models = {}
 
-models.getTMAPrediction = (annotationId, annotationType, imageId=hashParams.image, forceModel=false) => new Promise(async (resolve) => {
-  const metadata = imageId === hashParams.image ? JSON.parse(window.localStorage.fileMetadata) :  await box.getMetadata(imageId, "file")
-  const annotations = metadata[annotationType] ? JSON.parse(metadata[annotationType]) : {}
+models.getTMAPrediction = (annotationId, annotationType, imageId=hashParams.image, forceModel=false, updateInBox=true) => new Promise(async (resolve) => {
+  // const metadata = imageId === hashParams.image ? JSON.parse(window.localStorage.fileMetadata) : await box.getMetadata(imageId, "file")
+  // const annotations = metadata[annotationType] ? JSON.parse(metadata[annotationType]) : {}
 
   const updatePredictionInBox = (imageId, modelPrediction, annotationName) => {
     if (annotations["model"]) {
@@ -39,6 +39,14 @@ models.getTMAPrediction = (annotationId, annotationType, imageId=hashParams.imag
       const offscreenCtx = offscreenCV.getContext('2d')
       offscreenCtx.drawImage(path.tmaImage, 0, 0, path.tmaImage.width, path.tmaImage.height)
       imageBitmap = offscreenCV.transferToImageBitmap()
+    } else {
+      imgURL = await box.getFileContent(imageId, false, true)
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      img.src = imgURL
+      imageBitmap = await new Promise((res, rej) => {
+        img.onload = () => res(createImageBitmap(img))
+      })
     }
     dataset.predictionWorkers[annotationId].postMessage({
       'op': "predict",
@@ -54,7 +62,9 @@ models.getTMAPrediction = (annotationId, annotationType, imageId=hashParams.imag
     }, [imageBitmap])
     
     document.addEventListener("tmaPrediction", (e) => {
-      updatePredictionInBox(imageId, e.detail, annotationType)
+      if (updateInBox) {
+        updatePredictionInBox(imageId, e.detail, annotationType)
+      }
       resolve(e.detail?.prediction)
     }, {
       once: true
