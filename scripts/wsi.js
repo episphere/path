@@ -8,7 +8,7 @@ wsi.metadataPathPrefix = "wsi"
 wsi.customMetadataPathPrefix = `${wsi.metadataPathPrefix}_customAnnotation_0`
 wsi.userFeedbackForPredictionPrefix = `${wsi.metadataPathPrefix}_feedback`
 wsi.tileServerBasePath = `https://imageboxv2-oxxe7c4jbq-uc.a.run.app/${wsi.tileServerPathSuffix}`
-wsi.imageBox3TileServerBasePath = `${window.location.origin}/${wsi.tileServerPathSuffix}`
+// wsi.imageBox3TileServerBasePath = `${window.location.origin}/${wsi.tileServerPathSuffix}`
 
 const reloadImageAfterURLTimeout = (id, name) => wsi.loadImage(id, name)
 

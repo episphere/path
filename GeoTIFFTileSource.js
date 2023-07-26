@@ -53,7 +53,7 @@
             setupLevels.call(this);
         } else{
             this.promises={
-                GeoTIFF: input instanceof File ? GeoTIFF.fromBlob(input) : GeoTIFF.fromUrl(input, {headers: {"Cache-Control": "no-cache, no-store"}}),
+                GeoTIFF: input instanceof File ? GeoTIFF.fromBlob(input) : GeoTIFF.fromUrl(input, {headers: {"Cache-Control": "no-store"}}),
                 GeoTIFFImages:DeferredPromise(),
                 ready:DeferredPromise(),
             }
