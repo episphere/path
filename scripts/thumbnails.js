@@ -166,7 +166,7 @@ thumbnails.loadThumbnail = async (id, name, thumbnailImgElement, thumbnailMetada
             })
             
             const consumeGeneratedThumbnail =  (evt) => {
-              if (evt.data.op === op && evt.data.imageId === id) {
+              if (evt.data.op === op && evt.data.data.imageId === id) {
                 const { data: { thumbnailURL, thumbnailSavedToBox }} = evt.data
                 thumbnailImgElement.setAttribute("src", thumbnailURL)
                 path.miscProcessingWorker.removeEventListener('message', consumeGeneratedThumbnail)
@@ -305,13 +305,17 @@ thumbnails.getAnnotationsForBorder = (thumbnailId) => {
 thumbnails.borderByAnnotations = (thumbnailId, metadata = JSON.parse(window.localStorage.fileMetadata)) => {
   const numAnnotationsCompleted = annotations.getNumCompletedAnnotations(metadata)
   const thumbnailImg = document.getElementById(`thumbnail_${thumbnailId}`)
-  if (numAnnotationsCompleted === 0) {
-    thumbnailImg.classList.remove("annotationsCompletedThumbnail")
-    thumbnailImg.classList.remove("annotationsPartlyCompletedThumbnail")
-  } else if (path.datasetConfig && path.datasetConfig.annotations && numAnnotationsCompleted === path.datasetConfig.annotations.length) {
-    thumbnailImg.classList.add("annotationsCompletedThumbnail")
-  } else if (numAnnotationsCompleted > 0) {
-    thumbnailImg.classList.add("annotationsPartlyCompletedThumbnail")
+  if (thumbnailImg) {
+    
+    if (numAnnotationsCompleted === 0) {
+      thumbnailImg.classList.remove("annotationsCompletedThumbnail")
+      thumbnailImg.classList.remove("annotationsPartlyCompletedThumbnail")
+    } else if (path.datasetConfig && path.datasetConfig.annotations && numAnnotationsCompleted === path.datasetConfig.annotations.length) {
+      thumbnailImg.classList.add("annotationsCompletedThumbnail")
+    } else if (numAnnotationsCompleted > 0) {
+      thumbnailImg.classList.add("annotationsPartlyCompletedThumbnail")
+    }
+
   }
 }
 
