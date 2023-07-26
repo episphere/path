@@ -210,7 +210,19 @@ const path = async () => {
   path.boxCredsDB = await path.setupIndexedDB(...Object.values(indexedDBConfig['box']))
   
   path.miscProcessingWorker = new Worker(`${basePath}/scripts/miscProcessing.js`)
-  
+
+  // addWSIServiceWorker = () => {
+  //   if ('serviceWorker' in navigator) {
+  //     navigator.serviceWorker.register(`${window.location.pathname}imagebox3.js?tileServerURL=${wsi.imageBox3TileServerBasePath}`)
+  //     .catch((error) => {
+  //       console.log('Service worker registration failed', error)
+  //       reject(error)
+  //     })
+  //     return navigator.serviceWorker.ready
+  //   }
+  // }
+  // await addWSIServiceWorker()
+
   box().then(() => {
     path.setupAfterBoxLogin()
     loadHashParams()
@@ -354,7 +366,7 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
       if (path.datasetConfig.models.trainedModels?.length > 0) {
         const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Loading AI Model..." : "Loading AI Models..."
         utils.showToast(toastMessage)
-        dataset.loadModels(path.datasetConfig.models)
+        dataset.loadModels(path.datasetConfig.models.trainedModels)
       }
       const datasetConfigSetEvent = new CustomEvent("datasetConfigSet")
       document.dispatchEvent(datasetConfigSetEvent)
@@ -833,10 +845,14 @@ const startCollaboration = () => {
 //   console.log("LOADED", path.model)
 // }
 
-path.annotateFolder = async (folderId=hashParams.folder, annotationName) => {
-  const annotation = path.datasetConfig.annotations[0]
-  annotationName = annotationName || annotation.metaName
-  let annotationsForFolder = `id,filename,prediction_label,prediction_score,url_in_app,prediction_score_present,prediction_score_absent,prediction_score_uncertain`
+path.predictForFolder = async (folderId=hashParams.folder, annotation=path.datasetConfig.annotations[0], uploadToBox=false, updateFileMetadata=true) => {
+  const annotationName = annotation.metaName
+  const labels = annotation.labels.map(l => l.label)
+  let predictionsForFolder = `id,filename,prediction_label,prediction_score,url_in_app`
+  labels.forEach(label => {
+    predictionsForFolder += ","
+    predictionsForFolder += `prediction_score_for_${label}`
+  })
   // let forROC = ""
   const images = await box.getAllFolderContents(folderId)
 
@@ -844,7 +860,7 @@ path.annotateFolder = async (folderId=hashParams.folder, annotationName) => {
   console.time("Prediction")
   for (let image of images.entries) {
     if (image.type === "file" && utils.isValidImage(image.name)) {
-      const preds = await models.getTMAPrediction(annotation.annotationId, annotationName, image.id, true)
+      const preds = await models.getTMAPrediction(annotation.annotationId, annotationName, image.id, true, updateFileMetadata)
       const maxPred = preds.reduce((maxLabel, pred) => {
         if (!maxLabel.prob || maxLabel.prob < pred.prob) {
           maxLabel = pred
@@ -852,27 +868,41 @@ path.annotateFolder = async (folderId=hashParams.folder, annotationName) => {
         return maxLabel
       }, {})
       console.log(`Prediction for ${image.name} completed.`)
-      annotationsForFolder += `\n${image.id},${image.name},${maxPred.label},${maxPred.prob},https://episphere.github.io/path#image=${image.id},${preds.find(pred => pred.label==="Present").prob},${preds.find(pred => pred.label==="Absent").prob},${preds.find(pred => pred.label==="Uncertain").prob}`
+      predictionsForFolder += `\n${image.id},${image.name},${maxPred.label},${maxPred.prob},https://episphere.github.io/path#image=${image.id}`
+      labels.forEach(label => {
+        const labelPrediction = preds.find(pred => pred.label===label)
+        predictionsForFolder += ","
+        predictionsForFolder += `${labelPrediction?.prob || -1}`
+      })
     }
   }
   console.timeEnd("Prediction")
   
   console.log("DONE!")
-  const uploadPredictionsFileFD = new FormData()
-  const predictionsFileConfig =  {
-    "name": `Predictions_${annotation.displayName}.csv`,
-    "parent": {
-      "id": 109209908256
+
+  const filename = `Predictions_${annotation.displayName}.csv`
+  const tempAnchorElement = document.createElement('a')
+  tempAnchorElement.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(predictionsForFolder))
+  tempAnchorElement.setAttribute('download', filename)
+  tempAnchorElement.click()
+
+  if (uploadToBox) {
+    const uploadPredictionsFileFD = new FormData()
+    const predictionsFileConfig =  {
+      "name": filename,
+      "parent": {
+        "id": 109209908256
+      }
     }
+    const predictionsBlob = new Blob([predictionsForFolder], {
+      type: 'text/plain'
+    })
+  
+    uploadPredictionsFileFD.append("attributes", JSON.stringify(predictionsFileConfig))
+    uploadPredictionsFileFD.append("file", predictionsBlob)
+  
+    await box.uploadFile(uploadPredictionsFileFD)
   }
-  const predictionsBlob = new Blob([annotationsForFolder], {
-    type: 'text/plain'
-  })
-
-  uploadPredictionsFileFD.append("attributes", JSON.stringify(predictionsFileConfig))
-  uploadPredictionsFileFD.append("file", predictionsBlob)
-
-  await box.uploadFile(uploadPredictionsFileFD)
   // console.log(forROC)
 }
 

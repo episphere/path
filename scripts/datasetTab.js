@@ -1,11 +1,11 @@
 const dataset = {}
 dataset.predictionWorkers = {}
 
-dataset.loadModels = (modelsConfig) => {
+dataset.loadModels = (modelsConfig=[]) => {
   Object.values(dataset.predictionWorkers).forEach((predictionWorker) => predictionWorker.terminate())
   dataset.modelsLoaded = {}
   
-  const selectedModelPerAnnotation = modelsConfig.trainedModels.reduce((modelsPerAnnot, current) => {
+  const selectedModelPerAnnotation = modelsConfig.reduce((modelsPerAnnot, current) => {
     if (!modelsPerAnnot[current.correspondingAnnotation] || modelsPerAnnot[current.correspondingAnnotation].version < current.version) {
       modelsPerAnnot[current.correspondingAnnotation] = current
     }
@@ -20,10 +20,10 @@ dataset.loadModels = (modelsConfig) => {
       const {op, ...dataFromWorker} = e.data
       switch(op) {
         case 'loadModel': 
-          const { annotationId, modelLoaded } = dataFromWorker
+          const { annotationId, modelId, modelLoaded } = dataFromWorker
           if (modelLoaded) {
             const annotationConfig = path.datasetConfig.annotations.find(annot => annot.annotationId === annotationId)
-            dataset.modelsLoaded[dataFromWorker.annotationId] = true
+            dataset.modelsLoaded[dataFromWorker.annotationId] = modelId
             utils.showToast(`Model Loaded for ${annotationConfig.displayName}`)
           }
           break
@@ -78,7 +78,7 @@ dataset.populateInfo = (datasetConfig, forceRedraw=false) => {
     const downloadAnnotationsBtn = document.createElement("button")
     downloadAnnotationsBtn.setAttribute("class", "btn btn-outline-primary downloadAnnotations")
     downloadAnnotationsBtn.innerText = "Download Annotations"
-    downloadAnnotationsBtn.onclick = (e) => dataset.getTMAAnnotations(document.getElementById("annotationsFileTypeDropdownBtn").getAttribute("value"), e.target, datasetFolderName)
+    downloadAnnotationsBtn.onclick = (e) => dataset.getTMAAnnotations(document.getElementById("annotationsFileTypeDropdownBtn").getAttribute("value"), e.target, path.datasetConfig.datasetFolderId, datasetFolderName)
     downloadButtonSpan.appendChild(downloadAnnotationsBtn)
     downloadButtonSpan.insertAdjacentHTML('beforeend', "&nbsp as ")
 
@@ -214,16 +214,16 @@ dataset.populateInfo = (datasetConfig, forceRedraw=false) => {
   }
 }
 
-dataset.getTMAAnnotations = async (requestedFormat="json", targetElement, datasetFolderName) => {
-  targetElement.insertAdjacentHTML('beforeend', `<span>&nbsp&nbsp<i class="fas fa-spinner fa-spin"></i></span>`)
+dataset.getTMAAnnotations = async (requestedFormat="json", targetElement, folderId=path.datasetConfig.datasetFolderId, datasetFolderName) => {
+  targetElement?.insertAdjacentHTML('beforeend', `<span>&nbsp&nbsp<i class="fas fa-spinner fa-spin"></i></span>`)
   utils.showToast("Retrieving Annotations...")
-  targetElement.setAttribute("disabled", "true")
+  targetElement?.setAttribute("disabled", "true")
   
   const op = "getTMAAnnotations"
   path.miscProcessingWorker.postMessage({
     op,
     'data': {
-      'folderToGetFrom': path.datasetConfig.datasetFolderId,
+      'folderToGetFrom': folderId,
       'annotations': path.datasetConfig.annotations,
       'format': requestedFormat
     }
@@ -236,8 +236,8 @@ dataset.getTMAAnnotations = async (requestedFormat="json", targetElement, datase
       tempAnchorElement.setAttribute('download', `${datasetFolderName}_Annotations.${requestedFormat}`);
       tempAnchorElement.click();
       utils.showToast("Annotations Downloaded!")
-      targetElement.removeChild(targetElement.lastElementChild)
-      targetElement.removeAttribute("disabled")
+      targetElement?.removeChild(targetElement.lastElementChild)
+      targetElement?.removeAttribute("disabled")
     }
   }, {once: true})
 }
