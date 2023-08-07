@@ -116,7 +116,11 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
       
       thumbnailDiv.appendChild(thumbnailNameText)
       thumbnailsListDiv.appendChild(thumbnailDiv)
-      thumbnailDiv.onclick = () => path.selectImage(id)
+      thumbnailDiv.onmouseup = (e) => {
+        if (e.button === 0) {
+          path.selectImage(id)
+        }
+      }
       
       const thumbnailMetadata = metadata?.global?.properties
       thumbnails.loadThumbnail(id, name, thumbnailImg, thumbnailMetadata).then(() => {
@@ -250,13 +254,17 @@ thumbnails.addThumbnailPageSelector = (thumbnailPicker, totalCount, limit, offse
     thumbnailNextPageBtn.style["padding"] = "0.2rem 0.3rem 0.2rem 0.3rem"
     thumbnailNextPageBtn.appendChild(nextBtnText)
 
-    thumbnailPrevPageBtn.onclick = (e) => {
-      thumbnailCurrentPageText.stepDown()
-      thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+    thumbnailPrevPageBtn.onmouseup = (e) => {
+      if (e.button === 0) {
+        thumbnailCurrentPageText.stepDown()
+        thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+      }
     }
-    thumbnailNextPageBtn.onclick = (e) => {
-      thumbnailCurrentPageText.stepUp()
-      thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+    thumbnailNextPageBtn.onmouseup = (e) => {
+      if (e.button === 0) {
+        thumbnailCurrentPageText.stepUp()
+        thumbnailCurrentPageText.dispatchEvent(new Event("change"))
+      }
     }
 
     thumbnailCurrentPageText.onchange = ({

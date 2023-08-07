@@ -138,23 +138,44 @@ onmessage = async (evt) => {
             const tile = await imagebox3.getImageTile(imageURL, tileParams, true)
             return tile
           }
-          if (typeof(isImagebox3Compatible) === "undefined") {
+          if (typeof(isImagebox3Compatible) === "undefined"
+          || !isImagebox3Compatible  // Remove this second condition later. Need to resolve the GeoTIFF "block is undefined"
+                                     // error for some tiles to resolve this. For now, use ImageBox3 for all tiles as far as possible.
+          ) {
             const checkImageBox3Compatibility = async () => {
               if (fileFormat !== 'svs') {
                 return false
               }
               try {
-                tile = await getImageBox3Tile()
-                return true
+                try {
+                  tile = await getImageBox3Tile()
+                  return true
+                } catch(e) {
+                  console.log("Tile loading failed from ImageBox3, retrying once more.", e)
+                  try {
+                    tile = await getImageBox3Tile()
+                    return true
+                  } catch (e) {
+                    console.warn("Error using Imagebox3, reverting to Imagebox2", e)
+                    return false
+                  }
+                }
               } catch (e) {
                 console.warn("Error using Imagebox3, reverting to Imagebox2", e)
                 return false
               }
             }
             isImagebox3Compatible = await checkImageBox3Compatibility()
-          } else if (isImagebox3Compatible) {
-            tile = await getImageBox3Tile()
-          } else {
+          } 
+          if (isImagebox3Compatible && !tile) {
+            try {
+              tile = await getImageBox3Tile()
+            } catch (e) {
+              console.warn("Tile loading failed using Imagebox3, checking compatibility again.") // Also to handle the GeoTIFF "block is undefined" error.
+              isImagebox3Compatible = undefined
+              return await wsiTilePrediction(tileInfo)
+            }
+          } else if (!tile) {
             const tileServerRequest = `${tileServerBasePath}/?format=${fileFormat}&iiif=${imageURL}/${x},${y},${width},${height}/${tileWidthRendered},/0/default.jpg`
             tile = await fetch(tileServerRequest)
           }
@@ -363,7 +384,7 @@ onmessage = async (evt) => {
                   }, annotationId).then(result => {
                     if (result && result.length === indexedDBConfig['wsi'].objectStoreOpts.keyPath.length) {
                       prediction.push(addObjToDb)
-                      if (prediction.length % 10 === 0) {
+                      if (prediction.length % 50 === 0) {
                         commitToBox(prediction)
                       }
                     } else {

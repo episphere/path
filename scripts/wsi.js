@@ -211,14 +211,16 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
   
     const createRunModelButton = () => {
       const runModelWSIHandler = (e) => {
+        const imageInfo = JSON.parse(JSON.parse(window.localStorage.fileMetadata).wsiInfo)
+        
         const regionSelected = document.getElementById("runModelWSIDropdownDiv").querySelector(`input[type=radio]:checked`)?.value
         // const currentLevel = path.wsiViewer.world.getItemAt(0).lastDrawn.reduce((maxLevel, current) => maxLevel < current.level ? current.level : maxLevel, 0)
         // const tileSizeAtCurrentLevel = Math.pow(2, 8 + path.wsiViewer.source.maxLevel - currentLevel) // Start at 2^8 because 256 is the smallest tile size we consider.
         const maxTileSizeToLookAt = 512
         if (regionSelected === "currentRegion") {
           const currentBounds = path.wsiViewer.viewport.viewportToImageRectangle(path.wsiViewer.viewport.getBounds())
-          const widthWiseTiles = Array.from({length: Math.ceil(imageInfo.width / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
-          const heightWiseTiles = Array.from({length: Math.ceil(imageInfo.height / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
+          // const widthWiseTiles = Array.from({length: Math.ceil(imageInfo.width / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
+          // const heightWiseTiles = Array.from({length: Math.ceil(imageInfo.height / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
           const startX = Math.max(0, Math.floor(currentBounds.x / maxTileSizeToLookAt) * maxTileSizeToLookAt)
           const startY = Math.max(0, Math.floor(currentBounds.y / maxTileSizeToLookAt) * maxTileSizeToLookAt)
           const endX = Math.min(Math.ceil((currentBounds.x + currentBounds.width) / maxTileSizeToLookAt) * maxTileSizeToLookAt, imageInfo.width)
@@ -702,41 +704,65 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
 
   const handleBoxURLExpiry = () => {
     path.wsiViewer.removeAllHandlers("tile-load-failed")
+    path.wsiViewer.newTileSource = undefined
+    clearInterval(wsi.refreshTileSourceTimeout)
     clearTimeout(wsi.failedTileHandlerTimeout)
-    // Handle Box URL expiry. Get new URL and replace the tile source.
-    wsi.failedTileHandlerTimeout = setTimeout(() => path.wsiViewer.addOnceHandler("tile-load-failed", async (e) => {
-      console.log("Tile Load Failed, trying to reset URL!!!!!!!", e)
-      // Box URLs expire in 15 mins, so checking to see if enough time has elapsed for URL expiry to be the reason for tile failure.
-      if (Date.now() > path.wsiViewer.imageLoadedAtTime + (14*60*1000)) {
-        showLoader(loaderElementId, path.wsiViewer.canvas)
-        const oldImage = path.wsiViewer.world.getItemAt(0)
-        const oldBounds = oldImage.getBounds()
-        const oldTileSource = oldImage.source
-        
-        const refreshedFileURL = await box.getFileContent(id, false, true)
-        let newTileSource = ""
+    
+    // Handle Box URL expiry. Get new URL and have tile source ready to use.
+    const refreshTileSource = async () => {
+      const oldTileSource = path.wsiViewer.world.getItemAt(0).source
+      const refreshedFileURL = await box.getFileContent(id, false, true)
+
         if (wsi.isImagebox3Compatible) {
           const newTileSourceURL = refreshedFileURL
-          newTileSource = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(newTileSourceURL, {logLatency: false}))[0]
+          path.wsiViewer.newTileSource = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(newTileSourceURL, {logLatency: false}))[0]
+          path.wsiViewer.newTileSource.loadedAtTime = Date.now()
         } else {
           const newTileSourceURL = `${wsi.tileServerBasePath}/?format=${format}&iiif=${refreshedFileURL}`
-          newTileSource = {
+          path.wsiViewer.newTileSource = {
             ...oldTileSource,
             "@id": newTileSourceURL
           }
+          path.wsiViewer.newTileSource.loadedAtTime = Date.now()
         }
+    }
+    wsi.refreshTileSourceTimeout = setInterval(refreshTileSource, Date.now() - path.wsiViewer.imageLoadedAtTime + 12*60*1000)
+    
+    wsi.failedTileHandlerTimeout = setTimeout(() => path.wsiViewer.addOnceHandler("tile-load-failed", async (e) => {
+      console.log("Tile Load Failed, trying to reset URL!!!!!!!", e)
+      // Box URLs expire in 15 mins, so checking to see if enough time has elapsed for URL expiry to be the reason for tile failure.
+      if (Date.now() - path.wsiViewer.imageLoadedAtTime > (12*60*1000)) {
+        const oldImage = path.wsiViewer.world.getItemAt(0)
+        const currentBounds = oldImage.getBounds()
+        
+        if (path.wsiViewer.newTileSource && Date.now() - path.wsiViewer.newTileSource.loadedAtTime < (13*60*1000)) {
+          path.wsiViewer.addTiledImage({
+            tileSource: path.wsiViewer.newTileSource,
+            success: () => {
+              path.wsiViewer.imageLoadedAtTime = Date.now()
+              path.wsiViewer.world.removeItem(oldImage)
+              path.wsiViewer.world.getItemAt(0).fitBounds(currentBounds, OpenSeadragon.Placement.CENTER, true)
+              handleBoxURLExpiry()
+            }
+          })
+        } else {
+          showLoader(loaderElementId, path.wsiViewer.canvas)
+          await refreshTileSource()
+  
+          path.wsiViewer.addTiledImage({
+            tileSource: path.wsiViewer.newTileSource,
+            x: currentBounds.x,
+            y: currentBounds.y,
+            width: currentBounds.width,
+            success: () => {
+              path.wsiViewer.imageLoadedAtTime = Date.now()
+              path.wsiViewer.world.removeItem(oldImage)
+              hideLoader(loaderElementId)
+              handleBoxURLExpiry()
+            }
+          })
 
-        path.wsiViewer.addTiledImage({
-          tileSource: newTileSource,
-          x: oldBounds.x,
-          y: oldBounds.y,
-          width: oldBounds.width,
-          success: () => {
-            path.wsiViewer.world.removeItem(oldImage)
-            hideLoader(loaderElementId)
-            handleBoxURLExpiry()
-          }
-        })
+        }
       }
     }), 2*60*1000)
   }
@@ -823,6 +849,7 @@ wsi.loadZoomSlider = () => {
 }
 
 wsi.startPrediction = (annotationId, imageId, imageName, width, height, predictionBounds, wsiPredsFileId, saveToBox=true) => {
+  console.log("Total tiles in current region:", (predictionBounds.endX-predictionBounds.startX)*(predictionBounds.endY-predictionBounds.startY)/(predictionBounds.tileDimensions*predictionBounds.tileDimensions))
   console.time("WSIPreds")
   const predicting = models.getWSIPrediction(annotationId, imageId, imageName, { width, height }, predictionBounds, wsiPredsFileId)
   wsi.modelRunning = true
@@ -1125,7 +1152,6 @@ wsi.handleMessage = (data, op) => {
     if (data.message) {
       utils.showToast(data.message)
       if (data.completed) {
-        console.timeEnd("WSIPreds")
         wsi.stopModel()
       } else if (data.error) {
         wsi.stopModel()
@@ -1164,6 +1190,7 @@ wsi.handleMessage = (data, op) => {
 
 wsi.stopModel = () => {
   if (wsi.modelRunning) {
+    console.timeEnd("WSIPreds")
     wsi.removeOverlays(false, "wsiProcessing")
     wsi.removeOverlays(false, "tileProcessing")
     path.wsiViewer.removeAllHandlers('remove-overlay')

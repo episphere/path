@@ -612,7 +612,7 @@ annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData
     }
   }
   if (annotationElement) {
-    annotationElement.onclick = () => {
+    annotationElement.onmousedown = () => {
       path.wsiViewer.viewport.fitBoundsWithConstraints(path.wsiViewer.viewport.imageToViewportRectangle(new OpenSeadragon.Rect(x, y, width, height, 0)))
     }
   
