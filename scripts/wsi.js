@@ -1,7 +1,7 @@
 const wsi = {}
 const EPSILON = Math.pow(10, -11)
 
-wsi.defaultLabelOverlayColors = ['#33a02c99','#e31a1c99','#1f78b499','#6a3d9a99','#ff7f0099','#b1592899','#a6cee399','#b2df8a99','#fb9a9999','#fdbf6f99','#cab2d699','#ffff9999']
+wsi.defaultLabelOverlayColors = ['#e31a1c99','#33a02c99','#1f78b499','#6a3d9a99','#ff7f0099','#b1592899','#a6cee399','#b2df8a99','#fb9a9999','#fdbf6f99','#cab2d699','#ffff9999']
 
 wsi.tileServerPathSuffix = "iiif"
 wsi.metadataPathPrefix = "wsi"
