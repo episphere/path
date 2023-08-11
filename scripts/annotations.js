@@ -1,13 +1,13 @@
 const annotations = {}
 annotations.defaultThresholds = {}
 
-annotations.showAnnotationOptions = async (annotationsConfig=path?.datasetConfig?.annotations, isImageFromBox=false, forceRedraw=false) => {
+annotations.showAnnotationOptions = async (annotationsConfig=path.datasetConfig?.annotations, isImageFromBox=false, forceRedraw=false) => {
   const annotationsAccordion = document.getElementById("annotationsAccordion")
  
-  if (annotationsConfig && isImageFromBox) {
+  if (annotationsConfig && annotationsConfig.length > 0 && isImageFromBox) {
     await annotations.createTables(annotationsConfig, forceRedraw)
 
-  } else if (!annotationsConfig) {
+  } else if (!annotationsConfig || annotationsConfig.length === 0) {
     let messageHTMLString = ``
     if (document.getElementById("datasetSelectDropdownDiv").querySelectorAll("button").length > 1) {
       messageHTMLString = `-- Please </i><a href="#" onclick="document.getElementById('datasetSelectDropdownBtn').Dropdown.show(); return false;">Select a Dataset</a><i> first! --`

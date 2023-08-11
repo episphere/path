@@ -351,7 +351,7 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
     datasetSelectDropdownBtn.firstElementChild.classList.remove("fa-spinner") 
     datasetSelectDropdownBtn.firstElementChild.classList.remove("fa-spin")
     myBox.highlightSelectedDatasetFolder(path.userConfig.lastUsedDataset)
-    if (datasetConfig?.models?.trainedModels?.length > 0) {
+    if (path.datasetConfig.models?.trainedModels?.length > 0) {
       await wsi.setupIndexedDB()
     }
     try {
@@ -362,30 +362,28 @@ path.selectDataset = async (datasetFolderId=path.userConfig.lastUsedDataset) => 
       console.log(e)
     }
     
-    if (path?.datasetConfig?.models) {
-      if (path.datasetConfig.models.trainedModels?.length > 0) {
-        const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Loading AI Model..." : "Loading AI Models..."
-        utils.showToast(toastMessage)
-        dataset.loadModels(path.datasetConfig.models.trainedModels)
-      }
-      const datasetConfigSetEvent = new CustomEvent("datasetConfigSet")
-      document.dispatchEvent(datasetConfigSetEvent)
-      dataset.populateInfo(path.datasetConfig, false)
-      // path.predictionWorker.postMessage({
-      //   "op": "loadModels", 
-      //   "body": {
-      //     "modelsConfig": path.datasetConfig.models
-      //   }
-      // })
-      // path.predictionWorker.onmessage = (message) => {
-      //   if (message.data.annotationId && message.data.modelLoaded) {
-      //     path.modelsLoaded[message.data.annotationId] = true
-      //   } if (Object.keys(path.modelsLoaded).length === path.datasetConfig.models.trainedModels.length) {
-      //     const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Model loaded successfully!" : "Models loaded successfully!"
-      //     utils.showToast(toastMessage)
-      //   }
-      // }
+    if (path.datasetConfig.models?.trainedModels?.length > 0) {
+      const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Loading AI Model..." : "Loading AI Models..."
+      utils.showToast(toastMessage)
+      dataset.loadModels(path.datasetConfig.models.trainedModels)
     }
+    const datasetConfigSetEvent = new CustomEvent("datasetConfigSet")
+    document.dispatchEvent(datasetConfigSetEvent)
+    dataset.populateInfo(path.datasetConfig, false)
+    // path.predictionWorker.postMessage({
+    //   "op": "loadModels", 
+    //   "body": {
+    //     "modelsConfig": path.datasetConfig.models
+    //   }
+    // })
+    // path.predictionWorker.onmessage = (message) => {
+    //   if (message.data.annotationId && message.data.modelLoaded) {
+    //     path.modelsLoaded[message.data.annotationId] = true
+    //   } if (Object.keys(path.modelsLoaded).length === path.datasetConfig.models.trainedModels.length) {
+    //     const toastMessage = path.datasetConfig.models.trainedModels.length === 1 ? "Model loaded successfully!" : "Models loaded successfully!"
+    //     utils.showToast(toastMessage)
+    //   }
+    // }
   }
 }
 
@@ -421,7 +419,7 @@ const populateDatasetSelectDropdown = async () => {
         datasetOptionBtn.setAttribute("class", "btn btn-link datasetOptionBtn")
         datasetOptionBtn.innerText = datasetFolder.name
 
-        if (datasetFolder.id === path.datasetConfig?.datasetFolderId.toString()) {
+        if (datasetFolder.id === path.datasetConfig?.datasetFolderId?.toString()) {
           datasetOptionBtn.classList.add("selected")
         } else {
         }
@@ -559,45 +557,42 @@ const loadImageFromBox = async (id, url) => {
                 await loadImgFromBoxFile(null, url)
               }
 
-              if (path.datasetConfig) {
-                if (!path.datasetConfig.jpegRepresentationsFolderId || path.datasetConfig.jpegRepresentationsFolderId === -1) {
-                  const jpegRepresentationsFolderEntry = await box.createFolder("jpegRepresentations", path.datasetConfig.datasetConfigFolderId)
-                  const objectToAdd = {
-                    jpegRepresentationsFolderId: jpegRepresentationsFolderEntry.id
+              if (!path.datasetConfig.jpegRepresentationsFolderId || path.datasetConfig.jpegRepresentationsFolderId === -1) {
+                const jpegRepresentationsFolderEntry = await box.createFolder("jpegRepresentations", path.datasetConfig.datasetConfigFolderId)
+                const objectToAdd = {
+                  jpegRepresentationsFolderId: jpegRepresentationsFolderEntry.id
+                }
+                box.addToDatasetConfig(objectToAdd)
+              }
+
+              if (typeof OffscreenCanvas === "function") {
+                const op = "tiffConvert"
+                path.miscProcessWorker.postMessage({
+                  op,
+                  'data': {
+                    'imageId': id,
+                    'jpegRepresentationsFolderId': path.datasetConfig.jpegRepresentationsFolderId,
+                    name,
+                    size
                   }
-                  box.addToDatasetConfig(objectToAdd)
+                })
+                
+                path.miscProcessWorker.onmessage = (evt) => {
+                  if (evt.data.op === op) {
+                    const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
+                    if (originalImageId === hashParams.image) {
+                      console.log("Conversion completion message received from worker, loading new image", new Date())
+                      loadImgFromBoxFile(representationFileId)
+                      window.localStorage.fileMetadata = JSON.stringify(newMetadata)
+                    } 
+                  }
                 }
 
-                if (typeof OffscreenCanvas === "function") {
-                  const op = "tiffConvert"
-                  path.miscProcessWorker.postMessage({
-                    op,
-                    'data': {
-                      'imageId': id,
-                      'jpegRepresentationsFolderId': path?.datasetConfig?.jpegRepresentationsFolderId,
-                      name,
-                      size
-                    }
-                  })
-                  
-                  path.miscProcessWorker.onmessage = (evt) => {
-                    if (evt.data.op === op) {
-                      const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
-                      if (originalImageId === hashParams.image) {
-                        console.log("Conversion completion message received from worker, loading new image", new Date())
-                        loadImgFromBoxFile(representationFileId)
-                        window.localStorage.fileMetadata = JSON.stringify(newMetadata)
-                      } 
-                    }
-                  }
-
-                  path.miscProcessWorker.onerror = (err) => {
-                    console.log("Error converting TIFF from worker", err)
-                  }
+                path.miscProcessWorker.onerror = (err) => {
+                  console.log("Error converting TIFF from worker", err)
                 }
               }
-                
-
+              
             } else { // Just use the representation created before.
               const { representationFileId } = JSON.parse(fileMetadata["jpegRepresentation"])
               console.log("Using the JPEG representation created already", new Date())

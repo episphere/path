@@ -39,10 +39,12 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
   if (!path.wsiOptions) {
     path.loadWSIOptions()
   }
+  
   if (path.datasetConfig) {
     wsi.setDefaultOverlayOptions()
-  } else {
-    document.addEventListener("datasetConfigSet", wsi.setDefaultOverlayOptions)
+  } 
+  else {
+    document.addEventListener("datasetConfigSet", wsi.setDefaultOverlayOptions, {once: true})
   }
   // path.toolsDiv.parentElement.style.display = "none"
   // path.tmaOptions = false
@@ -116,7 +118,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
       // debugMode: true,
       // immediateRender: false,
       // imageLoaderLimit: 5,
-      timeout: 180*1000
+      timeout: 60*1000
     });
 
     path.wsiViewer.imageLoadedAtTime = Date.now()
@@ -140,7 +142,11 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
       annotateWSIButtonDiv.title = "Annotate Image"
   
       annotateWSIButton.onclick = (e) => {
-        const { annotationId, displayName, metaName, labels } = path.datasetConfig.annotations[0]
+        const { annotationId, displayName, metaName, labels } = path.datasetConfig?.annotations?.[0]
+        if (!annotationId) {
+          utils.showToast("No annotation definition found!")
+          return
+        }
         annotateWSIButtonDiv.selected = !annotateWSIButtonDiv.selected
         if (annotateWSIButtonDiv.selected) {
           annotateWSIButtonDiv.classList.add("active")
@@ -254,7 +260,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
             tileDimensions
           }
 
-          const annotationId = path.datasetConfig?.annotations[0]?.annotationId
+          const { annotationId } = path.datasetConfig?.annotations?.[0]
           if (!annotationId) {
             utils.showToast("No annotation definition found!")
             return
@@ -264,6 +270,11 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
           const { width, height } = path.wsiViewer.source
           const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
           const modelId = path.datasetConfig.models.trainedModels.filter(x => x.correspondingAnnotation === annotationId).reduce((maxVersion, current) => maxVersion.version < current.version ? current : maxVersion, {version: -1}).id
+          if (!modelId) {
+            utils.showToast("No models found!")
+            return
+          }
+
           let wsiPredsFileId
           if (fileMetadata.wsiPredsFiles) {
             wsiPredsFileId = JSON.parse(fileMetadata.wsiPredsFiles).find(file => file.annotationId === annotationId && file.modelId === modelId).fileId
@@ -404,7 +415,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
           selectPredictionLabelsDropdownDiv.setAttribute("id", "selectPredictionLabelsDropdownDiv")
           selectPredictionLabelsDropdownDiv.className = "dropdown-menu"
           
-          path.datasetConfig.annotations.forEach((annot, ind) => {
+          path.datasetConfig?.annotations.forEach((annot, ind) => {
             const annotationSection = document.createElement("div")
             const annotationHeader = document.createElement("b")
             annotationHeader.innerText = annot.displayName
@@ -649,7 +660,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
     wsi.loadZoomSlider()
     wsi.stopModel()
     
-    path.wsiViewer.world.getItemAt(0).addOnceHandler('fully-loaded-change', async (e) => {
+    const fullyLoadedChangeHandler = async (e) => {
       path.wsiCanvasLoaded = true
       path.onCanvasLoaded(true, true)
       wsi.handlePanAndZoom()
@@ -693,7 +704,19 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
         window.localStorage.fileMetadata = JSON.stringify(fileMetadata)
       }
       wsi.getPreviousPredsFromBox(fileMetadata)
-    })
+    }
+
+    path.wsiViewer.world.getItemAt(0).addOnceHandler('fully-loaded-change', fullyLoadedChangeHandler)
+    
+    // Handle cases where the image loads but an error (typically "SOI not found") causes the fully-loaded-change event to not fire.
+    let failedTiles = 0
+    path.wsiViewer.addHandler('tile-load-failed', (e) => failedTiles += 1)
+    setTimeout(() => {
+      if (failedTiles < 5 && path.wsiViewer.world.getItemAt(0).numberOfHandlers('fully-loaded-change') > 0) {
+        path.wsiViewer.world.getItemAt(0).raiseEvent('fully-loaded-change')
+      }
+    }, 20*1000)
+    
     path.onCanvasLoaded(false)
   })
 
@@ -904,8 +927,8 @@ wsi.setDefaultOverlayOptions = (forceReload=false) => {
   
   wsi.activeLabelOverlayColors = wsi.activeLabelOverlayColors || wsi.userPreferences?.labelOverlayColors || {}
   
-  if (Object.values(wsi.activeLabelOverlayColors).length !== path.datasetConfig.annotations.reduce((sum, curr) => sum += curr.labels.length, 0)) {
-    path.datasetConfig.annotations.forEach(annot => {
+  if (Object.values(wsi.activeLabelOverlayColors).length !== path.datasetConfig.annotations?.reduce((sum, curr) => sum += curr.labels.length, 0)) {
+    path.datasetConfig.annotations?.forEach(annot => {
       annot.labels.forEach(label => {``
         const labelIdentifier = `${annot.annotationId}_${label.label}`
         if (!wsi.activeLabelOverlayColors[labelIdentifier]) {
@@ -917,7 +940,7 @@ wsi.setDefaultOverlayOptions = (forceReload=false) => {
   }
   
   wsi.defaultSelectedLabels = wsi.defaultSelectedLabels || wsi.userPreferences?.selectedLabels || undefined
-  if (!wsi.defaultSelectedLabels && path.datasetConfig?.annotations?.length > 0) {
+  if (!wsi.defaultSelectedLabels && path.datasetConfig.annotations?.length > 0) {
     wsi.defaultSelectedLabels = []
     wsi.defaultSelectedLabels.push({
       'label': path.datasetConfig.annotations[0].labels[0].label,
@@ -1380,13 +1403,15 @@ wsi.insertIntoIndexedDB = (objectStore, data, key) => new Promise(resolve => {
 })
 
 wsi.clearIndexedDB = () => new Promise (resolveAll => {
-  Promise.all(Object.values(wsi.predsDB.objectStoreNames).map(objectStoreName => {
-    const objectStore = wsi.predsDB.transaction(objectStoreName, "readwrite").objectStore(objectStoreName)
-    return objectStore.clear()
-  })).then(() => {
-    // wsi.predsDB.transaction(wsi.predsDB.objectStoreNames[0], "readonly").objectStore(wsi.predsDB.objectStoreNames[0]).count().onsuccess = (e)=> console.log(e.target)
-    resolveAll()
-  })
+  if (wsi.predsDB) {
+    Promise.all(Object.values(wsi.predsDB.objectStoreNames).map(objectStoreName => {
+      const objectStore = wsi.predsDB.transaction(objectStoreName, "readwrite").objectStore(objectStoreName)
+      return objectStore.clear()
+    })).then(() => {
+      // wsi.predsDB.transaction(wsi.predsDB.objectStoreNames[0], "readonly").objectStore(wsi.predsDB.objectStoreNames[0]).count().onsuccess = (e)=> console.log(e.target)
+      resolveAll()
+    })
+  }
 })
 
 wsi.overlayPreviousPredictions = (labelsToDisplay=wsi.defaultSelectedLabels, requestedTileSize=wsi.defaultTileSize, bounds=[]) => {
@@ -1468,7 +1493,7 @@ wsi.overlayPreviousPredictions = (labelsToDisplay=wsi.defaultSelectedLabels, req
 }
 
 wsi.overlayPreviousAnnotations = () => {
-  path.datasetConfig.annotations.forEach(({ annotationId, metaName }) => {
+  path.datasetConfig?.annotations.forEach(({ annotationId, metaName }) => {
     const fileMetadata = JSON.parse(window.localStorage.fileMetadata)
     if (fileMetadata[`${wsi.metadataPathPrefix}_${metaName}`]) {
       const userAnnotations = JSON.parse(fileMetadata[`${wsi.metadataPathPrefix}_${metaName}`])[window.localStorage.userId]
