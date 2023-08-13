@@ -223,7 +223,53 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
         // const currentLevel = path.wsiViewer.world.getItemAt(0).lastDrawn.reduce((maxLevel, current) => maxLevel < current.level ? current.level : maxLevel, 0)
         // const tileSizeAtCurrentLevel = Math.pow(2, 8 + path.wsiViewer.source.maxLevel - currentLevel) // Start at 2^8 because 256 is the smallest tile size we consider.
         const maxTileSizeToLookAt = 512
-        if (regionSelected === "currentRegion") {
+        
+        if (regionSelected === "drawRegion") {
+          path.wsiViewer.element.style.cursor = "crosshair"
+          const canvasDragHandler = (obj) => {
+            obj.preventDefaultAction = true
+            const viewportCoordinates = path.wsiViewer.viewport.viewerElementToViewportCoordinates(obj.position)
+            let startX, startY
+
+            const previousOverlay = path.wsiViewer.currentOverlays[path.wsiViewer.currentOverlays.length - 1]
+            if (previousOverlay.element.classList.contains("wsiProcessing")) {
+              startX = previousOverlay.bounds.x
+              startY = previousOverlay.bounds.y
+              path.wsiViewer.removeOverlay(previousOverlay.element)
+            } else {
+              startX = viewportCoordinates.x
+              startY = viewportCoordinates.y
+            }
+            
+            const newRect = new OpenSeadragon.Rect(startX, startY, viewportCoordinates.x-startX, viewportCoordinates.y-startY)
+            console.log(newRect)
+            wsi.createOverlayRect({
+              type: "wsiProcessing",
+              rectBounds: newRect
+            })
+
+          }
+
+          path.wsiViewer.addHandler("canvas-drag", canvasDragHandler)
+          
+          path.wsiViewer.addOnceHandler("canvas-drag-end", (e) => {
+            path.wsiViewer.removeHandler("canvas-drag", canvasDragHandler)
+            path.wsiViewer.element.style.cursor = ""
+            
+            const imageInfo = JSON.parse(JSON.parse(window.localStorage.fileMetadata).wsiInfo)
+            
+            let { x: startX, y: startY, width, height } = path.wsiViewer.viewport.viewportToImageRectangle(path.wsiViewer.currentOverlays[path.wsiViewer.currentOverlays.length - 1].bounds)
+            startX = Math.max(0, Math.floor(startX/512)*512)
+            startY = Math.max(0, Math.floor(startY/512)*512)
+            const endX = Math.min(Math.ceil((startX+width)/512)*512, imageInfo.width)
+            const endY = Math.min(Math.ceil((startY+height)/512)*512, imageInfo.height)
+
+            path.wsiViewer.removeOverlay(path.wsiViewer.currentOverlays[path.wsiViewer.currentOverlays.length - 1].element)
+
+            runModelWSI(startX, startY, endX, endY, maxTileSizeToLookAt)
+          })
+        }
+        else if (regionSelected === "currentRegion") {
           const currentBounds = path.wsiViewer.viewport.viewportToImageRectangle(path.wsiViewer.viewport.getBounds())
           // const widthWiseTiles = Array.from({length: Math.ceil(imageInfo.width / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
           // const heightWiseTiles = Array.from({length: Math.ceil(imageInfo.height / maxTileSizeToLookAt)}, (_,i) => i * maxTileSizeToLookAt)
@@ -233,7 +279,8 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
           const endY = Math.min(Math.ceil((currentBounds.y + currentBounds.height) / maxTileSizeToLookAt) * maxTileSizeToLookAt, imageInfo.height)
           // runModelWSI(startX, startY, endX, endY, tileSizeAtCurrentLevel)
           runModelWSI(startX, startY, endX, endY, maxTileSizeToLookAt) // Keep dimensions fixed at 512 for now, uncomment line above to predict for tiles at all magnifications.
-        } else if (regionSelected === "wholeImage") {
+        } 
+        else if (regionSelected === "wholeImage") {
           const startX = 0
           const startY = 0
           const {width: endX, height: endY } = imageInfo
@@ -348,6 +395,19 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
       runModelWSI_visibleRegionDiv.insertAdjacentHTML('beforeend', `<label class="form-check-label" for="runModelWSI_visibleRegion">Visible Region</label>`)
       runModelWSI_visibleRegionInput.onchange = runModelWSIHandler
       runModelWSI_visibleRegionDiv.onclick = () => runModelWSI_visibleRegionInput.click()
+      
+      const runModelWSI_drawRegionDiv = document.createElement("div")
+      runModelWSI_drawRegionDiv.className = "form-check"
+      const runModelWSI_drawRegionInput = document.createElement("input")
+      runModelWSI_drawRegionInput.id = "runModelWSI_drawRegion"
+      runModelWSI_drawRegionInput.className = "form-check-input"
+      runModelWSI_drawRegionInput.setAttribute("type", "radio")
+      runModelWSI_drawRegionInput.setAttribute("name", "runModelWSIOnArea")
+      runModelWSI_drawRegionInput.setAttribute("value", "drawRegion")
+      runModelWSI_drawRegionDiv.appendChild(runModelWSI_drawRegionInput)
+      runModelWSI_drawRegionDiv.insertAdjacentHTML('beforeend', `<label class="form-check-label" for="runModelWSI_drawRegion">Draw Region</label>`)
+      runModelWSI_drawRegionInput.onchange = runModelWSIHandler
+      runModelWSI_drawRegionDiv.onclick = () => runModelWSI_drawRegionInput.click()
 
       const runModelWSI_moreOptionsDiv = document.createElement("div")
       const runModelWSI_moreOptionsButton = document.createElement("button")
@@ -362,6 +422,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
 
       runModelWSIDropdownDiv.appendChild(runModelWSI_wholeImageDiv)
       runModelWSIDropdownDiv.appendChild(runModelWSI_visibleRegionDiv)
+      runModelWSIDropdownDiv.appendChild(runModelWSI_drawRegionDiv)
       runModelWSIDropdownDiv.insertAdjacentHTML('beforeend', "<hr>")
       runModelWSIDropdownDiv.appendChild(runModelWSI_moreOptionsDiv)
 
