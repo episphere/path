@@ -229,24 +229,47 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
           const canvasDragHandler = (obj) => {
             obj.preventDefaultAction = true
             const viewportCoordinates = path.wsiViewer.viewport.viewerElementToViewportCoordinates(obj.position)
-            let startX, startY
+            let initialX, initialY
+            let startX, startY, endX, endY
 
             const previousOverlay = path.wsiViewer.currentOverlays[path.wsiViewer.currentOverlays.length - 1]
             if (previousOverlay?.element.classList.contains("wsiProcessing")) {
-              startX = previousOverlay.bounds.x
-              startY = previousOverlay.bounds.y
+              initialX = parseFloat(previousOverlay.element.getAttribute("initialX"))
+              initialY = parseFloat(previousOverlay.element.getAttribute("initialY"))
+              
+              if (viewportCoordinates.x >= initialX) {
+                startX = initialX
+                endX = viewportCoordinates.x
+              } else {
+                startX = viewportCoordinates.x
+                endX = previousOverlay.bounds.x + previousOverlay.bounds.width
+              }
+              if (viewportCoordinates.y >= initialY) {
+                startY = initialY
+                endY = viewportCoordinates.y
+              } else {
+                startY = viewportCoordinates.y
+                endY = previousOverlay.bounds.y + previousOverlay.bounds.height
+              }
+              
               path.wsiViewer.removeOverlay(previousOverlay.element)
             } else {
+              initialX = viewportCoordinates.x
+              initialY = viewportCoordinates.y
               startX = viewportCoordinates.x
               startY = viewportCoordinates.y
+              endX = viewportCoordinates.x
+              endY = viewportCoordinates.y
             }
             
-            const newRect = new OpenSeadragon.Rect(startX, startY, viewportCoordinates.x-startX, viewportCoordinates.y-startY)
+            const newRect = new OpenSeadragon.Rect(startX, startY, endX-startX, endY-startY)
             wsi.createOverlayRect({
               type: "wsiProcessing",
               rectBounds: newRect
             })
-
+            const currentOverlay = path.wsiViewer.currentOverlays[path.wsiViewer.currentOverlays.length - 1]
+            currentOverlay.element.setAttribute("initialX", initialX)
+            currentOverlay.element.setAttribute("initialY", initialY)
           }
 
           path.wsiViewer.addHandler("canvas-drag", canvasDragHandler)
