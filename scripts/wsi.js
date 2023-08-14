@@ -232,7 +232,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
             let startX, startY
 
             const previousOverlay = path.wsiViewer.currentOverlays[path.wsiViewer.currentOverlays.length - 1]
-            if (previousOverlay.element.classList.contains("wsiProcessing")) {
+            if (previousOverlay?.element.classList.contains("wsiProcessing")) {
               startX = previousOverlay.bounds.x
               startY = previousOverlay.bounds.y
               path.wsiViewer.removeOverlay(previousOverlay.element)
@@ -242,7 +242,6 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
             }
             
             const newRect = new OpenSeadragon.Rect(startX, startY, viewportCoordinates.x-startX, viewportCoordinates.y-startY)
-            console.log(newRect)
             wsi.createOverlayRect({
               type: "wsiProcessing",
               rectBounds: newRect
