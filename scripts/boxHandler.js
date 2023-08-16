@@ -543,7 +543,6 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
       const datasetFolderName = datasetEpiBoxEntry.path_collection.entries[datasetEpiBoxEntry.path_collection.entries.length - 1].name
       datasetConfig = await box.createDatasetConfig(datasetFolderId, appFolderId, datasetFolderName)
       resolve(datasetConfig)
-      return
     } else {
       datasetConfig = await box.getFileContent(appConfigFileEntry.id, true)
       box.currentDatasetConfigFileId = appConfigFileEntry.id
@@ -604,10 +603,10 @@ box.getDatasetConfig = (datasetFolderId, forceCreateNew=false) => new Promise(as
         }
       }
       resolve(datasetConfig)
-      return
     }
   }
   box.changeLastUsedDataset(datasetFolderId)
+  return
 })
 
 box.addDatasetToAppConfig = async (datasetFolderId, configFileId) => {
