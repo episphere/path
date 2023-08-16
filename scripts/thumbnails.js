@@ -100,7 +100,7 @@ thumbnails.addThumbnails = (thumbnailPicker, thumbnailImages) => {
       thumbnailImg.setAttribute("id", `thumbnail_${id}`)
       thumbnailImg.setAttribute("entry_id", id)
       thumbnailImg.setAttribute("class", "imagePickerThumbnail")
-      thumbnailImg.setAttribute("loading", "lazy")
+      // thumbnailImg.setAttribute("loading", "lazy")
 
       thumbnailDiv.appendChild(thumbnailImg)
       const thumbnailNameText = document.createElement("span")
