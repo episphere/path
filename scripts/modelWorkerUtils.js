@@ -33,13 +33,14 @@ const fetchIndexedDBInstance = (key) => new Promise(resolve => {
   }
 })
 
-const getBoxUserId = () => new Promise(resolve => {
+const getBoxUserId = () => new Promise(async resolve => {
+  boxCredsDB = boxCredsDB || await fetchIndexedDBInstance('box')
   boxCredsDB.transaction(indexedDBConfig['box'].objectStoreName, "readonly").objectStore(indexedDBConfig['box'].objectStoreName).get(1).onsuccess = async (evt) => {
     resolve(evt.target.result.userId)
   }
 })
 
-const createFolderInBox = (folderName, parentFolderId=0) => new Promise(resolve => {
+const createFolderInBox = (folderName, parentFolderId=0) => new Promise(async resolve => {
   const createFolderEndpoint = "https://api.box.com/2.0/folders"
   const folderDetails = {
     'name': folderName,
@@ -47,6 +48,7 @@ const createFolderInBox = (folderName, parentFolderId=0) => new Promise(resolve 
       'id': parentFolderId
     }
   }
+  boxCredsDB = boxCredsDB || await fetchIndexedDBInstance('box')
   boxCredsDB.transaction(indexedDBConfig['box'].objectStoreName, "readonly").objectStore(indexedDBConfig['box'].objectStoreName).get(1).onsuccess = async (evt) => {
     const accessToken = evt.target.result.access_token
     const requestOpts = {
@@ -63,7 +65,8 @@ const createFolderInBox = (folderName, parentFolderId=0) => new Promise(resolve 
 })
 
 const getDataFromBox = (id, type="file", fields=[]) => {
-  return new Promise(resolve => {
+  return new Promise(async resolve => {
+    boxCredsDB = boxCredsDB || await fetchIndexedDBInstance('box')
     boxCredsDB.transaction(indexedDBConfig['box'].objectStoreName, "readonly").objectStore(indexedDBConfig['box'].objectStoreName).get(1).onsuccess = async (evt) => {
       const accessToken = evt.target.result.access_token
       const defaultFields = ["id", "type", "name"]
@@ -84,7 +87,7 @@ const getFileContentFromBox = (id, urlOnly=false, responseType="json") => {
   const contentEndpoint = `https://api.box.com/2.0/files/${id}/content`
   
   return new Promise(async (resolve) => {
-    boxCredsDB = await fetchIndexedDBInstance('box')
+    boxCredsDB = boxCredsDB || await fetchIndexedDBInstance('box')
     boxCredsDB.transaction(indexedDBConfig['box'].objectStoreName, "readonly").objectStore(indexedDBConfig['box'].objectStoreName).get(1).onsuccess = async (evt) => {
       const { access_token: accessToken } = evt.target.result
       const requestOpts = {
@@ -128,6 +131,7 @@ const uploadFileToBox = (data, id) => {
   const uploadEndpoint = id ? `https://upload.box.com/api/2.0/files/${id}/content` : `https://upload.box.com/api/2.0/files/content`
 
   return new Promise (async (resolve) => {
+    boxCredsDB = boxCredsDB || await fetchIndexedDBInstance('box')
     boxCredsDB.transaction(indexedDBConfig['box'].objectStoreName, "readonly").objectStore(indexedDBConfig['box'].objectStoreName).get(1).onsuccess = async (evt) => {
       const { access_token: accessToken } = evt.target.result
 
@@ -144,14 +148,14 @@ const uploadFileToBox = (data, id) => {
   })
 }
 
-const updateMetadataInBox = (id, path, updateData) => new Promise(resolve => {
+const updateMetadataInBox = (id, path, updateData) => new Promise(async resolve => {
   const updateMetadataEndpoint = `https://api.box.com/2.0/files/${id}/metadata/global/properties`
 	const updatePatch = [{
 	  'op': "add",
 	  path,
 	  'value': updateData
   }]
-  
+  boxCredsDB = boxCredsDB || await fetchIndexedDBInstance('box')
   boxCredsDB.transaction(indexedDBConfig['box'].objectStoreName, "readonly").objectStore(indexedDBConfig['box'].objectStoreName).get(1).onsuccess = async (evt) => {
     const { access_token: accessToken } = evt.target.result
     const requestOpts = {

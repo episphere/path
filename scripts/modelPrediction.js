@@ -472,17 +472,17 @@ onmessage = async (evt) => {
       clearWSIDataFromIndexedDB()
       const { previousPredictions, ...otherChanges } = await getPredsFromBox(imageId, annotationId, modelId, datasetConfig, wsiPredsFiles)
       const positiveLabel = data.body.positiveLabel || datasetConfig.annotations.find(annot => annot.annotationId === annotationId).labels[0]
-      previousPredictions
+      await Promise.all(previousPredictions
       // .sort((a, b) => b.prediction.find(({label}) => label === positiveLabel.displayText).prob - a.prediction.find(({label}) => label === positiveLabel.displayText).prob)
-      .forEach(pred => {
+      .map(pred => {
         const { label: predictedLabel, prob: predictionScore } = pred.prediction.reduce((max, current) => current.prob > max.prob ? current : max, {prob: 0})
         const predictionForIDB = {
           ...pred,
           predictedLabel,
           predictionScore
         }
-        insertWSIDataToIndexedDB(predictionForIDB, annotationId)
-      })
+        return insertWSIDataToIndexedDB(predictionForIDB, annotationId)
+      }))
 
       postMessage({
         op,
