@@ -1,5 +1,6 @@
 const wsi = {}
 const EPSILON = Math.pow(10, -11)
+const maxTileSizeToLookAt = 512
 
 wsi.defaultLabelOverlayColors = ['#e31a1c99','#33a02c99','#1f78b499','#6a3d9a99','#ff7f0099','#b1592899','#a6cee399','#b2df8a99','#fb9a9999','#fdbf6f99','#cab2d699','#ffff9999']
 
@@ -222,7 +223,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
         const regionSelected = document.getElementById("runModelWSIDropdownDiv").querySelector(`input[type=radio]:checked`)?.value
         // const currentLevel = path.wsiViewer.world.getItemAt(0).lastDrawn.reduce((maxLevel, current) => maxLevel < current.level ? current.level : maxLevel, 0)
         // const tileSizeAtCurrentLevel = Math.pow(2, 8 + path.wsiViewer.source.maxLevel - currentLevel) // Start at 2^8 because 256 is the smallest tile size we consider.
-        const maxTileSizeToLookAt = 512
+        
         
         if (regionSelected === "drawRegion") {
           path.wsiViewer.element.style.cursor = "crosshair"
@@ -267,6 +268,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
               type: "wsiProcessing",
               rectBounds: newRect
             })
+            
             const currentOverlay = path.wsiViewer.currentOverlays[path.wsiViewer.currentOverlays.length - 1]
             currentOverlay.element.setAttribute("initialX", initialX)
             currentOverlay.element.setAttribute("initialY", initialY)
@@ -280,12 +282,12 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
             
             const imageInfo = JSON.parse(JSON.parse(window.localStorage.fileMetadata).wsiInfo)
             
-            let { x: startX, y: startY, width, height } = path.wsiViewer.viewport.viewportToImageRectangle(path.wsiViewer.currentOverlays[path.wsiViewer.currentOverlays.length - 1].bounds)
-            startX = Math.max(0, Math.floor(startX/512)*512)
-            startY = Math.max(0, Math.floor(startY/512)*512)
-            const endX = Math.min(Math.ceil((startX+width)/512)*512, imageInfo.width)
-            const endY = Math.min(Math.ceil((startY+height)/512)*512, imageInfo.height)
-
+            let { x, y, width, height } = path.wsiViewer.viewport.viewportToImageRectangle(path.wsiViewer.currentOverlays[path.wsiViewer.currentOverlays.length - 1].bounds)
+            const startX = Math.max(0, Math.floor(x / maxTileSizeToLookAt) * maxTileSizeToLookAt)
+            const startY = Math.max(0, Math.floor(y / maxTileSizeToLookAt) * maxTileSizeToLookAt)
+            const endX = Math.min(Math.ceil((x + width) / maxTileSizeToLookAt) * maxTileSizeToLookAt, imageInfo.width)
+            const endY = Math.min(Math.ceil ((y + height) / maxTileSizeToLookAt) * maxTileSizeToLookAt, imageInfo.height)
+            
             path.wsiViewer.removeOverlay(path.wsiViewer.currentOverlays[path.wsiViewer.currentOverlays.length - 1].element)
 
             runModelWSI(startX, startY, endX, endY, maxTileSizeToLookAt)
@@ -538,6 +540,10 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
                     'label': label.label,
                     'threshold': annotations.predictionScoreThreshold
                   })
+                  path.wsiViewer.overlaysContainer.dispatchEvent(new CustomEvent("selectedLabelsChanged", { detail: {
+                      labelsToDisplay: wsi.defaultSelectedLabels 
+                    }
+                  }))
                   wsi.overlayPreviousPredictions(wsi.defaultSelectedLabels, parseInt(document.getElementById(`wsiVisibilitySettings_tileSizeSelect`).value))
                   annotations.populateWSIAnnotations(true, true)
                   labelColorInput.removeAttribute("disabled")
@@ -545,6 +551,11 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
                 } else {
                   hideLabelBtn.classList.add("active")
                   wsi.defaultSelectedLabels = wsi.defaultSelectedLabels.filter(selectedLabel => selectedLabel.label !== label.label)
+                  path.wsiViewer.overlaysContainer.dispatchEvent(new CustomEvent("selectedLabelsChanged", { detail: {
+                      labelsToDisplay: wsi.defaultSelectedLabels 
+                    }
+                  }))
+                  wsi.overlayPreviousPredictions(wsi.defaultSelectedLabels, parseInt(document.getElementById(`wsiVisibilitySettings_tileSizeSelect`).value))
                   path.wsiViewer.currentOverlays.forEach(overlay => {
                     if (overlay.element.getAttribute("descriptor") === hideLabelBtn.getAttribute("value")) {
                       requestAnimationFrame(() => path.wsiViewer.removeOverlay(overlay.element))
@@ -1068,7 +1079,7 @@ wsi.createOverlayRect = (opts) => {
   rect.tileY = rectBounds.y
   rect.tileWidth = rectBounds.width
   rect.tileHeight = rectBounds.height
-  rect.style.zIndex = Math.floor((1 - (rectBounds.width * rectBounds.height)) * (10**5))
+  rect.style.zIndex = Math.max(10**1, Math.floor((1 - (rectBounds.width * rectBounds.height)) * (10**5)))
   
   if (hidden) {
     rect.style.display = "none"
@@ -1401,74 +1412,77 @@ wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reje
     }
   } else {
     // Return a paginated response.
+    if (!queryOpts?.query?.lower || !Array.isArray(queryOpts?.query?.lower) || !queryOpts?.query?.upper || !Array.isArray(queryOpts?.query?.upper)) {
+      reject("Malformed query")
+    }
     const queryResult = []
     let offset = typeof(queryOpts.offset) === "number" && queryOpts.offset >= 0 ? queryOpts.offset : 0 
     queryOpts.limit = typeof(queryOpts.limit) === "number" && queryOpts.limit > 0 ? queryOpts.limit : 25
     // let numRecords = 0
-    objectStoreTransaction.count(queryOpts.query).onsuccess = (e) => {
+    // objectStoreTransaction.count(queryOpts.query).onsuccess = (e) => {
       // numRecords = e.target.result
     
-      let cursorSource = objectStoreTransaction
-      if (queryOpts.index) {
-        cursorSource = objectStoreTransaction.index(queryOpts.index)
+    let cursorSource = objectStoreTransaction
+    if (queryOpts.index) {
+      cursorSource = objectStoreTransaction.index(queryOpts.index)
+    }
+    
+    let pagesSkippedFlag = queryOpts.pageNum && queryOpts.pageNum > 0
+    const cursorRequest = cursorSource.openCursor(queryOpts.query, queryOpts.direction)
+    cursorRequest.onsuccess = (e) => {
+      const cursor = e.target.result
+      if (!cursor) {
+        // console.log(`No cursor, found ${queryResult.length} items for query`, queryOpts)
+        resolve({result: queryResult})
+        return
       }
       
-      let pagesSkippedFlag = queryOpts.pageNum && queryOpts.pageNum > 0
-      
-      const cursorRequest = cursorSource.openCursor(queryOpts.query, queryOpts.direction)
-      cursorRequest.onsuccess = (e) => {
-        const cursor = e.target.result
-        if (!cursor) {
-          // console.log(`No cursor, found ${queryResult.length} items for query`, queryOpts)
-          resolve({result: queryResult, offset})
-          return
-        }
-
-        if (queryOpts.offset > 0 && !pagesSkippedFlag) {
-          // console.log("Advancing by ", queryOpts.offset, numRecords)
-          pagesSkippedFlag = true
-          cursor.advance(queryOpts.offset)
-          return
-        }
-
-        if (queryResult.length < queryOpts.limit) {
-          if (queryOpts?.query?.lower && Array.isArray(queryOpts?.query?.lower) && queryOpts?.query?.upper && Array.isArray(queryOpts?.query?.upper)) {
-            for (let i = 1; i < queryOpts.query.lower.length; i++) {
-              if (window.indexedDB.cmp(cursor.key.slice(i, queryOpts.query.lower.length), queryOpts.query.lower.slice(i)) < 0) {
-                // console.log("Skipping Because low", cursor.key.slice(0, queryOpts.query.lower.length), queryOpts.query.lower)
-                cursor.continue([
-                  ...cursor.key.slice(0, i),
-                  ...queryOpts.query.lower.slice(i),
-                  ...cursor.key.slice(queryOpts.query.lower.length)
-                ])
-                offset++
-                return
-              } 
-              if (window.indexedDB.cmp(cursor.key.slice(i, queryOpts.query.upper.length), queryOpts.query.upper.slice(i)) > 0) {
-                // console.log("Skipping Because high", cursor.key.slice(0, queryOpts.query.lower.length), queryOpts.query.upper)
-                cursor.continue([
-                  ...cursor.key.slice(0, i),
-                  cursor.key[i] + EPSILON,
-                  ...queryOpts.query.upper.slice(i+1),
-                  ...cursor.key.slice(queryOpts.query.upper.length)
-                ])
-                offset++
-                return
-              }
-            }
-          }
-          // console.log("FOUND!")
-          queryResult.push(cursor.value)
-          offset++
-          cursor.continue()
-        } else {
-          resolve({result: queryResult, offset})
-        }
+      if (queryOpts.offset > 0 && !pagesSkippedFlag) {
+        // console.log("Advancing by ", queryOpts.offset, numRecords)
+        pagesSkippedFlag = true
+        cursor.advance(queryOpts.offset)
+        return
       }
-      cursorRequest.onerror = (e) => {
-        console.log(e)
+
+      if (queryResult.length < queryOpts.limit) {
+        // for (let i = 1; i < queryOpts.query.lower.length; i++) {
+        //   if (window.indexedDB.cmp(cursor.key.slice(i, queryOpts.query.lower.length), queryOpts.query.lower.slice(i)) < 0) {
+        //     // console.log("Skipping Because low", cursor.key.slice(0, queryOpts.query.lower.length), queryOpts.query.lower)
+        //     cursor.continue([
+        //       ...cursor.key.slice(0, i),
+        //       ...queryOpts.query.lower.slice(i),
+        //       ...cursor.key.slice(queryOpts.query.lower.length)
+        //     ])
+        //     offset++
+        //     return
+        //   }
+        //   if (window.indexedDB.cmp(cursor.key.slice(i, queryOpts.query.upper.length), queryOpts.query.upper.slice(i)) > 0) {
+        //     // console.log("Skipping Because high", cursor.key.slice(0, queryOpts.query.lower.length), queryOpts.query.upper)
+        //     cursor.continue([
+        //       ...cursor.key.slice(0, i),
+        //       cursor.key[i] + EPSILON,
+        //       ...queryOpts.query.upper.slice(i+1),
+        //       ...cursor.key.slice(queryOpts.query.upper.length)
+        //     ])
+        //     offset++
+        //     return
+        //   }
+        // }
+        // if (offset !== queryOpts.offset) {
+        //   console.log(cursor.key)
+        // }
+        // console.log("FOUND!")
+        queryResult.push(cursor.value)
+        cursor.continue()
+      } else {
+        resolve({result: queryResult})
       }
     }
+    cursorRequest.onerror = (e) => {
+      console.log(e)
+      reject(e)
+    }
+    // }
   }
    
 })
@@ -1497,82 +1511,102 @@ wsi.clearIndexedDB = () => new Promise (resolveAll => {
   }
 })
 
-wsi.overlayPreviousPredictions = (labelsToDisplay=wsi.defaultSelectedLabels, requestedTileSize=wsi.defaultTileSize, bounds=[]) => {
+wsi.overlayPreviousPredictions = async (labelsToDisplay=wsi.defaultSelectedLabels, requestedTileSize=wsi.defaultTileSize, bounds=path.wsiViewer.viewport.getBounds(true)) => {
   if (!Array.isArray(labelsToDisplay)) {
     labelsToDisplay = [labelsToDisplay]
   }
-  labelsToDisplay.forEach(label => {
-    const { label: labelToDisplay, threshold } = label
-    Object.values(wsi.predsDB.objectStoreNames).forEach(async objectStore => {
-      const annotation = path.datasetConfig.annotations.find(annot => annot.annotationId === parseInt(objectStore.split(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_`)[1]))
-      if (annotation && annotation.labels.find(label => label.label === labelToDisplay)) {
-        const currentViewportBounds = path.wsiViewer.viewport.viewportToImageRectangle(path.wsiViewer.viewport.getBounds(true))
-        const limit = 100
-        let offset = 0
-        const topXBounds = currentViewportBounds.x > 0 ? currentViewportBounds.x : 0
-        const topYBounds = currentViewportBounds.y > 0 ? currentViewportBounds.y : 0
-        const bottomXBounds = currentViewportBounds.x + currentViewportBounds.width > 0 ? currentViewportBounds.x + currentViewportBounds.width: 0
-        const bottomYBounds = currentViewportBounds.y + currentViewportBounds.height > 0 ? currentViewportBounds.y + currentViewportBounds.height : 0
+  
+  const imageInfo = JSON.parse(JSON.parse(localStorage.fileMetadata).wsiInfo)
+  let allOverlays = []
+  let interruptFlag = false
+  const labelSelectionChangedHandler = (e) => {
+    interruptFlag = true
+    handleLabelSelectionChanged()
+  }
+  const handleLabelSelectionChanged = () => path.wsiViewer.overlaysContainer.addEventListener("selectedLabelsChanged", labelSelectionChangedHandler, {
+    once: true
+  })
+  handleLabelSelectionChanged()
+  
+  for (const objectStore of Object.values(wsi.predsDB.objectStoreNames)) {
+    const annotation = path.datasetConfig.annotations.find(annot => annot.annotationId === parseInt(objectStore.split(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_`)[1]))
+    if (annotation && annotation.labels.some(annotationLabel => labelsToDisplay.find(displayLabel => displayLabel.label === annotationLabel.label))) {
+      const currentViewportBounds = path.wsiViewer.viewport.viewportToImageRectangle(bounds)
+      const limit = 1000
+      let offset = 0
+      const topXBounds = Math.max(Math.floor(currentViewportBounds.x / maxTileSizeToLookAt) * maxTileSizeToLookAt, 0)
+      const topYBounds = Math.max(Math.floor(currentViewportBounds.y / maxTileSizeToLookAt) * maxTileSizeToLookAt, 0)
+      const bottomXBounds = Math.min(Math.max(0, Math.ceil((currentViewportBounds.x + currentViewportBounds.width) / maxTileSizeToLookAt) * maxTileSizeToLookAt), imageInfo.width)
+      const bottomYBounds = Math.min(Math.max(0, Math.ceil((currentViewportBounds.y + currentViewportBounds.height) / maxTileSizeToLookAt) * maxTileSizeToLookAt), imageInfo.height)
+      
+      let finishedIndexedDBParsing = false
+      
+      while (!finishedIndexedDBParsing && !interruptFlag) {
+        
         const indexedDBQueryOpts = {
           'index': indexedDBConfig['wsi'].objectStoreIndexes[0].name,
           'query': IDBKeyRange.bound([topXBounds, topYBounds], [bottomXBounds, bottomYBounds], true, true),
           offset,
           limit
         }
-        
-        let finishedIndexedDBParsing = false
-        while (!finishedIndexedDBParsing) {
-          indexedDBQueryOpts.offset = offset
-          const { result: dataInIndexedDB, offset: newOffset } = await wsi.getFromIndexedDB(objectStore, indexedDBQueryOpts)
-          dataInIndexedDB.forEach(({x, y, width, height, prediction}) => {
-            const positivePrediction = prediction.find(pred => pred.label === labelToDisplay)
-            if (width === requestedTileSize) {
-              
-              if (positivePrediction && positivePrediction.prob >= threshold) {
-                const osdRect = path.wsiViewer.viewport.imageToViewportRectangle(x, y, width, height, 0)
-                const predictionText = `${labelToDisplay}: ${Math.round((positivePrediction.prob + Number.EPSILON) * 1000) / 1000 }`
-                const tooltipText = `${annotation.displayName}\n${predictionText}`
-                wsi.createOverlayRect({
-                  'type': "model",
-                  'rectBounds': osdRect,
-                  'tooltipText': tooltipText,
-                  'annotationId': annotation.annotationId,
-                  'showAsTooltip': true,
-                  'positivePrediction': true,
-                  'descriptor': `${annotation.annotationId}_${positivePrediction.label}`
-                })
-             
-              }
-              //  else if (!positivePrediction) {
-              //   const highestValuePrediction = prediction.reduce((maxPred, current) => maxPred.prob > current.prob ? maxPred : current, {prob: 0})
-              //   const osdRect = path.wsiViewer.viewport.imageToViewportRectangle(x, y, width, height, 0)
-              //   const predictionText = `${highestValuePrediction.displayText}: ${Math.round((highestValuePrediction.prob + Number.EPSILON) * 1000) / 1000 }`
-              //   const tooltipText = `${annotation.displayName}\n${predictionText}`
-              //   wsi.createOverlayRect({
-              //     "type": "model",
-              //     "rectBounds": osdRect,
-              //     "tooltipText": tooltipText,
-              //     "annotationId": annotation.annotationId,
-              //     "showAsTooltip": true,
-              //     "positivePrediction": highestValuePrediction.prob === prediction[0].prob,
-              //     "descriptor": `${annotation.annotationId}_${highestValuePrediction.label}`
-              //   })
-              // }
-           
-            } 
-          }) 
+        const { result: dataInIndexedDB } = await wsi.getFromIndexedDB(objectStore, indexedDBQueryOpts)
+
+        for (let {x, y, width, height, predictedLabel, predictionScore} of dataInIndexedDB) {
+          const labelToDisplay = labelsToDisplay.find(displayLabel => displayLabel.label === predictedLabel)
           
-          if (dataInIndexedDB.length < limit) {
-            finishedIndexedDBParsing = true
-          } else {
-            offset = newOffset
+          if (labelToDisplay && predictionScore >= labelToDisplay.threshold && width === requestedTileSize) {
+          
+            const osdRect = path.wsiViewer.viewport.imageToViewportRectangle(x, y, width, height, 0)
+            const predictionText = `${labelToDisplay.label}: ${ Math.round((predictionScore + Number.EPSILON) * 1000) / 1000 }`
+            const tooltipText = `${annotation.displayName}\n${predictionText}`
+            allOverlays.push({
+              'type': "model",
+              'rectBounds': osdRect,
+              'tooltipText': tooltipText,
+              'annotationId': annotation.annotationId,
+              'showAsTooltip': true,
+              'positivePrediction': true,
+              'descriptor': `${annotation.annotationId}_${predictedLabel}`,
+              predictedLabel
+            })
+          
           }
-        
+            //  else if (!positivePrediction) {
+            //   const highestValuePrediction = prediction.reduce((maxPred, current) => maxPred.prob > current.prob ? maxPred : current, {prob: 0})
+            //   const osdRect = path.wsiViewer.viewport.imageToViewportRectangle(x, y, width, height, 0)
+            //   const predictionText = `${highestValuePrediction.displayText}: ${Math.round((highestValuePrediction.prob + Number.EPSILON) * 1000) / 1000 }`
+            //   const tooltipText = `${annotation.displayName}\n${predictionText}`
+            //   wsi.createOverlayRect({
+            //     "type": "model",
+            //     "rectBounds": osdRect,
+            //     "tooltipText": tooltipText,
+            //     "annotationId": annotation.annotationId,
+            //     "showAsTooltip": true,
+            //     "positivePrediction": highestValuePrediction.prob === prediction[0].prob,
+            //     "descriptor": `${annotation.annotationId}_${highestValuePrediction.label}`
+            //   })
+            // }
         }
-  
+        
+        if (dataInIndexedDB.length < limit) {
+          finishedIndexedDBParsing = true
+        } else {
+          offset += limit
+        }
+      
       }
-    })
-  })
+    }
+  }
+  for (const i in allOverlays) {
+    if (interruptFlag) {
+      break
+    }
+    wsi.createOverlayRect(allOverlays[i])
+    if (i > 0 && i % 100 === 0) {
+      await new Promise(res => setTimeout(res, 10))
+    }
+  }
+  setTimeout(() => path.wsiViewer.overlaysContainer.removeEventListener("selectedLabelsChanged", labelSelectionChangedHandler), 10)
 }
 
 wsi.overlayPreviousAnnotations = () => {
