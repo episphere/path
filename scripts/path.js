@@ -84,7 +84,8 @@ const loadHashParams = async () => {
  
     if (hashParams.image && hashParams.image !== path.tmaImage.getAttribute("entry_id")) {
       loadImageFromBox(hashParams.image)
-    } else if (hashParams.wsiCenterX && hashParams.wsiCenterY && hashParams.wsiZoom) {
+    }
+    if (hashParams.wsiCenterX && hashParams.wsiCenterY && hashParams.wsiZoom) {
       wsi.handlePanAndZoom(hashParams.wsiCenterX, hashParams.wsiCenterY, hashParams.wsiZoom)
     }
   

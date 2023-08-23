@@ -1,5 +1,6 @@
 const annotations = {}
 annotations.defaultThresholds = {}
+annotations.predictionScoreThreshold = annotations.predictionScoreThreshold || 0.7
 
 annotations.showAnnotationOptions = async (annotationsConfig=path.datasetConfig?.annotations, isImageFromBox=false, forceRedraw=false) => {
   const annotationsAccordion = document.getElementById("annotationsAccordion")
@@ -175,8 +176,8 @@ annotations.createTables = async (annotationsConfig, forceRedraw = false) => {
   document.getElementById("addClassificationBtn").removeAttribute("disabled")
 }
 
+
 annotations.populateAnnotationCard = async (annotationCardContentDiv, annotationId, annotationName, displayName, metaName, labels, isWSI=path.isWSI, enableComments=false) => {
-  annotations.predictionScoreThreshold = annotations.predictionScoreThreshold || 0.7
   annotations.populateWSIAnnotations = async (modelTab=true, forceReload=false, query="all") => {
   //   const addControls = (annotationsContainerElement, annotationId, showModelPredictions) => {
   //     let controlsDiv = annotationsContainerElement.querySelector(".wsiAnnotationControls")
