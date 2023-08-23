@@ -330,10 +330,26 @@ const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, ws
 }
 
 const insertWSIDataToIndexedDB = (data, annotationId) => new Promise (async resolve => {
-  if (indexedDBConfig['wsi'].objectStoreOpts.keyPath.every(key => data[key] >= 0)) {
+  let dataValidated = false
+  if (Array.isArray(data)) {
+    // Check if all relevant keys of all rows are non-negative.
+    dataValidated = data.every(row => indexedDBConfig['wsi'].objectStoreOpts.keyPath.every(key => row[key] >= 0))
+  } else if (typeof(data) === 'object') {
+    dataValidated = indexedDBConfig['wsi'].objectStoreOpts.keyPath.every(key => data[key] >= 0)
+  } else {
+    console.error("Data to be inserted into IDB out of range of possible values", data)
+  }
+  if (dataValidated) {
     wsiPredsDB = wsiPredsDB || await fetchIndexedDBInstance('wsi')
-    const objectStore = wsiPredsDB.transaction(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, "readwrite").objectStore(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`)
-    objectStore.put(data).onsuccess = ({target}) => resolve(target.result)
+    const transaction = wsiPredsDB.transaction(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, "readwrite")
+    if (Array.isArray(data)) {
+      data.forEach(row => {
+        transaction.objectStore(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`).put(row)
+      })
+      transaction.oncomplete = ({target}) => resolve(target.result)
+    } else {
+      transaction.objectStore(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`).put(row).onsuccess = ({target}) => resolve(target.result)
+    }
   }
 })
 

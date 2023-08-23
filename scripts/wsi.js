@@ -100,7 +100,6 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
     }
   }
   
-  
   if (!path.wsiViewer.canvas) {
     path.tmaCanvas.parentElement.style.backgroundColor = "black"
     path.wsiViewer = OpenSeadragon({
@@ -352,7 +351,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
           } 
           if (!wsiPredsFileId)  {
             wsi.getPreviousPredsFromBox(fileMetadata)
-            document.addEventListener("previousPredsReady", (e) => {
+            path.wsiViewer.addEventListener("previousPredsReady", (e) => {
               e.preventDefault()
               wsiPredsFileId = e.detail.wsiPredsFileId
               wsi.startPrediction(annotationId, imageId, name, width, height, predictionBounds, wsiPredsFileId)
@@ -797,10 +796,11 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
         fileMetadata = await box.updateMetadata(id, "/wsiInfo", JSON.stringify(imageInfoForMetadata))
         window.localStorage.fileMetadata = JSON.stringify(fileMetadata)
       }
-      wsi.getPreviousPredsFromBox(fileMetadata)
     }
-
+    
     path.wsiViewer.world.getItemAt(0).addOnceHandler('fully-loaded-change', fullyLoadedChangeHandler)
+    
+    wsi.getPreviousPredsFromBox(fileMetadata)
     
     // Handle cases where the image loads but an error (typically "SOI not found") causes the fully-loaded-change event to not fire.
     let failedTiles = 0
@@ -1254,7 +1254,7 @@ wsi.handleMessage = (data, op) => {
           'wsiPredsFileId': JSON.parse(data.newFileMetadata.wsiPredsFiles).find(file => file.annotationId === data.annotationId && file.modelId === data.modelId).fileId
         }
       })
-      document.dispatchEvent(previousPredsReadyEvent)
+      path.wsiViewer.dispatchEvent(previousPredsReadyEvent)
     }
     wsi.overlayPreviousPredictions()
     annotations.populateWSIAnnotations(true, true)
@@ -1416,11 +1416,13 @@ wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reje
       reject("Malformed query")
     }
     const queryResult = []
-    let offset = typeof(queryOpts.offset) === "number" && queryOpts.offset >= 0 ? queryOpts.offset : 0 
+    queryOpts.offset = typeof(queryOpts.offset) === "number" && queryOpts.offset >= 0 ? queryOpts.offset : 0 
     queryOpts.limit = typeof(queryOpts.limit) === "number" && queryOpts.limit > 0 ? queryOpts.limit : 25
     // let numRecords = 0
     // objectStoreTransaction.count(queryOpts.query).onsuccess = (e) => {
-      // numRecords = e.target.result
+    //   numRecords = e.target.result
+    //   console.log(numRecords)
+    // }
     
     let cursorSource = objectStoreTransaction
     if (queryOpts.index) {
@@ -1428,6 +1430,7 @@ wsi.getFromIndexedDB = (objectStore, queryOpts={}) => new Promise((resolve, reje
     }
     
     let pagesSkippedFlag = queryOpts.pageNum && queryOpts.pageNum > 0
+
     const cursorRequest = cursorSource.openCursor(queryOpts.query, queryOpts.direction)
     cursorRequest.onsuccess = (e) => {
       const cursor = e.target.result
@@ -1528,6 +1531,7 @@ wsi.overlayPreviousPredictions = async (labelsToDisplay=wsi.defaultSelectedLabel
   })
   handleLabelSelectionChanged()
   
+  
   for (const objectStore of Object.values(wsi.predsDB.objectStoreNames)) {
     const annotation = path.datasetConfig.annotations.find(annot => annot.annotationId === parseInt(objectStore.split(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_`)[1]))
     if (annotation && annotation.labels.some(annotationLabel => labelsToDisplay.find(displayLabel => displayLabel.label === annotationLabel.label))) {
@@ -1593,10 +1597,11 @@ wsi.overlayPreviousPredictions = async (labelsToDisplay=wsi.defaultSelectedLabel
         } else {
           offset += limit
         }
-      
+        
       }
     }
   }
+  
   for (const i in allOverlays) {
     if (interruptFlag) {
       break

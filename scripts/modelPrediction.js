@@ -470,6 +470,7 @@ onmessage = async (evt) => {
       const datasetConfig = data.body.datasetConfig
 
       clearWSIDataFromIndexedDB()
+      const predsToInsert = []
       const { previousPredictions, ...otherChanges } = await getPredsFromBox(imageId, annotationId, modelId, datasetConfig, wsiPredsFiles)
       const positiveLabel = data.body.positiveLabel || datasetConfig.annotations.find(annot => annot.annotationId === annotationId).labels[0]
       previousPredictions
@@ -481,8 +482,9 @@ onmessage = async (evt) => {
           predictedLabel,
           predictionScore
         }
-        insertWSIDataToIndexedDB(predictionForIDB, annotationId)
+        predsToInsert.push(predictionForIDB)
       })
+      insertWSIDataToIndexedDB(predsToInsert, annotationId)
 
       postMessage({
         op,

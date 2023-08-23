@@ -417,10 +417,12 @@ onmessage = async (evt) => {
       } catch (e) {
         console.log("Error saving thumbnail to Box", e)
       }
+      break
 
     case "getTMAAnnotations":
       const { folderToGetFrom, annotations, format } = data
       await retrieveTMAAnnotations(op, folderToGetFrom, annotations, format)
+      break
   }
 }
 

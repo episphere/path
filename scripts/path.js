@@ -84,6 +84,8 @@ const loadHashParams = async () => {
  
     if (hashParams.image && hashParams.image !== path.tmaImage.getAttribute("entry_id")) {
       loadImageFromBox(hashParams.image)
+    } else if (hashParams.wsiCenterX && hashParams.wsiCenterY && hashParams.wsiZoom) {
+      wsi.handlePanAndZoom(hashParams.wsiCenterX, hashParams.wsiCenterY, hashParams.wsiZoom)
     }
   
     if (hashParams.folder) {
@@ -96,9 +98,6 @@ const loadHashParams = async () => {
       path.selectFolder(boxRootFolderId)
     }
 
-    if (hashParams.wsiCenterX && hashParams.wsiCenterY && hashParams.wsiZoom) {
-      wsi.handlePanAndZoom(hashParams.wsiCenterX, hashParams.wsiCenterY, hashParams.wsiZoom)
-    }
  
     if (!hashParams.sort) {
       window.location.hash += "&sort=name"
@@ -512,7 +511,6 @@ const loadImageFromBox = async (id, url) => {
       }
       
       window.localStorage.currentThumbnailsFolder = parent.id
-      thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
       
       path.isWSI = utils.isWSI(name)
       path.tmaImage.setAttribute("alt", name)
@@ -552,10 +550,10 @@ const loadImageFromBox = async (id, url) => {
                 }
               }, { resolution: 0, url: "" })
               
-              url = await box.getRepresentation(maxResolutionRep.url)
-              if (url) {
-                await loadImgFromBoxFile(null, url)
-              }
+              box.getRepresentation(maxResolutionRep.url).then(repURL => {
+                url = repURL
+                loadImgFromBoxFile(null, url)
+              })
 
               if (!path.datasetConfig.jpegRepresentationsFolderId || path.datasetConfig.jpegRepresentationsFolderId === -1) {
                 const jpegRepresentationsFolderEntry = await box.createFolder("jpegRepresentations", path.datasetConfig.datasetConfigFolderId)
@@ -567,7 +565,7 @@ const loadImageFromBox = async (id, url) => {
 
               if (typeof OffscreenCanvas === "function") {
                 const op = "tiffConvert"
-                path.miscProcessWorker.postMessage({
+                path.miscProcessingWorker.postMessage({
                   op,
                   'data': {
                     'imageId': id,
@@ -577,7 +575,7 @@ const loadImageFromBox = async (id, url) => {
                   }
                 })
                 
-                path.miscProcessWorker.onmessage = (evt) => {
+                path.miscProcessingWorker.onmessage = (evt) => {
                   if (evt.data.op === op) {
                     const { originalImageId, metadataWithRepresentation: newMetadata, representationFileId } = evt.data
                     if (originalImageId === hashParams.image) {
@@ -588,7 +586,7 @@ const loadImageFromBox = async (id, url) => {
                   }
                 }
 
-                path.miscProcessWorker.onerror = (err) => {
+                path.miscProcessingWorker.onerror = (err) => {
                   console.log("Error converting TIFF from worker", err)
                 }
               }
@@ -596,16 +594,17 @@ const loadImageFromBox = async (id, url) => {
             } else { // Just use the representation created before.
               const { representationFileId } = JSON.parse(fileMetadata["jpegRepresentation"])
               console.log("Using the JPEG representation created already", new Date())
-              await loadImgFromBoxFile(representationFileId)
+              loadImgFromBoxFile(representationFileId)
             }
         
           } else {
-            await loadImgFromBoxFile(id)
+            loadImgFromBoxFile(id)
           }
         }
       }
 
       addImageHeader(filePathInBox, id, name)
+      thumbnails.showThumbnailPicker(window.localStorage.currentThumbnailsOffset, DEFAULT_THUMBNAILS_LIST_LENGTH)
       
       if (!hashParams.folder) {
         path.selectFolder(parent.id)
