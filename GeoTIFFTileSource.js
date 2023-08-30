@@ -1,6 +1,7 @@
 // Creating this temporarily because:
 // i) the original file by pearcetm downloads metadata for all images in the TIFF, including the slide label etc. which epipath does not need, and
 // ii) to resolve the Chrome issue where network caching leads to all tile requests being executed sequentially, instead of parallelly.
+// iii) Support JPEG-2000 encoded WSI data.
 (function ($) {
     /**
      * @class GeoTIFFTileSource
@@ -46,28 +47,29 @@
                 ready: DeferredPromise(),
             }
             this.GeoTIFF = input.GeoTIFF;
-            const decoder = OpenJPEGWASM().then(openjpegWASM => {
+            
+            // Support for JPEG-2000
+            OpenJPEGWASM().then(openjpegWASM => {
                 let decoder = new openjpegWASM.J2KDecoder();
-                return decoder;
+                GeoTIFF.addDecoder(
+                    33005,
+                    () =>
+                        class JPEG2000Decoder extends geotiff.BaseDecoder {
+                            constructor(fileDirectory) {
+                                super();
+                                console.log("File directory:");
+                                console.log(fileDirectory);
+                            }
+                            decodeBlock(b) {
+                                let encodedBuffer = decoder.getEncodedBuffer(b.byteLength);
+                                encodedBuffer.set(new Uint8Array(b));
+                                decoder.decode();
+                                let decodedBuffer = decoder.getDecodedBuffer();
+                                return decodedBuffer.buffer;
+                            }
+                        }
+                )
             })
-            this.GeoTIFF.addDecoder(
-                33005,
-                () =>
-                    class JPEG2000Decoder extends geotiff.BaseDecoder {
-                        constructor(fileDirectory) {
-                            super();
-                            console.log("File directory:");
-                            console.log(fileDirectory);
-                        }
-                        decodeBlock(b) {
-                            let encodedBuffer = decoder.getEncodedBuffer(b.byteLength);
-                            encodedBuffer.set(new Uint8Array(b));
-                            decoder.decode();
-                            let decodedBuffer = decoder.getDecodedBuffer();
-                            return decodedBuffer.buffer;
-                        }
-                    }
-            )
             // $.TileSource.apply( this, [ {url:'dummy'} ] );
             // $.TileSource.apply( this, [ {width:1,height:1} ] );
             this.imageCount = input.GeoTIFFImages.length;
