@@ -54,7 +54,7 @@
                 GeoTIFF.addDecoder(
                     33005,
                     () =>
-                        class JPEG2000Decoder extends geotiff.BaseDecoder {
+                        class JPEG2000Decoder extends GeoTIFF.BaseDecoder {
                             constructor(fileDirectory) {
                                 super();
                                 console.log("File directory:");
