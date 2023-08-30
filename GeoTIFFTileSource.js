@@ -53,7 +53,7 @@
             setupLevels.call(this);
         } else{
             this.promises={
-                GeoTIFF: input instanceof File ? GeoTIFF.fromBlob(input) : GeoTIFF.fromUrl(input, {headers: {"Cache-Control": "no-store"}}),
+                GeoTIFF: input instanceof File ? GeoTIFF.fromBlob(input) : GeoTIFF.fromUrl(input),
                 GeoTIFFImages:DeferredPromise(),
                 ready:DeferredPromise(),
             }
@@ -81,7 +81,7 @@
 
     //To do: add documentation about what this does (i.e. separates likely subimages into separate GeoTIFFTileSource objects)
     $.GeoTIFFTileSource.getAllTileSources = async function(input, opts){
-        let tiff= input instanceof File ? GeoTIFF.fromBlob(input) : GeoTIFF.fromUrl(input, {headers: {"Cache-Control": "no-cache, no-store"}});
+        let tiff= input instanceof File ? GeoTIFF.fromBlob(input) : GeoTIFF.fromUrl(input);
         return tiff.then(t=>{tiff=t; return t.getImageCount()})
                    .then(c=>{
                         if (c > 4) {
