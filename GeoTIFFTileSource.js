@@ -46,7 +46,7 @@
                 ready: DeferredPromise(),
             }
             this.GeoTIFF = input.GeoTIFF;
-            const decoder = openjpeg().then(openjpegWASM => {
+            const decoder = OpenJPEGWASM().then(openjpegWASM => {
                 let decoder = new openjpegWASM.J2KDecoder();
                 return decoder;
             })
