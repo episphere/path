@@ -348,7 +348,7 @@ const insertWSIDataToIndexedDB = (data, annotationId) => new Promise (async reso
       })
       transaction.oncomplete = ({target}) => resolve(target.result)
     } else {
-      transaction.objectStore(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`).put(row).onsuccess = ({target}) => resolve(target.result)
+      transaction.objectStore(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`).put(data).onsuccess = ({target}) => resolve(target.result)
     }
   }
 })

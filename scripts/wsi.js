@@ -351,7 +351,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
           } 
           if (!wsiPredsFileId)  {
             wsi.getPreviousPredsFromBox(fileMetadata)
-            path.wsiViewer.addEventListener("previousPredsReady", (e) => {
+            path.wsiViewer.element.addEventListener("previousPredsReady", (e) => {
               e.preventDefault()
               wsiPredsFileId = e.detail.wsiPredsFileId
               wsi.startPrediction(annotationId, imageId, name, width, height, predictionBounds, wsiPredsFileId)
@@ -1254,7 +1254,7 @@ wsi.handleMessage = (data, op) => {
           'wsiPredsFileId': JSON.parse(data.newFileMetadata.wsiPredsFiles).find(file => file.annotationId === data.annotationId && file.modelId === data.modelId).fileId
         }
       })
-      path.wsiViewer.dispatchEvent(previousPredsReadyEvent)
+      path.wsiViewer.element.dispatchEvent(previousPredsReadyEvent)
     }
     wsi.overlayPreviousPredictions()
     annotations.populateWSIAnnotations(true, true)
