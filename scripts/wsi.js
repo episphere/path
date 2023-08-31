@@ -1131,61 +1131,119 @@ wsi.createOverlayRect = (opts) => {
     document.removeEventListener("keyup", shiftKeyUpListener)
     document.removeEventListener("keydown", shiftKeyDownListener)
   }
-
-  rect.onclick = (e) => {
-    if (e.shiftKey) {
-      path.wsiViewer.viewport.fitBoundsWithConstraints(rectBounds)
-      rect.style.cursor = "auto"
-    }
+  
+  // rect.onclick = (e) => {
+  //   if (e.shiftKey) {
+  //     path.wsiViewer.viewport.fitBoundsWithConstraints(rectBounds)
+  //     rect.style.cursor = "auto"
+  //   }
     
-    if (type === "user" || type === "model") {
-      const annotationsTab = document.getElementById("annotations-tab")
-      const annotationCard = document.getElementById(`annotation_${annotationId}Card`)
-      const annotationTypeBtn = type === "user" ? annotationCard.querySelectorAll(".wsiAnnotationType")[0] : annotationCard.querySelectorAll(".wsiAnnotationType")[1]
+  //   if (type === "user" || type === "model") {
+  //     const annotationsTab = document.getElementById("annotations-tab")
+  //     const annotationCard = document.getElementById(`annotation_${annotationId}Card`)
+  //     const annotationTypeBtn = type === "user" ? annotationCard.querySelectorAll(".wsiAnnotationType")[0] : annotationCard.querySelectorAll(".wsiAnnotationType")[1]
 
-      const findAndFocusWSIAnnotation = () => {
-        // console.log('annotation type button clicked')
-        const wsiAnnotationDetailsElement = document.getElementById(`wsiAnnotationDetails_${type}_${annotationId}_${rectBoundsInImageCoordsForId}`)
-        if (wsiAnnotationDetailsElement) {
-          wsiAnnotationDetailsElement.scrollIntoView({block: 'center'})
-          wsiAnnotationDetailsElement.classList.add("highlightedAnnotation")
-          setTimeout(() => wsiAnnotationDetailsElement.classList.remove("highlightedAnnotation"), 2000)
-        }
-      }
+  //     const findAndFocusWSIAnnotation = () => {
+  //       // console.log('annotation type button clicked')
+  //       const wsiAnnotationDetailsElement = document.getElementById(`wsiAnnotationDetails_${type}_${annotationId}_${rectBoundsInImageCoordsForId}`)
+  //       if (wsiAnnotationDetailsElement) {
+  //         wsiAnnotationDetailsElement.scrollIntoView({block: 'center'})
+  //         wsiAnnotationDetailsElement.classList.add("highlightedAnnotation")
+  //         setTimeout(() => wsiAnnotationDetailsElement.classList.remove("highlightedAnnotation"), 2000)
+  //       }
+  //     }
 
-      const openAnnotationCard = () => {
-        const annotationDropdownBtn = annotationCard.querySelector("button[data-toggle=collapse]")
-        if (annotationDropdownBtn.getAttribute("aria-expanded") === "false") {
-          document.querySelector(annotationDropdownBtn.getAttribute("data-target")).addEventListener("shown.bs.collapse", () => {
-            // console.log("annotatioin card shown")
-            findAndFocusWSIAnnotation()
-          }, {once: true})
-          annotationTypeBtn.click()
-          annotationDropdownBtn.Collapse.show()
+  //     const openAnnotationCard = () => {
+  //       const annotationDropdownBtn = annotationCard.querySelector("button[data-toggle=collapse]")
+  //       if (annotationDropdownBtn.getAttribute("aria-expanded") === "false") {
+  //         document.querySelector(annotationDropdownBtn.getAttribute("data-target")).addEventListener("shown.bs.collapse", () => {
+  //           // console.log("annotatioin card shown")
+  //           findAndFocusWSIAnnotation()
+  //         }, {once: true})
+  //         annotationTypeBtn.click()
+  //         annotationDropdownBtn.Collapse.show()
           
-        } else {
-          annotationTypeBtn.click()
-          findAndFocusWSIAnnotation()
-        }
-      }
+  //       } else {
+  //         annotationTypeBtn.click()
+  //         findAndFocusWSIAnnotation()
+  //       }
+  //     }
       
-      if (!annotationsTab.classList.contains("active")) {
-        annotationsTab.Tab.show()
-        annotationsTab.addEventListener("shown.bs.tab", () => {
-          // console.log("annotatioin tab shown")
-          openAnnotationCard()
-        }, {once: true})
-      } else {
-        openAnnotationCard()
-      }
-    }
-    rect.focus()
-  }
+  //     if (!annotationsTab.classList.contains("active")) {
+  //       annotationsTab.Tab.show()
+  //       annotationsTab.addEventListener("shown.bs.tab", () => {
+  //         // console.log("annotatioin tab shown")
+  //         openAnnotationCard()
+  //       }, {once: true})
+  //     } else {
+  //       openAnnotationCard()
+  //     }
+  //   }
+  //   rect.focus()
+  // }
 
   path.wsiViewer.addOverlay({
     element: rect,
     location: rectBounds
   })
+
+  new OpenSeadragon.MouseTracker({
+    userData: `${elementId}_tracker`,
+    element: elementId,
+    preProcessEventHandler: (e) => {
+      e.stopPropagation = true;
+      e.preventDefault = true;
+    },
+    clickHandler: (e) => {
+      if (e.shiftKey) {
+        path.wsiViewer.viewport.fitBoundsWithConstraints(rectBounds)
+        rect.style.cursor = "auto"
+      }
+      
+      if (type === "user" || type === "model") {
+        const annotationsTab = document.getElementById("annotations-tab")
+        const annotationCard = document.getElementById(`annotation_${annotationId}Card`)
+        const annotationTypeBtn = type === "user" ? annotationCard.querySelectorAll(".wsiAnnotationType")[0] : annotationCard.querySelectorAll(".wsiAnnotationType")[1]
+  
+        const findAndFocusWSIAnnotation = () => {
+          // console.log('annotation type button clicked')
+          const wsiAnnotationDetailsElement = document.getElementById(`wsiAnnotationDetails_${type}_${annotationId}_${rectBoundsInImageCoordsForId}`)
+          if (wsiAnnotationDetailsElement) {
+            wsiAnnotationDetailsElement.scrollIntoView({block: 'center'})
+            wsiAnnotationDetailsElement.classList.add("highlightedAnnotation")
+            setTimeout(() => wsiAnnotationDetailsElement.classList.remove("highlightedAnnotation"), 2000)
+          }
+        }
+  
+        const openAnnotationCard = () => {
+          const annotationDropdownBtn = annotationCard.querySelector("button[data-toggle=collapse]")
+          if (annotationDropdownBtn.getAttribute("aria-expanded") === "false") {
+            document.querySelector(annotationDropdownBtn.getAttribute("data-target")).addEventListener("shown.bs.collapse", () => {
+              // console.log("annotatioin card shown")
+              findAndFocusWSIAnnotation()
+            }, {once: true})
+            annotationTypeBtn.click()
+            annotationDropdownBtn.Collapse.show()
+            
+          } else {
+            annotationTypeBtn.click()
+            findAndFocusWSIAnnotation()
+          }
+        }
+        
+        if (!annotationsTab.classList.contains("active")) {
+          annotationsTab.Tab.show()
+          annotationsTab.addEventListener("shown.bs.tab", () => {
+            // console.log("annotatioin tab shown")
+            openAnnotationCard()
+          }, {once: true})
+        } else {
+          openAnnotationCard()
+        }
+      }
+      rect.focus()
+    }
+  });
 
   if (showAsTooltip) {
     new BSN.Tooltip(rect, {
