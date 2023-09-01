@@ -25,15 +25,36 @@
      * @property {Number} tileSize
      * @property {Array}  levels
      */
-    $.GeoTIFFTileSource = function (input, opts = { logLatency: false }) {
+    $.GeoTIFFTileSource = function (input, opts = { logLatency: false, cache: true }) {
         let self = this;
         this.options = opts;
 
         // $.TileSource.apply( this, [ {width:1,height:1} ] );
         $.TileSource.apply(this);
         this._ready = false;
+        // Support for JPEG-2000
+        // OpenJPEGWASM().then(async openjpegWASM => {
+        //     let decoder = new openjpegWASM.J2KDecoder();
+        //     GeoTIFF.addDecoder(
+        //         33005,
+        //         () =>
+        //             class JPEG2000Decoder extends GeoTIFF.BaseDecoder {
+        //                 constructor(fileDirectory) {
+        //                     super();
+        //                 }
+        //                 decodeBlock(b) {
+        //                     let encodedBuffer = decoder.getEncodedBuffer(b.byteLength);
+        //                     encodedBuffer.set(new Uint8Array(b));
+        //                     decoder.decode();
+        //                     let decodedBuffer = decoder.getDecodedBuffer();
+        //                     return decodedBuffer.buffer;
+        //                 }
+        //             }
+        //     )
+        //     this._pool = new GeoTIFF.Pool();
+        // })
+        
         this._pool = new GeoTIFF.Pool();
-
         this._setupComplete = function () {
             this._ready = true;
             self.promises.ready.resolve();
@@ -48,36 +69,20 @@
             }
             this.GeoTIFF = input.GeoTIFF;
             
-            // Support for JPEG-2000
-            OpenJPEGWASM().then(openjpegWASM => {
-                let decoder = new openjpegWASM.J2KDecoder();
-                GeoTIFF.addDecoder(
-                    33005,
-                    () =>
-                        class JPEG2000Decoder extends GeoTIFF.BaseDecoder {
-                            constructor(fileDirectory) {
-                                super();
-                                console.log("File directory:");
-                                console.log(fileDirectory);
-                            }
-                            decodeBlock(b) {
-                                let encodedBuffer = decoder.getEncodedBuffer(b.byteLength);
-                                encodedBuffer.set(new Uint8Array(b));
-                                decoder.decode();
-                                let decodedBuffer = decoder.getDecodedBuffer();
-                                return decodedBuffer.buffer;
-                            }
-                        }
-                )
-            })
             // $.TileSource.apply( this, [ {url:'dummy'} ] );
             // $.TileSource.apply( this, [ {width:1,height:1} ] );
             this.imageCount = input.GeoTIFFImages.length;
             this.GeoTIFFImages = input.GeoTIFFImages;
             setupLevels.call(this);
         } else {
+            let cacheControlHeaders = undefined
+            if (!this.options.cache) {
+                cacheControlHeaders = {
+                    'Cache-Control': "no-cache,no-store"
+                }
+            }
             this.promises = {
-                GeoTIFF: input instanceof File ? GeoTIFF.fromBlob(input) : GeoTIFF.fromUrl(input),
+                GeoTIFF: input instanceof File ? GeoTIFF.fromBlob(input) : GeoTIFF.fromUrl(input, { headers: cacheControlHeaders }),
                 GeoTIFFImages: DeferredPromise(),
                 ready: DeferredPromise(),
             }
@@ -98,14 +103,20 @@
                 throw (error);
             });
         }
-
+        
     }
-
+    
     //Static functions
-
+    
     //To do: add documentation about what this does (i.e. separates likely subimages into separate GeoTIFFTileSource objects)
-    $.GeoTIFFTileSource.getAllTileSources = async function (input, opts) {
-        let tiff = input instanceof File ? GeoTIFF.fromBlob(input) : GeoTIFF.fromUrl(input);
+    $.GeoTIFFTileSource.getAllTileSources = async function (input, opts = { cache: true }) {
+        let cacheControlHeaders = undefined
+        if (!opts.cache) {
+            cacheControlHeaders = {
+                'Cache-Control': "no-cache,no-store"
+            }
+        }
+        let tiff = input instanceof File ? GeoTIFF.fromBlob(input) : GeoTIFF.fromUrl(input, { headers: cacheControlHeaders });
         return tiff.then(t => { tiff = t; return t.getImageCount() })
             .then(c => {
                 if (c > 4) {
