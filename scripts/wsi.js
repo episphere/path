@@ -84,7 +84,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
   console.log("Image Info : ", imageInfo)
   let tileSources = {}
   if (wsi.isImagebox3Compatible) {
-    tileSources = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(url, {logLatency: false}))[0]
+    tileSources = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(url, {logLatency: false, cache: false}))[0]
   } else {
     tileSources = {
       "@context": imageInfo["@context"],
