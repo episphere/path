@@ -32,29 +32,45 @@
         // $.TileSource.apply( this, [ {width:1,height:1} ] );
         $.TileSource.apply(this);
         this._ready = false;
-        // Support for JPEG-2000
-        // OpenJPEGWASM().then(async openjpegWASM => {
-        //     let decoder = new openjpegWASM.J2KDecoder();
-        //     GeoTIFF.addDecoder(
-        //         33005,
-        //         () =>
-        //             class JPEG2000Decoder extends GeoTIFF.BaseDecoder {
-        //                 constructor(fileDirectory) {
-        //                     super();
-        //                 }
-        //                 decodeBlock(b) {
-        //                     let encodedBuffer = decoder.getEncodedBuffer(b.byteLength);
-        //                     encodedBuffer.set(new Uint8Array(b));
-        //                     decoder.decode();
-        //                     let decodedBuffer = decoder.getDecodedBuffer();
-        //                     return decodedBuffer.buffer;
-        //                 }
-        //             }
-        //     )
-        //     this._pool = new GeoTIFF.Pool();
-        // })
-        
-        this._pool = new GeoTIFF.Pool();
+        // Create Pool for JPEG-2000 encoded images
+        this._pool?.destroy()
+        if (input.GeoTIFFImages[0].fileDirectory.Compression === 33005 && this._pool?.compressionMethod !== 33005) {
+            this._pool = undefined
+            const createWorker = () => new Worker(URL.createObjectURL(new Blob([`
+                importScripts("https://cdn.jsdelivr.net/npm/@cornerstonejs/codec-openjpeg@1.2.2/dist/openjpegwasm.js");
+                importScripts("https://cdn.jsdelivr.net/npm/geotiff@2.0.7");
+                
+                const wasmBinaryFile = "https://cdn.jsdelivr.net/gh/PrafulB/openjpegjs@master/dist/openjpegjs.wasm"
+                
+                GeoTIFF.addDecoder([33003, 33005], async () => OpenJPEGWASM({'locateFile': (path,scriptDirectory) => "https://cdn.jsdelivr.net/npm/@cornerstonejs/codec-openjpeg@1.2.2/dist/"+path}).then(openjpegWASM => {
+                        let decoder = new openjpegWASM.J2KDecoder();
+                        return class JPEG2000Decoder extends GeoTIFF.BaseDecoder {
+                            constructor(fileDirectory) {
+                                super();
+                            }
+                            decodeBlock(b) {
+                                let encodedBuffer = decoder.getEncodedBuffer(b.byteLength);
+                                encodedBuffer.set(new Uint8Array(b));
+                                decoder.decode();
+                                let decodedBuffer = decoder.getDecodedBuffer();
+                                return decodedBuffer.buffer;
+                            }
+                        }
+                    })
+                );
+                self.addEventListener('message', async (e) => {
+                    const { id, fileDirectory, buffer } = e.data;
+                    const decoder = await GeoTIFF.getDecoder(fileDirectory);
+                    const decoded = await decoder.decode(fileDirectory, buffer);
+                    // console.log(decoded)
+                    self.postMessage({ decoded, id }, [decoded]);
+                });
+            `])))
+            this._pool = new GeoTIFF.Pool(navigator.hardwareConcurrency, createWorker)
+        } else {
+            this._pool = new GeoTIFF.Pool(); 
+        }
+        this._pool['compressionMethod'] = input.GeoTIFFImages[0].fileDirectory.Compression
         this._setupComplete = function () {
             this._ready = true;
             self.promises.ready.resolve();
@@ -111,7 +127,7 @@
     //To do: add documentation about what this does (i.e. separates likely subimages into separate GeoTIFFTileSource objects)
     $.GeoTIFFTileSource.getAllTileSources = async function (input, opts = { cache: true }) {
         let cacheControlHeaders = undefined
-        if (!opts.cache) {
+        if (opts.cache === false) {
             cacheControlHeaders = {
                 'Cache-Control': "no-cache,no-store"
             }
@@ -129,6 +145,7 @@
                 images = images.filter(image => image.fileDirectory.photometricInterpretation !== GeoTIFF.globals.photometricInterpretations.TransparencyMask)
                 // Sort by width (largest first), then detect pyramids
                 images.sort((a, b) => b.getWidth() - a.getWidth());
+                
                 // find unique aspect ratios (with tolerance to account for rounding) 
                 const tolerance = 0.015
                 let aspectRatioSets = images.reduce((accumulator, image) => {

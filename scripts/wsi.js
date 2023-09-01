@@ -832,7 +832,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
 
         if (wsi.isImagebox3Compatible) {
           const newTileSourceURL = refreshedFileURL
-          path.wsiViewer.newTileSource = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(newTileSourceURL, {logLatency: false}))[0]
+          path.wsiViewer.newTileSource = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(newTileSourceURL, {logLatency: false, cache: false}))[0]
           path.wsiViewer.newTileSource.loadedAtTime = Date.now()
         } else {
           const newTileSourceURL = `${wsi.tileServerBasePath}/?format=${format}&iiif=${refreshedFileURL}`
