@@ -1215,7 +1215,7 @@ wsi.createOverlayRect = (opts) => {
       }
     },
     clickHandler: (e) => {
-      if (e.shiftKey) {
+      if (e.shift) {
         path.wsiViewer.viewport.fitBoundsWithConstraints(rectBounds)
         rect.style.cursor = "auto"
       }
