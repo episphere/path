@@ -1,8 +1,6 @@
-importScripts("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs", "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-automl")
-importScripts("https://episphere.github.io/imagebox3/imagebox3.js")
+const modelWorkerUtilsScriptPath = `./modelWorkerUtils.js`
 
 const MAX_PARALLEL_REQUESTS = 5
-const childWorkers = []
 
 const models = {}
 const wsiFileTypes = [".svs", ".ndpi"]
@@ -14,37 +12,34 @@ const maxTileImageDimension = 512
 
 let stopPreds = false
 
-const addUtils = () => {
-  utils = {
-    ...utils,
-    isValidImage: (name) => {
-      let isValid = false
-      
-      validFileTypes.forEach(fileType => {
-        if (name.endsWith(fileType)) {
-          isValid = true
-        }
-      })
-      
-      return isValid
-    },
-  
-    isWSI: (name) => {
-      let isWSI = false
-      
-      wsiFileTypes.forEach(fileType => {
-        if (name.endsWith(fileType)) {
-          isWSI = true
-        }
-      })
-  
-      return isWSI
-    }
+const utils = {
+  isValidImage: (name) => {
+    let isValid = false
     
-  }  
-}
-const loadLocalModel = async () => {
+    validFileTypes.forEach(fileType => {
+      if (name.endsWith(fileType)) {
+        isValid = true
+      }
+    })
+    
+    return isValid
+  },
 
+  isWSI: (name) => {
+    let isWSI = false
+    
+    wsiFileTypes.forEach(fileType => {
+      if (name.endsWith(fileType)) {
+        isWSI = true
+      }
+    })
+
+    return isWSI
+  }
+  
+}
+
+const loadLocalModel = async () => {
   // model = await tf.automl.loadImageClassification()
   // console.log("LOADED IN WORKER", model)
 }
@@ -52,19 +47,23 @@ const loadLocalModel = async () => {
 onmessage = async (evt) => {
   const { op, ...data } = evt.data
   let annotationId, imageId, prediction, modelConfig
+
+  const { getFileContentFromBox, insertWSIDataToIndexedDB } = await import(modelWorkerUtilsScriptPath)
+
   // console.log("Message received from main thread!")
   switch (op) {
     case 'loadModel':
+      const { BoxHandler} = await import(modelWorkerUtilsScriptPath)
+      const { loadGraphModel } = await import("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/+esm")
+      const { ImageClassificationModel } = await import("https://esm.sh/gh/PrafulB/tfjs-automl-dist")
+      
       modelConfig = data.body.modelConfig
-      const { basePath } = data.body
-      importScripts(`${basePath}/scripts/modelWorkerUtils.js`)
-      addUtils()
       const { correspondingAnnotation, configFileId, weightFiles, dictionaryFileId } = modelConfig
       const modelArch = await getFileContentFromBox(configFileId, false, "json")
       const handler = new BoxHandler(modelArch, weightFiles)
-      const graphModel = await tf.loadGraphModel(handler)
+      const graphModel = await loadGraphModel(handler)
       const dictionary = await getFileContentFromBox(dictionaryFileId, false, "text")
-      const model = new tf.automl.ImageClassificationModel(graphModel, dictionary.trim().split('\n'))
+      const model = new ImageClassificationModel(graphModel, dictionary.trim().split('\n'))
       models[correspondingAnnotation] = {
         'modelId': modelConfig.id,
         'modelVersion': modelConfig.version,
@@ -78,6 +77,7 @@ onmessage = async (evt) => {
       imageId = data.body.imageData.imageId
       let { imageData: { imageBitmap, width, height } } = data.body
       if (!imageBitmap && imageId) {
+        const { getDataFromBox } = await import(modelWorkerUtilsScriptPath)
         const { name } = await getDataFromBox(imageId, "file")
         if (utils.isValidImage(name)) {
           const imageBlob = await getFileContentFromBox(imageId, false, "blob")
@@ -101,8 +101,11 @@ onmessage = async (evt) => {
       break
       
     case 'predictWSI':
+      const { default: Imagebox3 } = await import("https://cdn.jsdelivr.net/gh/episphere/imagebox3/imagebox3.mjs");
+      
       stopPreds = false
       annotationId = data.body.annotationId
+      const { indexedDBConfig, getAllWSIDataFromIndexedDB, getWSIDataFromIndexedDB, uploadFileToBox } = await import(modelWorkerUtilsScriptPath)
       prediction = await getAllWSIDataFromIndexedDB(annotationId, {'removeKeys': ["userFeedback"]})
       imageId = data.body.imageData.imageId
       let { imageName, imageInfo, predictionBounds, wsiPredsFileId } = data.body.imageData
@@ -112,7 +115,7 @@ onmessage = async (evt) => {
       const tileServerBasePath = `https://imageboxv2-oxxe7c4jbq-uc.a.run.app/${tileServerPathSuffix}`
       // const imagebox3TileServerBasePath = `${location.origin}/${tileServerPathSuffix}`
       let isImagebox3Compatible = undefined
-      
+      let imagebox3Instance = undefined
       const wsiTilePrediction = async (tileInfo) => {
         const { imageId, imageURL, x, y, width, height, attemptNum } = tileInfo
         const indexedDBRecord = await getWSIDataFromIndexedDB({x, y, width, height}, annotationId)
@@ -124,18 +127,11 @@ onmessage = async (evt) => {
             'success': true,
             'fromLocalDB': true
           }
-        } else if (x >= 0 && y >= 0 && width >= 0 && height >= 0) {
+        } else if (x >= 0 && y >= 0 && width > 0 && height > 0) {
           let tile = undefined
 
           const getImageBox3Tile = async () => {
-            const tileParams = {
-              tileX: x,
-              tileY: y,
-              tileWidth: width,
-              tileHeight: height,
-              tileSize: tileWidthRendered
-            };
-            const tile = await imagebox3.getImageTile(imageURL, tileParams, true)
+            const tile = await imagebox3Instance.getTile(x, y, width, height, tileWidthRendered)
             return tile
           }
           if (typeof(isImagebox3Compatible) === "undefined"
@@ -190,7 +186,7 @@ onmessage = async (evt) => {
               offscreenCtx.drawImage(tileImageBitmap, 0, 0)
               const imgData = offscreenCtx.getImageData(0, 0, tileImageBitmap.width, tileImageBitmap.height)
               
-              if (imgData.data.filter(pixelIntensity => pixelIntensity < 220).length > 100) {
+              if (imgData.data.filter(pixelIntensity => pixelIntensity < 220).length > imgData.data.length*0.001) {
                 const prediction = await models[annotationId].model.classify(offscreenCV)
                 return {
                   annotationId,
@@ -238,11 +234,13 @@ onmessage = async (evt) => {
         }
       }
       
-      
       let lastURLRefreshTime = null
       if (imageId) {
         let url = await getFileContentFromBox(imageId, true)
         lastURLRefreshTime = Date.now()
+
+        imagebox3Instance = new Imagebox3(url, Math.floor(navigator.hardwareConcurrency/2))
+        await imagebox3Instance.init()
         
         if (!imageInfo) {
           const p = `${tileServerBasePath}/?format=${fileFormat}&iiif=${url}`
@@ -286,6 +284,13 @@ onmessage = async (evt) => {
             currentY = initialY
             currentTileWidth = initialX + tileDimensions <= finalX ? tileDimensions : minTileWidth
             currentTileHeight = initialY + tileDimensions <= finalY ? tileDimensions : minTileHeight
+            
+            if (currentX + currentTileWidth >= finalX) {
+              isRightMostTile = true
+            }
+            if (currentY + currentTileHeight >= finalY) {
+              isBottomMostTile = true
+            }
             
           } else {
             currentX += currentTileWidth
@@ -354,6 +359,7 @@ onmessage = async (evt) => {
               'height': tileInfo.height,
             }
           })
+
           if (!stopPreds && attemptNum <= 3) {
             tileInfo['attemptNum'] = attemptNum
             activeCalls += 1
@@ -361,7 +367,7 @@ onmessage = async (evt) => {
             wsiTilePrediction(tileInfo).then((data) => {
               activeCalls -= 1
             
-              if (data.success) {
+              if (data?.success) {
                 let predictedLabel=undefined
                 let predictionScore=undefined
                 if (!data.isTileBlank && !data.fromLocalDB) {
@@ -410,7 +416,7 @@ onmessage = async (evt) => {
                 return
          
               } else if (activeCalls === 0) {
-                imagebox3.destroyPool()
+                imagebox3Instance.destroyWorkerPool()
                 commitToBox(prediction)
                 postMessage({
                   op,
@@ -429,9 +435,18 @@ onmessage = async (evt) => {
 
               if (lastURLRefreshTime + 14*60*1000 < Date.now()) {
                 console.log("Box URL expired. Refreshing for further predictions.", Date())
-                url = await getFileContentFromBox(imageId, true)
-                lastURLRefreshTime = Date.now()
-                tileInfo['imageURL'] = url
+                if (url) {
+                  // Use url as a mutex.
+                  url = undefined
+                  url = await getFileContentFromBox(imageId, true)
+                  lastURLRefreshTime = Date.now()
+                  tileInfo['imageURL'] = url
+                  imagebox3Instance = new Imagebox3(url, Math.floor(navigator.hardwareConcurrency/2))
+                  await imagebox3Instance.init()
+                } else {
+                  // Wait for new URL and Imagebox3 instance setup to complete before moving on.
+                  await new Promise(res => setTimeout(res, 1000))
+                }
               }
               makePrediction(tileInfo, attemptNum+1)
             })
@@ -439,7 +454,7 @@ onmessage = async (evt) => {
           } else if (!stopPreds) {
             stopPreds = true
             console.error("Image loading failed too many times! Further predictions cannot be made.")
-            imagebox3.destroyPool()
+            imagebox3Instance.destroyWorkerPool()
             postMessage({
               op,
               'body': {
@@ -454,7 +469,11 @@ onmessage = async (evt) => {
 
         for (let i = 0; i < MAX_PARALLEL_REQUESTS; i++) {
           const tileInfo = getNextTileInfo(imageId)
-          makePrediction(tileInfo, 1)
+          if (tileInfo) {
+            makePrediction(tileInfo, 1)
+          } else {
+            break
+          }
         }
         
       }
@@ -468,6 +487,8 @@ onmessage = async (evt) => {
       const { modelId } = data.body
       const { wsiPredsFiles } = data.body.imageData
       const datasetConfig = data.body.datasetConfig
+
+      const { clearWSIDataFromIndexedDB, getPredsFromBox } = await import(modelWorkerUtilsScriptPath)
 
       clearWSIDataFromIndexedDB()
       const predsToInsert = []
@@ -512,5 +533,4 @@ onmessage = async (evt) => {
   // const tmaImage = tf.tensor3d(evt.data)
   // postMessage(pred)
 }
-
 loadLocalModel()

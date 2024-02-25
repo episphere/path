@@ -1,4 +1,4 @@
-importScripts("https://episphere.github.io/imagebox3/imagebox3.js")
+import Imagebox3 from "https://cdn.jsdelivr.net/gh/episphere/imagebox3/imagebox3.mjs"
 
 const epiPathBasePath = "https://episphere.github.io/path"
 const tileServerPathSuffix = "iiif"
@@ -7,6 +7,8 @@ const tileServerBasePath = `https://imageboxv2-oxxe7c4jbq-uc.a.run.app/${tileSer
 
 const wsiFileTypes = [".svs", ".ndpi"]
 const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff", ...wsiFileTypes]
+
+let imagebox3Instance = {}
 
 const indexedDBConfig = {
   dbName: "boxCreds",
@@ -175,21 +177,29 @@ const handleTIFFConversion = async (op, imageId, jpegRepresentationsFolderId, na
 const getWSIInfo = async (url, imgbox3=false) => {
   let imageInfo = {}
   if (imgbox3) {
-    imageInfo = await imagebox3.getImageInfo(url)
+    if (!imagebox3Instance[url]) {
+      imagebox3Instance[url] = new Imagebox3(url, 0)
+      await imagebox3Instance[url].init()
+    }
+    imageInfo = await imagebox3Instance[url].getInfo()
   } else {
     const infoURL = `${tileServerBasePath}?iiif=${url}/info.json`
     imageInfo =  await fetch(infoURL)
   }
-  return imageInfo.json()
+  return await imageInfo.json()
 }
 
 const getWSIThumbnail = async (url, width, height, imgbox3=false) => {
   let thumbnailImage = {}
   if (imgbox3) {
-    const tileParams = {
-      thumbnailWidthToRender: 256
-    };
-    thumbnailImage = await imagebox3.getImageThumbnail(url, tileParams)
+    const thumbnailWidthToRender = 256
+
+    if (!imagebox3Instance[url]) {
+      imagebox3Instance[url] = new Imagebox3(url, 0)
+      await imagebox3Instance[url].init()
+    }
+
+    thumbnailImage = await imagebox3Instance[url].getThumbnail(thumbnailWidthToRender)
   } else {
     const thumbnailURL = `${tileServerBasePath}?iiif=${url}/0,0,${width},${height}/256,/0/default.jpg`
     thumbnailImage = await fetch(thumbnailURL)
@@ -426,7 +436,7 @@ onmessage = async (evt) => {
   }
 }
 
-main = async () => {
+const main = async () => {
   workerDB = await fetchIndexedDBInstance()
 }
 

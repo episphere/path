@@ -1,4 +1,4 @@
-const indexedDBConfig = {
+export const indexedDBConfig = {
   'box': {
     'dbName': "boxCreds",
     'objectStoreName': "oauth"
@@ -14,7 +14,7 @@ const indexedDBConfig = {
 
 let boxCredsDB, wsiPredsDB
 
-utils = {
+const utils = {
   request: (url, opts) => 
     fetch(url, opts)
     .then(res => {
@@ -28,7 +28,7 @@ utils = {
 
 const fetchIndexedDBInstance = (key) => new Promise(resolve => {
   indexedDB.open(indexedDBConfig[key].dbName).onsuccess = (evt) => {
-    dbInstance = evt.target.result
+    const dbInstance = evt.target.result
     resolve(dbInstance)
   }
 })
@@ -64,7 +64,7 @@ const createFolderInBox = (folderName, parentFolderId=0) => new Promise(async re
   }
 })
 
-const getDataFromBox = (id, type="file", fields=[]) => {
+export const getDataFromBox = (id, type="file", fields=[]) => {
   return new Promise(async resolve => {
     boxCredsDB = boxCredsDB || await fetchIndexedDBInstance('box')
     boxCredsDB.transaction(indexedDBConfig['box'].objectStoreName, "readonly").objectStore(indexedDBConfig['box'].objectStoreName).get(1).onsuccess = async (evt) => {
@@ -83,7 +83,7 @@ const getDataFromBox = (id, type="file", fields=[]) => {
   })
 }
 
-const getFileContentFromBox = (id, urlOnly=false, responseType="json") => {
+export const getFileContentFromBox = (id, urlOnly=false, responseType="json") => {
   const contentEndpoint = `https://api.box.com/2.0/files/${id}/content`
   
   return new Promise(async (resolve) => {
@@ -127,7 +127,7 @@ const getFileContentFromBox = (id, urlOnly=false, responseType="json") => {
   })
 }
 
-const uploadFileToBox = (data, id) => {
+export const uploadFileToBox = (data, id) => {
   const uploadEndpoint = id ? `https://upload.box.com/api/2.0/files/${id}/content` : `https://upload.box.com/api/2.0/files/content`
 
   return new Promise (async (resolve) => {
@@ -171,7 +171,7 @@ const updateMetadataInBox = (id, path, updateData) => new Promise(async resolve 
   }
 })
 
-const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, wsiPredsFiles=[]) => {
+export const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, wsiPredsFiles=[]) => {
   const userId = await getBoxUserId()
   let { wsiPredsFolderId } = datasetConfig
 
@@ -329,7 +329,7 @@ const getPredsFromBox = async (imageId, annotationId, modelId, datasetConfig, ws
   }
 }
 
-const insertWSIDataToIndexedDB = (data, annotationId) => new Promise (async resolve => {
+export const insertWSIDataToIndexedDB = (data, annotationId) => new Promise (async resolve => {
   let dataValidated = false
   if (Array.isArray(data)) {
     // Check if all relevant keys of all rows are non-negative.
@@ -353,7 +353,7 @@ const insertWSIDataToIndexedDB = (data, annotationId) => new Promise (async reso
   }
 })
 
-const getWSIDataFromIndexedDB = (query, annotationId) => new Promise (async resolve => {
+export const getWSIDataFromIndexedDB = (query, annotationId) => new Promise (async resolve => {
   if (indexedDBConfig['wsi'].objectStoreOpts.keyPath.every(key => query[key] >= 0)) {
     wsiPredsDB = wsiPredsDB || await fetchIndexedDBInstance('wsi')
     const objectStore = wsiPredsDB.transaction(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, "readonly").objectStore(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`)
@@ -361,7 +361,7 @@ const getWSIDataFromIndexedDB = (query, annotationId) => new Promise (async reso
   }
 })
 
-const getAllWSIDataFromIndexedDB = (annotationId, opts={}) => new Promise (async resolve => {
+export const getAllWSIDataFromIndexedDB = (annotationId, opts={}) => new Promise (async resolve => {
   const { removeKeys=[] } = opts
   wsiPredsDB = wsiPredsDB || await fetchIndexedDBInstance('wsi')
   const objectStore = wsiPredsDB.transaction(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`, "readonly").objectStore(`${indexedDBConfig['wsi'].objectStoreNamePrefix}_${annotationId}`)
@@ -379,7 +379,7 @@ const getAllWSIDataFromIndexedDB = (annotationId, opts={}) => new Promise (async
   }
 })
 
-const clearWSIDataFromIndexedDB = () => new Promise (async resolve => {
+export const clearWSIDataFromIndexedDB = () => new Promise (async resolve => {
   wsiPredsDB = wsiPredsDB || await fetchIndexedDBInstance('wsi')
   Object.values(wsiPredsDB.objectStoreNames).forEach(objectStoreName => {
     const objectStore = wsiPredsDB.transaction(objectStoreName, "readwrite").objectStore(objectStoreName)
@@ -388,7 +388,7 @@ const clearWSIDataFromIndexedDB = () => new Promise (async resolve => {
 })
 
 
-class BoxHandler {
+export class BoxHandler {
   constructor (configJSON, weightFiles) {
     this.configJSON = configJSON
     this.weightFiles = weightFiles

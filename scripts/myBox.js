@@ -180,7 +180,7 @@ myBox.loadFolderTree = (folderData) => {
       currentFolderDiv.setAttribute("class", `boxFileMgr_folderTree`)
       currentFolderDiv.setAttribute("id", `boxFileMgr_folderTree_${id}`)
       const moreFiles = limit < total_count
-      const folderSubDiv = myBox.populateFolderTree(entries, currentFolderDiv, moreFiles)
+      const folderSubDiv = myBox.populateFolderTree(id, entries, currentFolderDiv, moreFiles)
       // hideLoader(loaderElementId)
 
       // parentElement.style.height = window.innerHeight - parentElement.getBoundingClientRect().y - 40 // 40 seems to be the initial width of the canvas
@@ -202,9 +202,18 @@ myBox.loadFolderTree = (folderData) => {
   }
 }
 
-myBox.populateFolderTree = (entries, currentFolderDiv, moreFiles=false) => {
-  const addMoreFilesToFolderTree = () => {
-    console.log(currentFolderDiv.querySelectorAll("div.boxFileMgr_subFolder"))
+myBox.populateFolderTree = (folderId, entries, currentFolderDiv, moreFiles=false) => {
+  const addMoreFilesToFolderTree = async (moreFilesBtnDiv) => {
+    moreFilesBtnDiv.innerHTML = `<span><img src="external/images/loader.gif" class="loaderImg" id="moreFilesLoaderImg"></span>`
+    const defaultLimit = 100
+    const numEntriesInFolderTree = currentFolderDiv.querySelectorAll("div.boxFileMgr_subfolder").length
+    
+    const {total_count: totalCount, entries: moreEntries } = await box.getFolderContents(folderId, defaultLimit, numEntriesInFolderTree)
+    
+    setTimeout(() => {
+      currentFolderDiv.removeChild(moreFilesBtnDiv)
+      myBox.populateFolderTree(folderId, moreEntries, currentFolderDiv, (numEntriesInFolderTree + moreEntries.length) < totalCount)
+    }, 500)
   }
 
   const addFileElementToFolderTree = (entry, currentFolderDiv) => {
@@ -297,7 +306,7 @@ myBox.populateFolderTree = (entries, currentFolderDiv, moreFiles=false) => {
     moreFilesBtn.setAttribute("id", "moreFilesBtn")
     moreFilesBtn.setAttribute("type", "button")
     moreFilesBtn.innerText = "+ More Files"
-    moreFilesBtn.onclick = () => addMoreFilesToFolderTree(currentFolderDiv)
+    moreFilesBtn.onclick = () => addMoreFilesToFolderTree(moreFilesBtnDiv)
     moreFilesBtnDiv.appendChild(moreFilesBtn)
     currentFolderDiv.appendChild(moreFilesBtnDiv)
   }

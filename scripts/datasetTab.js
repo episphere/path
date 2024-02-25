@@ -14,7 +14,8 @@ dataset.loadModels = (modelsConfig=[]) => {
   
   Object.values(selectedModelPerAnnotation).forEach(modelConfig => {
     dataset.predictionWorkers[modelConfig.correspondingAnnotation] = new Worker(`${basePath}scripts/modelPrediction.js`, {
-      name: path.datasetConfig.annotations.find(annot => annot.annotationId === modelConfig.correspondingAnnotation).annotationName
+      name: path.datasetConfig.annotations.find(annot => annot.annotationId === modelConfig.correspondingAnnotation).annotationName,
+      type: 'module'
     })
     dataset.predictionWorkers[modelConfig.correspondingAnnotation].onmessage = (e) => {
       const {op, ...dataFromWorker} = e.data

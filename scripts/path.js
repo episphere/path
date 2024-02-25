@@ -209,7 +209,7 @@ const path = async () => {
   path.setupEventListeners()
   path.boxCredsDB = await path.setupIndexedDB(...Object.values(indexedDBConfig['box']))
   
-  path.miscProcessingWorker = new Worker(`${basePath}/scripts/miscProcessing.js`)
+  path.miscProcessingWorker = new Worker(`${basePath}/scripts/miscProcessing.js`, {type: 'module'})
 
   // addWSIServiceWorker = () => {
   //   if ('serviceWorker' in navigator) {

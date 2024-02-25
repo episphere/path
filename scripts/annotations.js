@@ -294,9 +294,11 @@ annotations.populateAnnotationCard = async (annotationCardContentDiv, annotation
           userAnnotations.forEach(({rectBounds, label, createdAt, comment}, ind) => {
             label = label || `${displayName} ${labels[0].displayText}`
             const annotationElement = annotations.createWSIAnnotationElement(annotationId, metaName, { label, createdAt, comment, ...rectBounds }, {modelAnnotation: false, addToParent: false})
-            tempDocumentFragment.appendChild(annotationElement)
-            if (ind !== userAnnotations.length - 1) {
-              tempDocumentFragment.appendChild(document.createElement("hr"))
+            if (annotationElement) {
+              tempDocumentFragment.appendChild(annotationElement)
+              if (ind !== userAnnotations.length - 1) {
+                tempDocumentFragment.appendChild(document.createElement("hr"))
+              }
             }
           })
           annotationsContainerElement.appendChild(tempDocumentFragment)
@@ -418,6 +420,9 @@ annotations.createWSIAnnotationElement = (annotationId, metaName, annotationData
   const { modelAnnotation=false, addToParent=false } = options
   let annotationElement
   let { x, y, width, height } = annotationData
+  if (!path.wsiViewer?.world?.getItemAt(0)) {
+    return
+  }
   if (modelAnnotation) {
     const { selectedLabels=wsi.defaultSelectedLabels, requestedTileSize=wsi.defaultTileSize, scoreThreshold=annotations.predictionScoreThreshold  } = options
     const { predictedLabel, predictionScore, modelId, userFeedback } = annotationData

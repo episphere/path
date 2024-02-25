@@ -4,12 +4,13 @@ const maxTileSizeToLookAt = 512
 
 wsi.defaultLabelOverlayColors = ['#e31a1c99','#33a02c99','#1f78b499','#6a3d9a99','#ff7f0099','#b1592899','#a6cee399','#b2df8a99','#fb9a9999','#fdbf6f99','#cab2d699','#ffff9999']
 
+wsi.imageBox3LibraryPath = `https://cdn.jsdelivr.net/gh/episphere/imagebox3/imagebox3.mjs`
+wsi.imagebox3Instance = {}
 wsi.tileServerPathSuffix = "iiif"
 wsi.metadataPathPrefix = "wsi"
 wsi.customMetadataPathPrefix = `${wsi.metadataPathPrefix}_customAnnotation_0`
 wsi.userFeedbackForPredictionPrefix = `${wsi.metadataPathPrefix}_feedback`
 wsi.tileServerBasePath = `https://imageboxv2-oxxe7c4jbq-uc.a.run.app/${wsi.tileServerPathSuffix}`
-// wsi.imageBox3TileServerBasePath = `${window.location.origin}/${wsi.tileServerPathSuffix}`
 
 const reloadImageAfterURLTimeout = (id, name) => wsi.loadImage(id, name)
 
@@ -61,10 +62,12 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
   const format = name.substring(name.lastIndexOf(".") + 1)
   let imageInfo = fileMetadata.wsiInfo ? JSON.parse(fileMetadata.wsiInfo) : undefined
   let tileServerRequestURL = undefined
-  const {default: {getImageInfo}} = await import("https://episphere.github.io/imagebox3/imagebox3.mjs")
+  const { default: Imagebox3 } = await import(wsi.imageBox3LibraryPath)
   try {
     if (!imageInfo) {
-      imageInfo = await (await getImageInfo(url)).json()
+      wsi.imagebox3Instance = new Imagebox3(url, 0)
+      await wsi.imagebox3Instance.init()
+      imageInfo = await (await wsi.imagebox3Instance.getInfo()).json()
     }
     wsi.isImagebox3Compatible = true
   } catch(e) {
@@ -84,7 +87,8 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
   console.log("Image Info : ", imageInfo)
   let tileSources = {}
   if (wsi.isImagebox3Compatible) {
-    tileSources = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(url, {logLatency: false, cache: false}))[0]
+    const workerPool = path.wsiViewer?.world?.getItemAt(0)?.source._pool
+    tileSources = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(url, {logLatency: false, cache: false, slideOnly: true, pool: workerPool }))[0]
   } else {
     tileSources = {
       "@context": imageInfo["@context"],
@@ -223,7 +227,6 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
         // const currentLevel = path.wsiViewer.world.getItemAt(0).lastDrawn.reduce((maxLevel, current) => maxLevel < current.level ? current.level : maxLevel, 0)
         // const tileSizeAtCurrentLevel = Math.pow(2, 8 + path.wsiViewer.source.maxLevel - currentLevel) // Start at 2^8 because 256 is the smallest tile size we consider.
         
-        
         if (regionSelected === "drawRegion") {
           path.wsiViewer.element.style.cursor = "crosshair"
           const canvasDragHandler = (obj) => {
@@ -307,7 +310,19 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
           const startX = 0
           const startY = 0
           const {width: endX, height: endY } = imageInfo
-          runModelWSI(startX, startY, endX, endY, maxTileSizeToLookAt)
+
+          const currentBounds = path.wsiViewer.getConstrainedBounds()
+          const homeBounds = path.wsiViewer.getHomeBounds()
+
+          if (currentBounds.x === homeBounds.x && currentBounds.y === homeBounds.y && currentBounds.width === homeBounds.width && currentBounds.height === homeBounds.height && currentBounds.degrees === homeBounds.degrees) {
+          } else {
+            path.wsiViewer.addOnceHandler('home', (e) => {
+              path.wsiViewer.addOnceHandler('animation-finish', (e) => {
+                runModelWSI(startX, startY, endX, endY, maxTileSizeToLookAt)
+              })
+            })
+            path.wsiViewer.viewport.goHome()
+          }
         }
       }
 
@@ -726,11 +741,14 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
       // })
   } else {
     showLoader(loaderElementId, path.wsiViewer.canvas)
+    
     const wsiCanvas = path.wsiViewer.canvas.querySelector("canvas")
     const wsiCtx = wsiCanvas.getContext("2d")
     wsiCtx.clearRect(0, 0, wsiCanvas.width, wsiCanvas.height)
+
     path.wsiViewer.open(tileSources)
     path.wsiViewer.imageLoadedAtTime = Date.now()
+    
     wsi.removePanAndZoomFromHash()
     wsi.clearIndexedDB().then(() => {
       annotations.populateWSIAnnotations(true, true)
@@ -832,7 +850,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
 
         if (wsi.isImagebox3Compatible) {
           const newTileSourceURL = refreshedFileURL
-          path.wsiViewer.newTileSource = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(newTileSourceURL, {logLatency: false, cache: false}))[0]
+          path.wsiViewer.newTileSource = (await OpenSeadragon.GeoTIFFTileSource.getAllTileSources(newTileSourceURL, { logLatency: false, cache: false, slideOnly: true, pool: oldTileSource._pool }))[0]
           path.wsiViewer.newTileSource.loadedAtTime = Date.now()
         } else {
           const newTileSourceURL = `${wsi.tileServerBasePath}/?format=${format}&iiif=${refreshedFileURL}`
@@ -1191,8 +1209,10 @@ wsi.createOverlayRect = (opts) => {
     userData: `${elementId}_tracker`,
     element: elementId,
     preProcessEventHandler: (e) => {
-      e.stopPropagation = true;
-      e.preventDefault = true;
+      if (e.eventType !== "wheel") {
+        e.stopPropagation = true;
+        e.preventDefault = true;
+      }
     },
     clickHandler: (e) => {
       if (e.shiftKey) {
