@@ -271,7 +271,7 @@ export const getPredsFromBox = async (imageId, annotationId, modelId, datasetCon
       datasetConfigChanged = true
     }
 
-    const dataBlob = new Blob([JSON.stringify([])], {
+    const dataBlob = new Blob([JSON.stringify({})], {
       type: "application/json"
     })
     let fileAttributes = {

@@ -1,8 +1,8 @@
 const models = {}
 
 models.getTMAPrediction = (annotationId, annotationType, imageId=hashParams.image, forceModel=false, updateInBox=true) => new Promise(async (resolve) => {
-  // const metadata = imageId === hashParams.image ? JSON.parse(window.localStorage.fileMetadata) : await box.getMetadata(imageId, "file")
-  // const annotations = metadata[annotationType] ? JSON.parse(metadata[annotationType]) : {}
+  const metadata = imageId === hashParams.image ? JSON.parse(window.localStorage.fileMetadata) : await box.getMetadata(imageId, "file")
+  const annotations = metadata[annotationType] ? JSON.parse(metadata[annotationType]) : {}
 
   const updatePredictionInBox = (imageId, modelPrediction, annotationName) => {
     if (annotations["model"]) {
