@@ -67,7 +67,7 @@ wsi.loadImage = async (id, name, fileMetadata={}) => {
     if (!imageInfo) {
       wsi.imagebox3Instance = new Imagebox3(url, 0)
       await wsi.imagebox3Instance.init()
-      imageInfo = await (await wsi.imagebox3Instance.getInfo()).json()
+      imageInfo = await wsi.imagebox3Instance.getInfo()
     }
     wsi.isImagebox3Compatible = true
   } catch(e) {

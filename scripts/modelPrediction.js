@@ -173,11 +173,11 @@ onmessage = async (evt) => {
             }
           } else if (!tile) {
             const tileServerRequest = `${tileServerBasePath}/?format=${fileFormat}&iiif=${imageURL}/${x},${y},${width},${height}/${tileWidthRendered},/0/default.jpg`
-            tile = await fetch(tileServerRequest)
+            tile = await (await fetch(tileServerRequest)).blob()
           }
           // const tileServerRequest = `${tileServerBasePath}/?format=${fileFormat}&iiif=${imageURL}/${x},${y},${width},${height}/${width > maxTileImageDimension ? maxTileImageDimension: width},/0/default.jpg`
           try {
-            const tileBlob = await tile.blob()
+            const tileBlob = tile
             const tileImageBitmap = await createImageBitmap(tileBlob)
             
             if (tileImageBitmap) {

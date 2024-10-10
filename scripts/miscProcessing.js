@@ -184,9 +184,9 @@ const getWSIInfo = async (url, imgbox3=false) => {
     imageInfo = await imagebox3Instance[url].getInfo()
   } else {
     const infoURL = `${tileServerBasePath}?iiif=${url}/info.json`
-    imageInfo =  await fetch(infoURL)
+    imageInfo =  await (await fetch(infoURL)).json()
   }
-  return await imageInfo.json()
+  return imageInfo
 }
 
 const getWSIThumbnail = async (url, width, height, imgbox3=false) => {
@@ -202,9 +202,9 @@ const getWSIThumbnail = async (url, width, height, imgbox3=false) => {
     thumbnailImage = await imagebox3Instance[url].getThumbnail(thumbnailWidthToRender)
   } else {
     const thumbnailURL = `${tileServerBasePath}?iiif=${url}/0,0,${width},${height}/256,/0/default.jpg`
-    thumbnailImage = await fetch(thumbnailURL)
+    thumbnailImage = await (await fetch(thumbnailURL)).blob()
   }
-  return thumbnailImage.blob()
+  return thumbnailImage
 }
 
 const handleWSIThumbnailCreation = async (op, imageId, name, wsiThumbnailsFolderId) => {
