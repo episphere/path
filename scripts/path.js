@@ -37,7 +37,7 @@ const basePath = window.location.pathname === "/" ? "" : window.location.pathnam
 let configFileId = window.location.hash.includes("covid") ? 644912149213 : 627997326641
 // const configFileId = 627997326641
 const containsEmojiRegex = new RegExp("(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])")
-const wsiFileTypes = [".svs", ".ndpi"]
+const wsiFileTypes = [".svs", ".ndpi", ".tiff"]
 const validFileTypes = [".jpg", ".jpeg", ".png", ".tiff", ...wsiFileTypes]
 
 const urlParams = {}
@@ -528,7 +528,7 @@ const loadImageFromBox = async (id, url) => {
           path.tmaImage.setAttribute("entry_id", id)
           wsi.loadImage(id, name, fileMetadata)
         } else {
-
+          // Just in case it's a non-WSI TIFF. Legacy code honestly, shouldn't be needed post ImageBox3, but needs to be tested.
           if (name.endsWith(".tiff")) {
             
             if (!path.tiffUnsupportedAlertShown && typeof OffscreenCanvas !== "function") { // Alert for browsers without OffscreenCanvas support.

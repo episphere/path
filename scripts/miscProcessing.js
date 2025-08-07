@@ -220,7 +220,7 @@ const handleWSIThumbnailCreation = async (op, imageId, name, wsiThumbnailsFolder
   let imageInfo = undefined
 
   const checkImageBox3Compatibility = async () => {
-    if (!name.endsWith('svs')) {
+    if (!name.endsWith('svs') && !name.endsWith('.tiff')) {
       return false
     }
     try {
